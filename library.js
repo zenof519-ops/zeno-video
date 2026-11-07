@@ -19,7 +19,8 @@ async function loadVideos() {
     );
 
     if (!response.ok) {
-      throw new Error("Impossible de charger les vidéos.");
+  const details = await response.text();
+  throw new Error("Supabase (" + response.status + ") : " + details);
     }
 
     const videos = await response.json();
