@@ -19,15 +19,14 @@ async function loadVideos() {
     );
 
     if (!response.ok) {
-  const details = await response.text();
-  throw new Error("Supabase (" + response.status + ") : " + details);
+      const details = await response.text();
+      throw new Error("Supabase (" + response.status + ") : " + details);
     }
 
     const videos = await response.json();
 
     count.textContent = videos.length + " vidéo(s)";
     empty.hidden = videos.length !== 0;
-
     grid.innerHTML = "";
 
     for (const v of videos) {
