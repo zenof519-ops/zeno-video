@@ -1,6 +1,6 @@
-
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
+const CLOUD_NAME = "wnonuvx4";
 
 const grid = document.getElementById("video-grid");
 const count = document.getElementById("video-count");
@@ -9,7 +9,7 @@ const empty = document.getElementById("empty-message");
 async function loadVideos() {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,thumbnail_url&is_published=eq.true&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,thumbnail_url,cloudinary_public_id&is_published=eq.true&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -56,6 +56,23 @@ async function loadVideos() {
       watch.href = url;
       watch.textContent = "Regarder";
 
+      const download = document.createElement("a");
+      download.className = "btn alt";
+      download.textContent = "Télécharger";
+
+      if (v.cloudinary_public_id) {
+        const publicId = v.cloudinary_public_id
+          .split("/")
+          .map(encodeURIComponent)
+          .join("/");
+
+        download.href =
+          `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
+      } else {
+        download.href = url;
+        download.textContent = "Télécharger depuis le lecteur";
+      }
+
       const copy = document.createElement("button");
       copy.className = "btn alt";
       copy.textContent = "Copier le lien";
@@ -70,7 +87,7 @@ async function loadVideos() {
         }
       };
 
-      card.append(a, h, p, watch, copy);
+      card.append(a, h, p, watch, download, copy);
       grid.append(card);
     }
   } catch (error) {
