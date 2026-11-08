@@ -107,7 +107,11 @@ async function loadAdminVideos() {
     title.textContent = video.title;
 
     const description = document.createElement("p");
-    description.textContent = video.description || "Sans description";
+description.textContent = video.description || "Sans description";
+
+const views = document.createElement("p");
+views.textContent = "Lectures démarrées : " +
+  Number(video.views || 0).toLocaleString("fr-FR");
 
     const status = document.createElement("p");
     status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
@@ -130,7 +134,7 @@ async function loadAdminVideos() {
     deleteButton.addEventListener("click", () => deleteVideo(video));
 
     actions.append(editButton, publishButton, deleteButton);
-    card.append(title, description, status, actions);
+    card.append(title, description, views, status, actions);
     videoList.append(card);
   }
 }
