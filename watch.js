@@ -42,8 +42,7 @@ async function loadVideo() {
     if (!id) throw new Error("Vidéo introuvable");
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
-      {
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id,format&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
         headers: {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`
