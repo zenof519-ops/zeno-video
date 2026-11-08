@@ -82,6 +82,7 @@ async function loadVideo() {
           controls: true,
           fluid: true,
           preload: "metadata"
+          sourceTypes: ["mp4"]
         }
       );
 
