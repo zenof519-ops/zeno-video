@@ -29,20 +29,29 @@ async function registerViewOnce() {
 
     if (!response.ok) {
       viewRegistered = false;
-      console.error("Erreur de comptabilisation :", await response.text());
+      console.error(
+        "Erreur de comptabilisation :",
+        await response.text()
+      );
     }
   } catch (error) {
     viewRegistered = false;
-    console.error("Impossible d'enregistrer la lecture :", error);
+    console.error(
+      "Impossible d'enregistrer la lecture :",
+      error
+    );
   }
 }
 
 async function loadVideo() {
   try {
-    if (!id) throw new Error("Vidéo introuvable");
+    if (!id) {
+      throw new Error("Vidéo introuvable");
+    }
 
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id,format&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      {
         headers: {
           apikey: SUPABASE_KEY,
           Authorization: `Bearer ${SUPABASE_KEY}`
@@ -51,16 +60,22 @@ async function loadVideo() {
     );
 
     if (!response.ok) {
-      throw new Error("Impossible de récupérer cette vidéo.");
+      throw new Error(
+        "Impossible de récupérer cette vidéo."
+      );
     }
 
     const videos = await response.json();
     const video = videos[0];
 
-    if (!video) throw new Error("Vidéo introuvable");
+    if (!video) {
+      throw new Error("Vidéo introuvable");
+    }
 
     document.title = video.title + " — Zeno Video";
-    document.getElementById("video-title").textContent = video.title;
+    document.getElementById("video-title").textContent =
+      video.title;
+
     document.getElementById("video-description").textContent =
       video.description || "";
 
@@ -83,12 +98,16 @@ async function loadVideo() {
 
       const format = (video.format || "mp4").toLowerCase();
 
-media.src =
-  `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${format}`;
+      media.src =
+        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${format}`;
+
       media.addEventListener("playing", registerViewOnce);
 
       media.addEventListener("error", () => {
-        console.error("Erreur de lecture vidéo :", media.error);
+        console.error(
+          "Erreur de lecture vidéo :",
+          media.error
+        );
       });
 
       wrap.replaceChildren(media);
@@ -111,7 +130,9 @@ media.src =
     }
 
   } catch (error) {
-    document.getElementById("video-title").textContent = error.message;
+    document.getElementById("video-title").textContent =
+      error.message;
+
     document.getElementById("error-message").hidden = false;
     wrap.hidden = true;
   }
@@ -119,11 +140,15 @@ media.src =
 
 loadVideo();
 
-document.getElementById("copy-watch-link").onclick = async () => {
-  try {
-    await navigator.clipboard.writeText(location.href);
-    document.getElementById("copy-watch-link").textContent = "Lien copié !";
-  } catch {
-    prompt("Copie ce lien :", location.href);
-  }
-};
+document.getElementById("copy-watch-link").onclick =
+  async () => {
+    try {
+      await navigator.clipboard.writeText(location.href);
+
+      document.getElementById("copy-watch-link").textContent =
+        "Lien copié !";
+
+    } catch {
+      prompt("Copie ce lien :", location.href);
+    }
+  };
