@@ -66,48 +66,48 @@ async function loadVideo() {
       video.description || "";
 
     if (video.cloudinary_public_id) {
-      wrap.innerHTML = `
-        <video
-          id="zeno-cloudinary-player"
-          controls
-          playsinline
-          class="cld-video-player cld-fluid">
-        </video>
-      `;
-
-      const player = await cloudinary.player(
-        "zeno-cloudinary-player",
-        {
-          cloudName: CLOUD_NAME,
-          controls: true,
-          fluid: true,
-          preload: "metadata"
-          sourceTypes: ["mp4"]
-        }
-      );
-
-      player.on("playing", registerViewOnce);
-
-      player.source(video.cloudinary_public_id);
-
       const publicId = video.cloudinary_public_id
         .split("/")
         .map(encodeURIComponent)
         .join("/");
 
+      const media = document.createElement("video");
+
+      media.controls = true;
+      media.playsInline = true;
+      media.preload = "metadata";
+      media.style.width = "100%";
+      media.style.maxWidth = "100%";
+      media.style.height = "auto";
+      media.style.display = "block";
+      media.style.background = "#000";
+
+      media.src =
+        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.mp4`;
+
+      media.addEventListener("playing", registerViewOnce);
+
+      media.addEventListener("error", () => {
+        console.error("Erreur de lecture vidéo :", media.error);
+      });
+
+      wrap.replaceChildren(media);
+
       downloadButton.href =
         `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
 
       downloadButton.hidden = false;
+
     } else {
       const frame = document.createElement("iframe");
+
       frame.src = video.playback_url;
-      frame.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
+      frame.allow =
+        "autoplay; fullscreen; encrypted-media; picture-in-picture";
       frame.allowFullscreen = true;
       frame.title = video.title;
 
-      wrap.innerHTML = "";
-      wrap.append(frame);
+      wrap.replaceChildren(frame);
     }
 
   } catch (error) {
