@@ -32,6 +32,7 @@ function resetVideoForm() {
   videoForm.reset();
   editingId = null;
   videoFormat = "mp4";
+
   document.getElementById("form-title").textContent = "Ajouter une vidéo";
   saveButton.textContent = "Envoyer et ajouter la vidéo";
   cancelEditButton.classList.add("admin-hidden");
@@ -60,7 +61,10 @@ loginForm.addEventListener("submit", async (event) => {
   const email = document.getElementById("email").value;
   const password = document.getElementById("password").value;
 
-  const { data, error } = await db.auth.signInWithPassword({ email, password });
+  const { data, error } = await db.auth.signInWithPassword({
+    email,
+    password
+  });
 
   if (error) {
     showMessage(loginMessage, "Erreur : " + error.message);
@@ -108,14 +112,17 @@ async function loadAdminVideos() {
     title.textContent = video.title;
 
     const description = document.createElement("p");
-description.textContent = video.description || "Sans description";
+    description.textContent = video.description || "Sans description";
 
-const views = document.createElement("p");
-views.textContent = "Lectures démarrées : " +
-  Number(video.views || 0).toLocaleString("fr-FR");
+    const views = document.createElement("p");
+    views.textContent =
+      "Lectures démarrées : " +
+      Number(video.views || 0).toLocaleString("fr-FR");
 
     const status = document.createElement("p");
-    status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
+    status.textContent = video.is_published
+      ? "Statut : Publiée"
+      : "Statut : Non publiée";
 
     const actions = document.createElement("div");
     actions.className = "admin-actions";
@@ -126,7 +133,9 @@ views.textContent = "Lectures démarrées : " +
 
     const publishButton = document.createElement("button");
     publishButton.className = "alt";
-    publishButton.textContent = video.is_published ? "Dépublier" : "Publier";
+    publishButton.textContent = video.is_published
+      ? "Dépublier"
+      : "Publier";
     publishButton.addEventListener("click", () => togglePublication(video));
 
     const deleteButton = document.createElement("button");
@@ -145,7 +154,9 @@ function editVideo(video) {
   videoFormat = video.format || "mp4";
 
   document.getElementById("video-name").value = video.title;
-  document.getElementById("video-description").value = video.description || "";
+  document.getElementById("video-description").value =
+    video.description || "";
+
   cloudinaryIdInput.value = video.cloudinary_public_id;
   thumbnailInput.value = video.thumbnail_url || "";
 
@@ -162,7 +173,9 @@ videoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const title = document.getElementById("video-name").value.trim();
-  const description = document.getElementById("video-description").value.trim();
+  const description =
+    document.getElementById("video-description").value.trim();
+
   const selectedFile = videoFileInput.files[0];
   let publicId = cloudinaryIdInput.value.trim();
   let thumbnail = thumbnailInput.value.trim();
@@ -173,21 +186,38 @@ videoForm.addEventListener("submit", async (event) => {
   }
 
   if (!editingId && !selectedFile && !publicId) {
-    showMessage(videoMessage, "Choisis un fichier vidéo ou saisis un identifiant public Cloudinary.");
+    showMessage(
+      videoMessage,
+      "Choisis un fichier vidéo ou saisis un identifiant public Cloudinary."
+    );
     return;
   }
 
   if (selectedFile) {
-    const allowedTypes = ["video/mp4", "video/quicktime", "video/webm"];
+    const allowedTypes = [
+      "video/mp4",
+      "video/quicktime",
+      "video/webm"
+    ];
+
     if (!allowedTypes.includes(selectedFile.type)) {
-      showMessage(videoMessage, "Format non accepté. Choisis un fichier MP4, MOV ou WebM.");
+      showMessage(
+        videoMessage,
+        "Format non accepté. Choisis un fichier MP4, MOV ou WebM."
+      );
       return;
     }
   }
 
   saveButton.disabled = true;
   videoFileInput.disabled = true;
-  showMessage(videoMessage, selectedFile ? "Envoi de la vidéo vers Cloudinary en cours..." : "Enregistrement en cours...");
+
+  showMessage(
+    videoMessage,
+    selectedFile
+      ? "Envoi de la vidéo vers Cloudinary en cours..."
+      : "Enregistrement en cours..."
+  );
 
   try {
     if (selectedFile) {
@@ -197,26 +227,44 @@ videoForm.addEventListener("submit", async (event) => {
 
       const uploadResponse = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`,
-        { method: "POST", body: uploadData }
+        {
+          method: "POST",
+          body: uploadData
+        }
       );
 
       const uploaded = await uploadResponse.json();
 
       if (!uploadResponse.ok) {
-        throw new Error(uploaded.error?.message || "Cloudinary n'a pas accepté le fichier.");
+        throw new Error(
+          uploaded.error?.message ||
+          "Cloudinary n'a pas accepté le fichier."
+        );
       }
 
       publicId = uploaded.public_id;
-      videoFormat = uploaded.format || selectedFile.name.split(".").pop().toLowerCase();
+      videoFormat =
+        uploaded.format ||
+        selectedFile.name.split(".").pop().toLowerCase();
+
       if (!thumbnail) {
-        thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
+        thumbnail =
+          `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
       }
+
       cloudinaryIdInput.value = publicId;
       thumbnailInput.value = thumbnail;
-      showMessage(videoMessage, "Vidéo envoyée ! Enregistrement dans la bibliothèque...");
+
+      showMessage(
+        videoMessage,
+        "Vidéo envoyée ! Enregistrement dans la bibliothèque..."
+      );
     }
 
-    const playerUrl = new URL("https://player.cloudinary.com/embed/");
+    const playerUrl = new URL(
+      "https://player.cloudinary.com/embed/"
+    );
+
     playerUrl.searchParams.set("cloud_name", CLOUD_NAME);
     playerUrl.searchParams.set("public_id", publicId);
 
@@ -225,26 +273,46 @@ videoForm.addEventListener("submit", async (event) => {
       description,
       cloudinary_public_id: publicId,
       playback_url: playerUrl.toString(),
-      thumbnail_url: thumbnail || null
+      thumbnail_url: thumbnail || null,
       format: videoFormat
     };
 
     let result;
+
     if (editingId) {
-      result = await db.from("videos").update(videoData).eq("id", editingId);
+      result = await db
+        .from("videos")
+        .update(videoData)
+        .eq("id", editingId);
     } else {
-      result = await db.from("videos").insert({ ...videoData, is_published: true });
+      result = await db
+        .from("videos")
+        .insert({
+          ...videoData,
+          is_published: true
+        });
     }
 
     if (result.error) {
-      throw new Error("Vidéo envoyée sur Cloudinary, mais Supabase n'a pas pu l'enregistrer : " + result.error.message);
+      throw new Error(
+        "Vidéo envoyée sur Cloudinary, mais Supabase n'a pas pu l'enregistrer : " +
+        result.error.message
+      );
     }
 
-    showMessage(videoMessage, editingId ? "Vidéo modifiée avec succès !" : "Vidéo ajoutée avec succès !");
+    showMessage(
+      videoMessage,
+      editingId
+        ? "Vidéo modifiée avec succès !"
+        : "Vidéo ajoutée avec succès !"
+    );
+
     resetVideoForm();
     await loadAdminVideos();
+
   } catch (error) {
     showMessage(videoMessage, "Erreur : " + error.message);
+
   } finally {
     saveButton.disabled = false;
     videoFileInput.disabled = Boolean(editingId);
@@ -259,7 +327,9 @@ cancelEditButton.addEventListener("click", () => {
 async function togglePublication(video) {
   const { error } = await db
     .from("videos")
-    .update({ is_published: !video.is_published })
+    .update({
+      is_published: !video.is_published
+    })
     .eq("id", video.id);
 
   if (error) {
@@ -271,9 +341,18 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  if (!confirm("Supprimer définitivement cette vidéo de la bibliothèque ?")) return;
+  if (
+    !confirm(
+      "Supprimer définitivement cette vidéo de la bibliothèque ?"
+    )
+  ) {
+    return;
+  }
 
-  const { error } = await db.from("videos").delete().eq("id", video.id);
+  const { error } = await db
+    .from("videos")
+    .delete()
+    .eq("id", video.id);
 
   if (error) {
     showMessage(videoMessage, "Erreur : " + error.message);
