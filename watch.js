@@ -1,16 +1,48 @@
-
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
+const CLOUD_NAME = "wnonuvx4";
 
 const id = new URLSearchParams(location.search).get("id");
 const wrap = document.getElementById("player-wrap");
+const downloadButton = document.getElementById("download-video");
+
+let viewRegistered = false;
+
+async function registerViewOnce() {
+  if (viewRegistered) return;
+
+  viewRegistered = true;
+
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/register_video_view`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ p_video_id: id })
+      }
+    );
+
+    if (!response.ok) {
+      viewRegistered = false;
+      console.error("Erreur de comptabilisation :", await response.text());
+    }
+  } catch (error) {
+    viewRegistered = false;
+    console.error("Impossible d'enregistrer la lecture :", error);
+  }
+}
 
 async function loadVideo() {
   try {
     if (!id) throw new Error("Vidéo introuvable");
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -24,22 +56,58 @@ async function loadVideo() {
     }
 
     const videos = await response.json();
-    const v = videos[0];
+    const video = videos[0];
 
-    if (!v) throw new Error("Vidéo introuvable");
+    if (!video) throw new Error("Vidéo introuvable");
 
-    document.title = v.title + " — Zeno Video";
-    document.getElementById("video-title").textContent = v.title;
-    document.getElementById("video-description").textContent = v.description || "";
+    document.title = video.title + " — Zeno Video";
+    document.getElementById("video-title").textContent = video.title;
+    document.getElementById("video-description").textContent =
+      video.description || "";
 
-    const f = document.createElement("iframe");
-    f.src = v.playback_url;
-    f.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
-    f.allowFullscreen = true;
-    f.title = v.title;
+    if (video.cloudinary_public_id) {
+      wrap.innerHTML = `
+        <video
+          id="zeno-cloudinary-player"
+          controls
+          playsinline
+          class="cld-video-player cld-fluid">
+        </video>
+      `;
 
-    wrap.innerHTML = "";
-    wrap.append(f);
+      const player = await cloudinary.player(
+        "zeno-cloudinary-player",
+        {
+          cloudName: CLOUD_NAME,
+          controls: true,
+          fluid: true,
+          preload: "metadata"
+        }
+      );
+
+      player.on("playing", registerViewOnce);
+
+      player.source(video.cloudinary_public_id);
+
+      const publicId = video.cloudinary_public_id
+        .split("/")
+        .map(encodeURIComponent)
+        .join("/");
+
+      downloadButton.href =
+        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
+
+      downloadButton.hidden = false;
+    } else {
+      const frame = document.createElement("iframe");
+      frame.src = video.playback_url;
+      frame.allow = "autoplay; fullscreen; encrypted-media; picture-in-picture";
+      frame.allowFullscreen = true;
+      frame.title = video.title;
+
+      wrap.innerHTML = "";
+      wrap.append(frame);
+    }
 
   } catch (error) {
     document.getElementById("video-title").textContent = error.message;
