@@ -1,14 +1,16 @@
-
 <!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Administration — Zeno Video</title>
+
   <link rel="stylesheet" href="style.css">
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js" defer></script>
+  <script src="admin.js?v=3" defer></script>
 </head>
+
 <body>
   <header>
     <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
@@ -22,15 +24,19 @@
 
     <section id="login-section" class="admin-panel">
       <h2>Connexion administrateur</h2>
+
       <form id="login-form" class="admin-form">
         <label>Adresse e-mail
-          <input type="email" id="email" required>
+          <input type="email" id="email" autocomplete="username" required>
         </label>
+
         <label>Mot de passe
-          <input type="password" id="password" required>
+          <input type="password" id="password" autocomplete="current-password" required>
         </label>
+
         <button type="submit">Se connecter</button>
       </form>
+
       <p id="login-message" class="admin-message"></p>
     </section>
 
@@ -42,6 +48,7 @@
 
       <section class="admin-panel">
         <h2 id="form-title">Ajouter une vidéo</h2>
+
         <form id="video-form" class="admin-form">
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
@@ -64,8 +71,12 @@
           </label>
 
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
-          <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
+
+          <button type="button" id="cancel-edit" class="alt admin-hidden">
+            Annuler la modification
+          </button>
         </form>
+
         <p id="video-message" class="admin-message"></p>
       </section>
 
@@ -74,10 +85,12 @@
           <h2>Mes vidéos</h2>
           <span id="admin-count"></span>
         </div>
+
         <div id="admin-video-list"></div>
       </section>
     </section>
   </main>
+
   <footer>ZENO VIDEO · Administration privée.</footer>
 </body>
 </html>
