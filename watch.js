@@ -81,9 +81,10 @@ async function loadVideo() {
       media.style.display = "block";
       media.style.background = "#000";
 
-      media.src =
-        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.mp4`;
+      const format = (video.format || "mp4").toLowerCase();
 
+media.src =
+  `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${format}`;
       media.addEventListener("playing", registerViewOnce);
 
       media.addEventListener("error", () => {
