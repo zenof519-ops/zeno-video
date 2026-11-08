@@ -1,4 +1,3 @@
-
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 
@@ -23,6 +22,7 @@ const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
 let editingId = null;
+let videoFormat = "mp4";
 
 function showMessage(element, message) {
   element.textContent = message;
@@ -31,6 +31,7 @@ function showMessage(element, message) {
 function resetVideoForm() {
   videoForm.reset();
   editingId = null;
+  videoFormat = "mp4";
   document.getElementById("form-title").textContent = "Ajouter une vidéo";
   saveButton.textContent = "Envoyer et ajouter la vidéo";
   cancelEditButton.classList.add("admin-hidden");
@@ -141,6 +142,7 @@ views.textContent = "Lectures démarrées : " +
 
 function editVideo(video) {
   editingId = video.id;
+  videoFormat = video.format || "mp4";
 
   document.getElementById("video-name").value = video.title;
   document.getElementById("video-description").value = video.description || "";
@@ -205,6 +207,7 @@ videoForm.addEventListener("submit", async (event) => {
       }
 
       publicId = uploaded.public_id;
+      videoFormat = uploaded.format || selectedFile.name.split(".").pop().toLowerCase();
       if (!thumbnail) {
         thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
       }
@@ -223,6 +226,7 @@ videoForm.addEventListener("submit", async (event) => {
       cloudinary_public_id: publicId,
       playback_url: playerUrl.toString(),
       thumbnail_url: thumbnail || null
+      format: videoFormat
     };
 
     let result;
