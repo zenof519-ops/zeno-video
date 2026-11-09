@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Administration — Zeno Video</title>
 
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=8">
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="admin.js?v=7" defer></script>
@@ -55,7 +55,12 @@
           <article class="stat-card"><span>Téléchargements lancés</span><strong id="stat-downloads">—</strong></article>
         </div>
         <p class="stats-note">Totaux calculés à partir des statistiques de toutes les vidéos enregistrées.</p>
-        <p id="permanent-delete-status" class="admin-message">Vérification de la suppression définitive en attente…</p>
+      </section>
+
+      <section class="admin-panel delete-status-panel" aria-live="polite">
+        <h2>État de la suppression définitive</h2>
+        <p id="permanent-delete-status" class="admin-message status-pending">Vérification de la connexion Cloudinary en attente…</p>
+        <p class="status-help">Ce contrôle ne supprime aucune vidéo. Il vérifie uniquement que Zeno Video peut communiquer avec Cloudinary.</p>
       </section>
 
       <section class="admin-panel">
