@@ -99,6 +99,13 @@ async function loadAdminVideos() {
   showMessage(videoMessage, "");
   adminCount.textContent = videos.length + " vidéo(s)";
 
+  const totalViews = videos.reduce((sum, video) => sum + Number(video.views || 0), 0);
+  const totalDownloads = videos.reduce((sum, video) => sum + Number(video.downloads || 0), 0);
+  document.getElementById("stat-total").textContent = videos.length.toLocaleString("fr-FR");
+  document.getElementById("stat-published").textContent = videos.filter(video => video.is_published).length.toLocaleString("fr-FR");
+  document.getElementById("stat-views").textContent = totalViews.toLocaleString("fr-FR");
+  document.getElementById("stat-downloads").textContent = totalDownloads.toLocaleString("fr-FR");
+
   if (videos.length === 0) {
     videoList.textContent = "Aucune vidéo enregistrée.";
     return;
