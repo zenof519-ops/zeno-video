@@ -476,9 +476,6 @@ async function compressVideoTo480p(file) {
       }
     };
 
-    recorder.start(1000);
-    drawFrame();
-
     video.addEventListener("timeupdate", () => {
       if (video.duration) {
         const percent = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
@@ -491,6 +488,8 @@ async function compressVideoTo480p(file) {
     }, { once: true });
 
     await video.play();
+    recorder.start(1000);
+    drawFrame();
     await recordingFinished;
     cancelAnimationFrame(animationFrame);
 
