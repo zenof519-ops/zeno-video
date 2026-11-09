@@ -382,8 +382,24 @@ async function deleteVideo(video) {
 }
 
 async function checkPermanentDeleteConfig() {
-  const status = document.getElementById("permanent-delete-status");
-  if (!status) return;
+  let status = document.getElementById("permanent-delete-status");
+
+  // Recrée le panneau automatiquement si une ancienne version du HTML est servie.
+  if (!status) {
+    const statsPanel = document.querySelector(".stats-panel");
+    if (statsPanel) {
+      const panel = document.createElement("section");
+      panel.className = "admin-panel delete-status-panel";
+      panel.setAttribute("aria-live", "polite");
+      panel.innerHTML = '<h2>État de la suppression définitive</h2><p id="permanent-delete-status" class="admin-message status-pending">Vérification de la connexion Cloudinary en attente…</p><p class="status-help">Ce contrôle ne supprime aucune vidéo. Il vérifie uniquement la connexion à Cloudinary.</p>';
+      statsPanel.insertAdjacentElement("afterend", panel);
+      status = document.getElementById("permanent-delete-status");
+    }
+  }
+  if (!status) {
+    console.error("Zeno Video : impossible de trouver le bloc des statistiques pour afficher le statut Cloudinary.");
+    return;
+  }
 
   status.textContent = "Vérification de la connexion Cloudinary en cours…";
   status.className = "admin-message status-pending";
