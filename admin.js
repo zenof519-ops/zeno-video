@@ -281,6 +281,14 @@ function wait(milliseconds) {
   return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
+function waitForOnlineConnection() {
+  if (navigator.onLine) return Promise.resolve();
+  showMessage(videoMessage, "Connexion coupée : le transfert attend le retour du réseau…");
+  return new Promise(resolve => {
+    window.addEventListener("online", resolve, { once: true });
+  });
+}
+
 function uploadChunkToCloudinary(file, start, end, uploadId, chunkNumber, chunkCount) {
   const chunk = file.slice(start, end + 1);
   const uploadData = new FormData();
@@ -342,11 +350,11 @@ async function uploadVideoInChunks(file) {
     let lastError = null;
     let uploadedChunk = null;
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       try {
         showMessage(
           videoMessage,
-          `Envoi Cloudinary : morceau ${index + 1}/${chunkCount} · tentative ${attempt}/3`
+          `Envoi Cloudinary : morceau ${index + 1}/${chunkCount} · tentative ${attempt}/5`
         );
         uploadedChunk = await uploadChunkToCloudinary(
           file, start, end, uploadId, index + 1, chunkCount
@@ -356,18 +364,22 @@ async function uploadVideoInChunks(file) {
       } catch (error) {
         lastError = error;
         const retryable = !error.status || error.status === 420 || error.status >= 500;
-        if (!retryable || attempt === 3) break;
+        if (!retryable || attempt === 5) break;
         showMessage(
           videoMessage,
           `Connexion instable : nouvelle tentative du morceau ${index + 1}/${chunkCount}…`
         );
-        await wait(1200 * attempt);
+        if (!navigator.onLine) {
+          await waitForOnlineConnection();
+        } else {
+          await wait(Math.min(1500 * (2 ** (attempt - 1)), 15000));
+        }
       }
     }
 
     if (lastError) {
       throw new Error(
-        `Le morceau ${index + 1}/${chunkCount} n'a pas pu être envoyé après 3 tentatives. ` +
+        `Le morceau ${index + 1}/${chunkCount} n'a pas pu être envoyé après 5 tentatives. ` +
         `Vérifie ta connexion puis relance l'envoi. Détail : ${lastError.message}`
       );
     }
