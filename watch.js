@@ -140,6 +140,32 @@ async function loadVideo() {
 
 loadVideo();
 
+downloadButton.addEventListener("click", async (event) => {
+  if (downloadButton.hidden || !id) return;
+  event.preventDefault();
+  const destination = downloadButton.href;
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ p_video_id: id })
+      }
+    );
+    if (!response.ok) {
+      console.error("Comptage du téléchargement impossible :", await response.text());
+    }
+  } catch (error) {
+    console.error("Comptage du téléchargement impossible :", error);
+  }
+  window.location.assign(destination);
+});
+
 document.getElementById("copy-watch-link").onclick =
   async () => {
     try {
