@@ -152,10 +152,15 @@ async function loadAdminVideos() {
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "alt";
-    deleteButton.textContent = "Supprimer";
+    deleteButton.textContent = "Supprimer de Supabase";
     deleteButton.addEventListener("click", () => deleteVideo(video));
 
-    actions.append(editButton, publishButton, deleteButton);
+    const permanentDeleteButton = document.createElement("button");
+    permanentDeleteButton.className = "danger";
+    permanentDeleteButton.textContent = "Supprimer définitivement";
+    permanentDeleteButton.addEventListener("click", () => permanentlyDeleteVideo(video));
+
+    actions.append(editButton, publishButton, deleteButton, permanentDeleteButton);
     card.append(title, description, views, downloads, status, actions);
     videoList.append(card);
   }
@@ -355,7 +360,7 @@ async function togglePublication(video) {
 async function deleteVideo(video) {
   if (
     !confirm(
-      "Supprimer définitivement cette vidéo de la bibliothèque ?"
+      "Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera stocké sur Cloudinary."
     )
   ) {
     return;
@@ -371,8 +376,49 @@ async function deleteVideo(video) {
     return;
   }
 
-  showMessage(videoMessage, "Vidéo supprimée de la bibliothèque.");
+  showMessage(videoMessage, "Vidéo retirée de Supabase. Le fichier Cloudinary est toujours conservé.");
   await loadAdminVideos();
+}
+
+async function permanentlyDeleteVideo(video) {
+  const confirmed = confirm(
+    "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
+    " » sera supprimée de Cloudinary ET de Supabase. Cette action est irréversible.\n\nContinuer ?"
+  );
+
+  if (!confirmed) return;
+
+  showMessage(videoMessage, "Suppression définitive de Cloudinary et Supabase en cours...");
+
+  const buttons = videoList.querySelectorAll("button");
+  buttons.forEach(button => button.disabled = true);
+
+  try {
+    const { data, error } = await db.functions.invoke("delete-video-permanently", {
+      body: { videoId: video.id }
+    });
+
+    if (error) {
+      let details = error.message;
+      try {
+        if (error.context && typeof error.context.json === "function") {
+          const payload = await error.context.json();
+          details = payload.error || payload.message || details;
+        }
+      } catch {}
+      throw new Error(details);
+    }
+
+    if (!data?.success) {
+      throw new Error(data?.error || "La suppression n'a pas été confirmée.");
+    }
+
+    showMessage(videoMessage, "Vidéo supprimée définitivement de Cloudinary et Supabase.");
+    await loadAdminVideos();
+  } catch (error) {
+    showMessage(videoMessage, "Erreur : " + error.message);
+    buttons.forEach(button => button.disabled = false);
+  }
 }
 
 async function initializeAdmin() {
