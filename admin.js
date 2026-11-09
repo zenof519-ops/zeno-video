@@ -277,7 +277,262 @@ async function convertJpegToPng(file) {
   return pngBlob;
 }
 
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
+
+function uploadChunkToCloudinary(file, start, end, uploadId, chunkNumber, chunkCount) {
+  const chunk = file.slice(start, end + 1);
+  const uploadData = new FormData();
+  uploadData.append("file", chunk, file.name);
+  uploadData.append("upload_preset", CLOUDINARY_VIDEO_UPLOAD_PRESET);
+
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`);
+    xhr.timeout = 900000;
+    xhr.setRequestHeader("X-Unique-Upload-Id", uploadId);
+    xhr.setRequestHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
+
+    xhr.upload.addEventListener("progress", event => {
+      if (event.lengthComputable) {
+        const totalSent = start + event.loaded;
+        const percent = Math.min(100, Math.round((totalSent / file.size) * 100));
+        showMessage(videoMessage, `Envoi Cloudinary par morceaux : ${percent}% · morceau ${chunkNumber}/${chunkCount}`);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      let result;
+      try {
+        result = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new Error("Réponse illisible de Cloudinary (HTTP " + xhr.status + ")."));
+        return;
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const error = new Error(result.error?.message || "Cloudinary a refusé le morceau (HTTP " + xhr.status + ").");
+        error.status = xhr.status;
+        reject(error);
+        return;
+      }
+      resolve(result);
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant le transfert du morceau.")));
+    xhr.addEventListener("timeout", () => reject(new Error("Le transfert de ce morceau a dépassé 15 minutes.")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi du morceau annulé.")));
+    xhr.send(uploadData);
+  });
+}
+
+async function uploadVideoInChunks(file) {
+  const chunkSize = 6 * 1024 * 1024;
+  const chunkCount = Math.ceil(file.size / chunkSize);
+  const uploadId = crypto.randomUUID
+    ? crypto.randomUUID()
+    : "zeno-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+
+  let finalResponse = null;
+
+  for (let index = 0; index < chunkCount; index++) {
+    const start = index * chunkSize;
+    const end = Math.min(start + chunkSize, file.size) - 1;
+    let lastError = null;
+    let uploadedChunk = null;
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        showMessage(
+          videoMessage,
+          `Envoi Cloudinary : morceau ${index + 1}/${chunkCount} · tentative ${attempt}/3`
+        );
+        uploadedChunk = await uploadChunkToCloudinary(
+          file, start, end, uploadId, index + 1, chunkCount
+        );
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        const retryable = !error.status || error.status === 420 || error.status >= 500;
+        if (!retryable || attempt === 3) break;
+        showMessage(
+          videoMessage,
+          `Connexion instable : nouvelle tentative du morceau ${index + 1}/${chunkCount}…`
+        );
+        await wait(1200 * attempt);
+      }
+    }
+
+    if (lastError) {
+      throw new Error(
+        `Le morceau ${index + 1}/${chunkCount} n'a pas pu être envoyé après 3 tentatives. ` +
+        `Vérifie ta connexion puis relance l'envoi. Détail : ${lastError.message}`
+      );
+    }
+
+    if (index === chunkCount - 1) {
+      finalResponse = uploadedChunk;
+    }
+  }
+
+  if (!finalResponse?.secure_url || !finalResponse?.public_id) {
+    throw new Error("Cloudinary n'a pas confirmé la fin de l'envoi complet. Aucune vidéo ne sera enregistrée dans Supabase.");
+  }
+
+  return finalResponse;
+}
+
+async function compressVideoTo480p(file) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream || !AudioContextClass) {
+    throw new Error("La compression 480p n'est pas prise en charge par ce navigateur. Choisis « Qualité originale » pour continuer.");
+  }
+
+  const video = document.createElement("video");
+  const sourceUrl = URL.createObjectURL(file);
+  video.preload = "auto";
+  video.playsInline = true;
+  video.src = sourceUrl;
+  video.style.position = "fixed";
+  video.style.left = "-10000px";
+  video.style.top = "0";
+  video.style.width = "2px";
+  video.style.height = "2px";
+  document.body.appendChild(video);
+
+  let audioContext = null;
+  let canvasStream = null;
+  let recorder = null;
+
+  try {
+    await new Promise((resolve, reject) => {
+      video.addEventListener("loadedmetadata", resolve, { once: true });
+      video.addEventListener("error", () => reject(new Error("Impossible de lire cette vidéo pour la compression.")), { once: true });
+      video.load();
+    });
+
+    const originalWidth = video.videoWidth;
+    const originalHeight = video.videoHeight;
+    if (!originalWidth || !originalHeight) {
+      throw new Error("Les dimensions de la vidéo n'ont pas pu être lues.");
+    }
+
+    const longestSide = Math.max(originalWidth, originalHeight);
+    if (longestSide <= 854) {
+      showMessage(videoMessage, "Cette vidéo est déjà en 480p ou moins. Envoi du fichier original…");
+      return file;
+    }
+
+    const ratio = 854 / longestSide;
+    const width = Math.max(2, Math.floor((originalWidth * ratio) / 2) * 2);
+    const height = Math.max(2, Math.floor((originalHeight * ratio) / 2) * 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Le traitement vidéo n'est pas disponible sur ce téléphone.");
+
+    audioContext = new AudioContextClass();
+    const audioSource = audioContext.createMediaElementSource(video);
+    const audioDestination = audioContext.createMediaStreamDestination();
+    audioSource.connect(audioDestination);
+    await audioContext.resume();
+
+    canvasStream = canvas.captureStream(24);
+    audioDestination.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
+
+    const mimeCandidates = [
+      "video/webm;codecs=vp8,opus",
+      "video/webm;codecs=vp9,opus",
+      "video/webm"
+    ];
+    const mimeType = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) throw new Error("Ce navigateur ne propose pas de format vidéo compatible pour la compression 480p.");
+
+    const chunks = [];
+    recorder = new MediaRecorder(canvasStream, {
+      mimeType,
+      videoBitsPerSecond: 700000,
+      audioBitsPerSecond: 96000
+    });
+
+    const recordingFinished = new Promise((resolve, reject) => {
+      recorder.addEventListener("dataavailable", event => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      });
+      recorder.addEventListener("error", event => reject(event.error || new Error("Erreur pendant la compression vidéo.")), { once: true });
+      recorder.addEventListener("stop", resolve, { once: true });
+    });
+
+    let animationFrame = 0;
+    const drawFrame = () => {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        context.drawImage(video, 0, 0, width, height);
+      }
+      if (!video.ended && !video.paused) {
+        animationFrame = requestAnimationFrame(drawFrame);
+      }
+    };
+
+    recorder.start(1000);
+    drawFrame();
+
+    video.addEventListener("timeupdate", () => {
+      if (video.duration) {
+        const percent = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+        showMessage(videoMessage, `Compression locale en 480p : ${percent}% · ${width}×${height}`);
+      }
+    });
+
+    video.addEventListener("ended", () => {
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    }, { once: true });
+
+    await video.play();
+    await recordingFinished;
+    cancelAnimationFrame(animationFrame);
+
+    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+    if (!blob.size) throw new Error("La compression n'a produit aucun fichier.");
+    const outputName = file.name.replace(/\.[^.]+$/, "") + "-480p.webm";
+    const compressedFile = new File([blob], outputName, { type: blob.type || "video/webm", lastModified: Date.now() });
+
+    showMessage(
+      videoMessage,
+      `Compression terminée : ${formatFileSize(file.size)} → ${formatFileSize(compressedFile.size)}. Préparation de l'envoi…`
+    );
+    return compressedFile;
+  } catch (error) {
+    if (recorder && recorder.state !== "inactive") {
+      try { recorder.stop(); } catch {}
+    }
+    throw error;
+  } finally {
+    if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
+    if (audioContext) {
+      try { await audioContext.close(); } catch {}
+    }
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.remove();
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes)) return "taille inconnue";
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " Ko";
+  return (bytes / (1024 * 1024)).toFixed(1) + " Mo";
+}
+
 async function uploadToCloudinary(file, resourceType, progressMessage) {
+  if (resourceType === "video" && file.size > 6 * 1024 * 1024) {
+    return await uploadVideoInChunks(file);
+  }
+
   const uploadData = new FormData();
   if (resourceType === "image") {
     const pngBlob = await convertJpegToPng(file);
@@ -368,10 +623,18 @@ videoForm.addEventListener("submit", async (event) => {
 
   try {
     if (selectedFile) {
+      let fileToUpload = selectedFile;
+      const quality = document.getElementById("upload-quality")?.value || "original";
+
+      if (quality === "480p") {
+        showMessage(videoMessage, "Préparation de la compression locale en 480p…");
+        fileToUpload = await compressVideoTo480p(selectedFile);
+      }
+
       showMessage(videoMessage, "Envoi de la vidéo vers Cloudinary en cours...");
-      const uploadedVideo = await uploadToCloudinary(selectedFile, "video");
+      const uploadedVideo = await uploadToCloudinary(fileToUpload, "video");
       publicId = uploadedVideo.public_id;
-      videoFormat = uploadedVideo.format || selectedFile.name.split(".").pop().toLowerCase();
+      videoFormat = uploadedVideo.format || fileToUpload.name.split(".").pop().toLowerCase();
 
       if (!selectedCover) {
         thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
