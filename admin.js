@@ -242,16 +242,15 @@ function editVideo(video) {
 }
 
 async function convertJpegToPng(file) {
-  const lowerName = file.name.toLowerCase();
-  if (file.type !== "image/jpeg" && !lowerName.endsWith(".jpg") && !lowerName.endsWith(".jpeg")) {
-    return file;
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Le fichier choisi n'est pas reconnu comme une image.");
   }
 
   let bitmap;
   try {
     bitmap = await createImageBitmap(file);
   } catch {
-    throw new Error("Impossible de lire cette image JPG. Essaie de l'enregistrer en PNG ou WebP.");
+    throw new Error("Impossible de lire cette couverture. Essaie une image PNG ou WebP.");
   }
 
   const canvas = document.createElement("canvas");
@@ -267,23 +266,30 @@ async function convertJpegToPng(file) {
   bitmap.close?.();
 
   const pngBlob = await new Promise((resolve, reject) => {
-    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("La conversion JPG vers PNG a échoué.")), "image/png");
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("La conversion de la couverture en PNG a échoué.")), "image/png");
   });
 
-  const dot = file.name.lastIndexOf(".");
-  const pngName = (dot > 0 ? file.name.slice(0, dot) : file.name) + ".png";
-  return new File([pngBlob], pngName, { type: "image/png", lastModified: Date.now() });
+  if (pngBlob.type !== "image/png") {
+    throw new Error("Le navigateur n'a pas pu produire une image PNG.");
+  }
+
+  return pngBlob;
 }
 
 async function uploadToCloudinary(file, resourceType, progressMessage) {
-  const uploadFile = resourceType === "image" ? await convertJpegToPng(file) : file;
   const uploadData = new FormData();
-  uploadData.append("file", uploadFile);
+  if (resourceType === "image") {
+    const pngBlob = await convertJpegToPng(file);
+    uploadData.append("file", pngBlob, "zeno-cover.png");
+    showMessage(videoMessage, "Couverture convertie en PNG. Envoi vers Cloudinary...");
+  } else {
+    uploadData.append("file", file, file.name);
+  }
   uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
   return await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    const label = resourceType === "video" ? "vidéo" : "couverture";
+    const label = resourceType === "video" ? "vidéo" : "couverture PNG";
     xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
     xhr.timeout = 180000;
 
@@ -304,7 +310,6 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
         reject(new Error("Réponse illisible de Cloudinary (HTTP " + xhr.status + ")."));
         return;
       }
-
       if (xhr.status < 200 || xhr.status >= 300) {
         reject(new Error(uploaded.error?.message || "Cloudinary a refusé le fichier (HTTP " + xhr.status + ")."));
         return;
@@ -316,8 +321,8 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
       resolve(uploaded);
     });
 
-    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudinary. Vérifie ta connexion Internet puis réessaie.")));
-    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 3 minutes. Vérifie ta connexion et réessaie.")));
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudinary.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 3 minutes.")));
     xhr.addEventListener("abort", () => reject(new Error("Envoi vers Cloudinary annulé.")));
     xhr.send(uploadData);
   });
@@ -370,10 +375,16 @@ videoForm.addEventListener("submit", async (event) => {
       cloudinaryIdInput.value = publicId;
     }
 
+    let coverWarning = "";
     if (selectedCover) {
-      showMessage(videoMessage, "Envoi de la couverture vers Cloudinary en cours...");
-      const uploadedCover = await uploadToCloudinary(selectedCover, "image");
-      thumbnail = uploadedCover.secure_url;
+      try {
+        showMessage(videoMessage, "Conversion de la couverture en PNG...");
+        const uploadedCover = await uploadToCloudinary(selectedCover, "image");
+        thumbnail = uploadedCover.secure_url;
+      } catch (coverError) {
+        coverWarning = " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée.";
+        console.error("Zeno Video cover upload:", coverError);
+      }
     }
 
     if (!thumbnail && publicId) {
@@ -408,7 +419,7 @@ videoForm.addEventListener("submit", async (event) => {
       );
     }
 
-    showMessage(videoMessage, editingId ? "Vidéo modifiée avec succès !" : "Vidéo ajoutée avec succès !");
+    showMessage(videoMessage, (editingId ? "Vidéo modifiée avec succès !" : "Vidéo ajoutée avec succès !") + coverWarning);
     resetVideoForm();
     await loadAdminVideos();
   } catch (error) {
