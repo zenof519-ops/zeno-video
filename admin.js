@@ -3,7 +3,8 @@ const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
-const CLOUDINARY_UPLOAD_PRESET = "zeno_video_upload";
+const CLOUDINARY_VIDEO_UPLOAD_PRESET = "zeno_video_upload";
+const CLOUDINARY_IMAGE_UPLOAD_PRESET = "zeno_cover_upload";
 
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
@@ -285,7 +286,10 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
   } else {
     uploadData.append("file", file, file.name);
   }
-  uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+  uploadData.append(
+    "upload_preset",
+    resourceType === "image" ? CLOUDINARY_IMAGE_UPLOAD_PRESET : CLOUDINARY_VIDEO_UPLOAD_PRESET
+  );
 
   return await new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
