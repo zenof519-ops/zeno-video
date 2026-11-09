@@ -241,9 +241,42 @@ function editVideo(video) {
   videoForm.scrollIntoView({ behavior: "smooth" });
 }
 
+async function convertJpegToPng(file) {
+  if (file.type !== "image/jpeg" && !/\\.jpe?g$/i.test(file.name)) {
+    return file;
+  }
+
+  let bitmap;
+  try {
+    bitmap = await createImageBitmap(file);
+  } catch {
+    throw new Error("Impossible de lire cette image JPG. Essaie de l'enregistrer en PNG ou WebP.");
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close?.();
+    throw new Error("La conversion de la couverture n'est pas disponible sur ce navigateur.");
+  }
+
+  context.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+
+  const pngBlob = await new Promise((resolve, reject) => {
+    canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("La conversion JPG vers PNG a échoué.")), "image/png");
+  });
+
+  const pngName = file.name.replace(/\\.jpe?g$/i, "") + ".png";
+  return new File([pngBlob], pngName, { type: "image/png", lastModified: Date.now() });
+}
+
 async function uploadToCloudinary(file, resourceType, progressMessage) {
+  const uploadFile = resourceType === "image" ? await convertJpegToPng(file) : file;
   const uploadData = new FormData();
-  uploadData.append("file", file);
+  uploadData.append("file", uploadFile);
   uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
   const response = await fetch(
