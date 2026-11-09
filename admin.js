@@ -119,6 +119,11 @@ async function loadAdminVideos() {
       "Lectures démarrées : " +
       Number(video.views || 0).toLocaleString("fr-FR");
 
+    const downloads = document.createElement("p");
+    downloads.textContent =
+      "Téléchargements lancés : " +
+      Number(video.downloads || 0).toLocaleString("fr-FR");
+
     const status = document.createElement("p");
     status.textContent = video.is_published
       ? "Statut : Publiée"
@@ -144,7 +149,7 @@ async function loadAdminVideos() {
     deleteButton.addEventListener("click", () => deleteVideo(video));
 
     actions.append(editButton, publishButton, deleteButton);
-    card.append(title, description, views, status, actions);
+    card.append(title, description, views, downloads, status, actions);
     videoList.append(card);
   }
 }
