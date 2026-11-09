@@ -242,7 +242,8 @@ function editVideo(video) {
 }
 
 async function convertJpegToPng(file) {
-  if (file.type !== "image/jpeg" && !/\\.jpe?g$/i.test(file.name)) {
+  const lowerName = file.name.toLowerCase();
+  if (file.type !== "image/jpeg" && !lowerName.endsWith(".jpg") && !lowerName.endsWith(".jpeg")) {
     return file;
   }
 
@@ -269,7 +270,8 @@ async function convertJpegToPng(file) {
     canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error("La conversion JPG vers PNG a échoué.")), "image/png");
   });
 
-  const pngName = file.name.replace(/\\.jpe?g$/i, "") + ".png";
+  const dot = file.name.lastIndexOf(".");
+  const pngName = (dot > 0 ? file.name.slice(0, dot) : file.name) + ".png";
   return new File([pngBlob], pngName, { type: "image/png", lastModified: Date.now() });
 }
 
