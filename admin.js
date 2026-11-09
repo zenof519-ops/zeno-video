@@ -295,7 +295,7 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
     const xhr = new XMLHttpRequest();
     const label = resourceType === "video" ? "vidéo" : "couverture PNG";
     xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
-    xhr.timeout = 180000;
+    xhr.timeout = 600000;
 
     xhr.upload.addEventListener("progress", event => {
       if (event.lengthComputable) {
