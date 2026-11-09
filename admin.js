@@ -295,7 +295,7 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
     const xhr = new XMLHttpRequest();
     const label = resourceType === "video" ? "vidéo" : "couverture PNG";
     xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
-    xhr.timeout = 600000;
+    xhr.timeout = 900000;
 
     xhr.upload.addEventListener("progress", event => {
       if (event.lengthComputable) {
@@ -326,7 +326,7 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
     });
 
     xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudinary.")));
-    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 3 minutes.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 15 minutes.")));
     xhr.addEventListener("abort", () => reject(new Error("Envoi vers Cloudinary annulé.")));
     xhr.send(uploadData);
   });
