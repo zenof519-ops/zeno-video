@@ -6,7 +6,7 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=12">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=16" defer></script>
+  <script src="admin.js?v=17" defer></script>
 </head>
 <body>
   <header>
@@ -56,6 +56,13 @@
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
           </label>
+          <label>Qualité d'envoi
+            <select id="upload-quality">
+              <option value="original" selected>Qualité originale (sans compression)</option>
+              <option value="480p">Qualité optimisée (480p, compression sur ce téléphone)</option>
+            </select>
+          </label>
+          <p class="cover-help">Le mode 480p réduit la résolution avant l'envoi et conserve le fichier original sur ton téléphone. Le traitement peut prendre du temps et utiliser les ressources du téléphone.</p>
           <label>Titre de la vidéo
             <input type="text" id="video-name" required>
           </label>
