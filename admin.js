@@ -384,23 +384,30 @@ async function deleteVideo(video) {
 async function checkPermanentDeleteConfig() {
   const status = document.getElementById("permanent-delete-status");
   if (!status) return;
-  status.textContent = "Vérification de la connexion Cloudinary pour la suppression définitive...";
-  status.className = "admin-message";
 
-  const { data, error } = await db.functions.invoke("delete-video-permanently", {
-    body: { checkOnly: true }
-  });
+  status.textContent = "Vérification de la connexion Cloudinary en cours…";
+  status.className = "admin-message status-pending";
 
-  if (error || !data?.configured) {
-    status.textContent = "Suppression définitive non vérifiée : " +
-      (data?.error || error?.message || "Erreur inconnue") +
-      (data?.details ? " (" + data.details + ")" : "");
+  try {
+    const { data, error } = await db.functions.invoke("delete-video-permanently", {
+      body: { checkOnly: true }
+    });
+
+    if (error || !data?.configured) {
+      status.textContent = "⚠ Suppression définitive non vérifiée : " +
+        (data?.error || error?.message || "La fonction n'a pas confirmé la connexion.") +
+        (data?.details ? " (" + data.details + ")" : "");
+      status.className = "admin-message error";
+      return;
+    }
+
+    status.textContent = "✓ Suppression définitive prête : connexion Cloudinary vérifiée. Aucun fichier n'a été supprimé.";
+    status.className = "admin-message success";
+  } catch (error) {
+    status.textContent = "⚠ Vérification impossible : " +
+      (error?.message || "erreur de communication avec Supabase.");
     status.className = "admin-message error";
-    return;
   }
-
-  status.textContent = "✓ Suppression définitive prête : connexion Cloudinary vérifiée. Aucun fichier n'a été supprimé.";
-  status.className = "admin-message success";
 }
 
 async function permanentlyDeleteVideo(video) {
