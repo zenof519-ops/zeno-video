@@ -73,6 +73,33 @@ async function loadVideos() {
         download.textContent = "Télécharger depuis le lecteur";
       }
 
+      if (v.cloudinary_public_id) {
+        download.addEventListener("click", async (event) => {
+          event.preventDefault();
+          const destination = download.href;
+          try {
+            const response = await fetch(
+              `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
+              {
+                method: "POST",
+                headers: {
+                  apikey: SUPABASE_KEY,
+                  Authorization: `Bearer ${SUPABASE_KEY}`,
+                  "Content-Type": "application/json"
+                },
+                body: JSON.stringify({ p_video_id: v.id })
+              }
+            );
+            if (!response.ok) {
+              console.error("Comptage du téléchargement impossible :", await response.text());
+            }
+          } catch (error) {
+            console.error("Comptage du téléchargement impossible :", error);
+          }
+          window.location.assign(destination);
+        });
+      }
+
       const copy = document.createElement("button");
       copy.className = "btn alt";
       copy.textContent = "Copier le lien";
