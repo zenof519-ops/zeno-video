@@ -122,3 +122,15 @@
 @media(max-width:600px) {
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* Suppression définitive */
+.admin-actions .danger {
+  background: #a83252;
+  color: #fff;
+  border: 1px solid #e06b89;
+}
+.admin-actions .danger:disabled {
+  opacity: .55;
+  cursor: wait;
+}
