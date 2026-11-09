@@ -134,3 +134,11 @@
   opacity: .55;
   cursor: wait;
 }
+
+
+.admin-message.success {
+  color: #8be0a4;
+}
+.admin-message.error {
+  color: #ff9aa8;
+}
