@@ -281,19 +281,46 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
   uploadData.append("file", uploadFile);
   uploadData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
-    { method: "POST", body: uploadData }
-  );
+  return await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const label = resourceType === "video" ? "vidéo" : "couverture";
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+    xhr.timeout = 180000;
 
-  const uploaded = await response.json();
-  if (!response.ok) {
-    throw new Error(uploaded.error?.message || "Cloudinary n'a pas accepté le fichier.");
-  }
-  if (!uploaded.secure_url || !uploaded.public_id) {
-    throw new Error("Cloudinary n'a pas renvoyé l'URL sécurisée attendue.");
-  }
-  return uploaded;
+    xhr.upload.addEventListener("progress", event => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        showMessage(videoMessage, `Envoi de la ${label} vers Cloudinary : ${percent}%`);
+      } else {
+        showMessage(videoMessage, `Envoi de la ${label} vers Cloudinary en cours…`);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      let uploaded;
+      try {
+        uploaded = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new Error("Réponse illisible de Cloudinary (HTTP " + xhr.status + ")."));
+        return;
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(uploaded.error?.message || "Cloudinary a refusé le fichier (HTTP " + xhr.status + ")."));
+        return;
+      }
+      if (!uploaded.secure_url || !uploaded.public_id) {
+        reject(new Error("Cloudinary n'a pas renvoyé l'URL sécurisée attendue."));
+        return;
+      }
+      resolve(uploaded);
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudinary. Vérifie ta connexion Internet puis réessaie.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 3 minutes. Vérifie ta connexion et réessaie.")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi vers Cloudinary annulé.")));
+    xhr.send(uploadData);
+  });
 }
 
 videoForm.addEventListener("submit", async (event) => {
