@@ -4,48 +4,37 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Administration — Zeno Video</title>
-
-  <link rel="stylesheet" href="style.css?v=8">
-
+  <link rel="stylesheet" href="style.css?v=10">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="admin.js?v=9" defer></script>
 </head>
-
 <body>
   <header>
     <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
     <span>ADMINISTRATION</span>
   </header>
-
   <main class="admin-main">
     <p class="eyebrow">ESPACE PRIVÉ</p>
     <h1>Gestion de <em>tes vidéos.</em></h1>
     <p class="intro">Bienvenue dans le tableau de bord de Zeno Video.</p>
-
     <section id="login-section" class="admin-panel">
       <h2>Connexion administrateur</h2>
-
       <form id="login-form" class="admin-form">
         <label>Adresse e-mail
           <input type="email" id="email" autocomplete="username" required>
         </label>
-
         <label>Mot de passe
           <input type="password" id="password" autocomplete="current-password" required>
         </label>
-
         <button type="submit">Se connecter</button>
       </form>
-
       <p id="login-message" class="admin-message"></p>
     </section>
-
     <section id="dashboard" class="admin-hidden">
       <div class="section-title">
         <h2>Tableau de bord</h2>
         <button id="logout-button" class="alt">Déconnexion</button>
       </div>
-
       <section class="admin-panel stats-panel">
         <h2>Statistiques globales</h2>
         <div class="stats-grid">
@@ -56,58 +45,43 @@
         </div>
         <p class="stats-note">Totaux calculés à partir des statistiques de toutes les vidéos enregistrées.</p>
       </section>
-
       <section class="admin-panel delete-status-panel" aria-live="polite">
         <h2>État de la suppression définitive</h2>
         <p id="permanent-delete-status" class="admin-message status-pending">Vérification de la connexion Cloudinary en attente…</p>
         <p class="status-help">Ce contrôle ne supprime aucune vidéo. Il vérifie uniquement que Zeno Video peut communiquer avec Cloudinary.</p>
       </section>
-
       <section class="admin-panel">
         <h2 id="form-title">Ajouter une vidéo</h2>
-
         <form id="video-form" class="admin-form">
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
           </label>
-
           <label>Titre de la vidéo
             <input type="text" id="video-name" required>
           </label>
-
           <label>Description
             <textarea id="video-description"></textarea>
           </label>
-
           <label>Identifiant public Cloudinary (si déjà hébergée)
             <input type="text" id="cloudinary-id">
           </label>
-
           <label>URL de la miniature (facultatif)
             <input type="url" id="thumbnail-url">
           </label>
-
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
-
-          <button type="button" id="cancel-edit" class="alt admin-hidden">
-            Annuler la modification
-          </button>
+          <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
         </form>
-
         <p id="video-message" class="admin-message"></p>
       </section>
-
       <section>
         <div class="section-title">
           <h2>Mes vidéos</h2>
           <span id="admin-count"></span>
         </div>
-
         <div id="admin-video-list"></div>
       </section>
     </section>
   </main>
-
   <footer>ZENO VIDEO · Administration privée.</footer>
 </body>
 </html>
