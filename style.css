@@ -142,3 +142,42 @@
 .admin-message.error {
   color: #ff9aa8;
 }
+
+
+/* Panneau de vérification Cloudinary */
+.delete-status-panel {
+  border-color: #8a668f;
+  background: linear-gradient(145deg, #2b2035, #191420);
+}
+.delete-status-panel h2 {
+  margin-bottom: 10px;
+}
+.delete-status-panel .admin-message {
+  display: block;
+  min-height: 28px;
+  margin: 8px 0;
+  padding: 12px 14px;
+  border: 1px solid #80618a;
+  border-radius: 9px;
+  background: #100e18;
+  font-size: 15px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.delete-status-panel .admin-message.success {
+  border-color: #438c60;
+  background: #14251c;
+}
+.delete-status-panel .admin-message.error {
+  border-color: #a83252;
+  background: #2a1720;
+}
+.delete-status-panel .admin-message.status-pending {
+  color: #ffdc70;
+}
+.status-help {
+  margin-bottom: 0;
+  color: #b9aebe;
+  font-size: 12px;
+  line-height: 1.5;
+}
