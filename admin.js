@@ -32,6 +32,9 @@ const dropboxFields = document.getElementById("dropbox-fields");
 const dropboxUrlInput = document.getElementById("dropbox-url");
 const oneDriveFields = document.getElementById("onedrive-fields");
 const oneDriveUrlInput = document.getElementById("onedrive-url");
+const oneDriveHelper = document.getElementById("onedrive-helper");
+const oneDriveHelperMessage = document.getElementById("onedrive-helper-message");
+const oneDriveChatGPTButton = document.getElementById("onedrive-chatgpt-button");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -124,9 +127,65 @@ function updateProviderFields() {
   videoFileInput.disabled = !isCloudinary || Boolean(editingId);
   coverFileInput.disabled = false;
   cloudinaryIdInput.disabled = !isCloudinary;
+  refreshOneDriveHelper();
 }
 
 providerSelect.addEventListener("change", updateProviderFields);
+
+function isOneDriveEmbedUrl(value) {
+  try {
+    const url = new URL(String(value || "").trim());
+    if (url.protocol !== "https:") return false;
+    if (url.hostname === "1drv.ms") {
+      return /^\/v\/c\/[^/]+\/[^/]+/.test(url.pathname);
+    }
+    if (url.hostname === "onedrive.live.com") {
+      return url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed");
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+function refreshOneDriveHelper() {
+  const value = oneDriveUrlInput.value.trim();
+  const hasValue = Boolean(value);
+  const isEmbed = hasValue && isOneDriveEmbedUrl(value);
+
+  oneDriveHelper.classList.toggle("admin-hidden", !hasValue);
+  oneDriveChatGPTButton.classList.toggle("admin-hidden", isEmbed);
+
+  if (!hasValue) {
+    oneDriveHelperMessage.textContent = "Colle d’abord le lien obtenu sur OneDrive.";
+  } else if (isEmbed) {
+    oneDriveHelperMessage.textContent = "✓ Un lien d’intégration OneDrive semble détecté. Tu peux l’enregistrer directement.";
+  } else {
+    oneDriveHelperMessage.textContent = "⚠ Ce lien ressemble à un lien de partage classique. Convertis-le en véritable lien d’intégration avec ChatGPT avant d’enregistrer la vidéo.";
+  }
+}
+
+oneDriveUrlInput.addEventListener("input", refreshOneDriveHelper);
+
+oneDriveChatGPTButton.addEventListener("click", async () => {
+  const sharedUrl = oneDriveUrlInput.value.trim();
+  if (!sharedUrl) {
+    refreshOneDriveHelper();
+    return;
+  }
+
+  const prompt = "Aide-moi à convertir ce lien de partage OneDrive en véritable URL d’intégration vidéo (iframe) compatible avec mon site Zeno Video. Vérifie le type de lien et, si tu peux accéder au fichier via les outils connectés, récupère le véritable lien embed. Ne modifie aucune autorisation de partage sans me demander confirmation. Voici le lien : " + sharedUrl;
+
+  // Ouvrir l’onglet pendant le clic utilisateur pour éviter le blocage des fenêtres.
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
+
+  try {
+    await navigator.clipboard.writeText(prompt);
+    oneDriveHelperMessage.textContent = "✓ La demande avec ton lien a été copiée. Colle-la dans l’onglet ChatGPT qui vient de s’ouvrir.";
+  } catch {
+    oneDriveHelperMessage.textContent = "ChatGPT est ouvert. Copie le lien OneDrive dans la conversation et demande sa conversion en véritable lien d’intégration vidéo.";
+  }
+});
 
 function clearCoverPreview() {
   if (previewObjectUrl) {
@@ -197,6 +256,7 @@ function resetVideoForm() {
   dropboxUrlInput.value = "";
   oneDriveUrlInput.value = "";
   updateProviderFields();
+  refreshOneDriveHelper();
 }
 
 async function openDashboard(user) {
@@ -343,6 +403,7 @@ function editVideo(video) {
     oneDriveUrlInput.value = "";
   } else if (providerSelect.value === "onedrive") {
     oneDriveUrlInput.value = video.playback_url || "";
+    refreshOneDriveHelper();
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
