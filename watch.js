@@ -122,6 +122,7 @@ async function loadVideo() {
     } else if (provider === "vioo" && video.playback_url) {
       const frame = document.createElement("iframe");
       frame.src = video.playback_url;
+      frame.loading = "eager";
       frame.allow = "autoplay; fullscreen; picture-in-picture";
       frame.allowFullscreen = true;
       frame.title = video.title;
