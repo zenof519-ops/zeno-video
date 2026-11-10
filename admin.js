@@ -30,6 +30,8 @@ const viooIdInput = document.getElementById("vioo-id");
 const viooThumbnailInput = document.getElementById("vioo-thumbnail-url");
 const dropboxFields = document.getElementById("dropbox-fields");
 const dropboxUrlInput = document.getElementById("dropbox-url");
+const oneDriveFields = document.getElementById("onedrive-fields");
+const oneDriveUrlInput = document.getElementById("onedrive-url");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -91,13 +93,32 @@ function normalizeDropboxUrl(value) {
   return url.toString();
 }
 
+function normalizeOneDriveEmbedUrl(value) {
+  const raw = String(value || "").trim();
+  const iframeSource = raw.match(/src\\s*=\\s*["\']([^"\']+)["\']/i);
+  const candidate = iframeSource ? iframeSource[1] : raw;
+  let url;
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("Colle un lien de lecteur OneDrive valide.");
+  }
+  const allowedHost = url.hostname === "1drv.ms" || url.hostname === "onedrive.live.com" || url.hostname === "www.onedrive.com";
+  if (url.protocol !== "https:" || !allowedHost || !url.pathname.startsWith("/")) {
+    throw new Error("Le lien doit provenir de OneDrive (https://1drv.ms ou onedrive.live.com).");
+  }
+  return url.toString();
+}
+
 function updateProviderFields() {
   const isCloudinary = providerSelect.value === "cloudinary";
   const isVioo = providerSelect.value === "vioo";
   const isDropbox = providerSelect.value === "dropbox";
+  const isOneDrive = providerSelect.value === "onedrive";
   cloudinaryFields.classList.toggle("admin-hidden", !isCloudinary);
   viooFields.classList.toggle("admin-hidden", !isVioo);
   dropboxFields.classList.toggle("admin-hidden", !isDropbox);
+  oneDriveFields.classList.toggle("admin-hidden", !isOneDrive);
 
   if (!isCloudinary) videoFileInput.value = "";
   videoFileInput.disabled = !isCloudinary || Boolean(editingId);
@@ -174,6 +195,7 @@ function resetVideoForm() {
   viooIdInput.value = "";
   viooThumbnailInput.value = "";
   dropboxUrlInput.value = "";
+  oneDriveUrlInput.value = "";
   updateProviderFields();
 }
 
@@ -266,7 +288,7 @@ async function loadAdminVideos() {
     status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
 
     const providerLabel = document.createElement("p");
-    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox" };
+    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive" };
     providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
 
     const actions = document.createElement("div");
@@ -318,10 +340,17 @@ function editVideo(video) {
     dropboxUrlInput.value = (video.playback_url || "").replace(/([?&])raw=1(&|$)/, "$1dl=0$2").replace(/[?&]$/, "");
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
+    oneDriveUrlInput.value = "";
+  } else if (providerSelect.value === "onedrive") {
+    oneDriveUrlInput.value = video.playback_url || "";
+    viooIdInput.value = "";
+    viooThumbnailInput.value = "";
+    dropboxUrlInput.value = "";
   } else {
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
+    oneDriveUrlInput.value = "";
   }
 
   if (currentThumbnailUrl) {
@@ -733,6 +762,11 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (provider === "onedrive" && !oneDriveUrlInput.value.trim()) {
+    showMessage(videoMessage, "Colle le lien du lecteur OneDrive.");
+    return;
+  }
+
   if (selectedFile && !["video/mp4", "video/quicktime", "video/webm"].includes(selectedFile.type)) {
     showMessage(videoMessage, "Format non accepté. Choisis un fichier MP4, MOV ou WebM.");
     return;
@@ -799,6 +833,10 @@ videoForm.addEventListener("submit", async (event) => {
       playbackUrl = normalizeDropboxUrl(dropboxUrlInput.value);
       publicId = null;
       videoFormat = null;
+    } else if (provider === "onedrive") {
+      playbackUrl = normalizeOneDriveEmbedUrl(oneDriveUrlInput.value);
+      publicId = null;
+      videoFormat = null;
     } else {
       throw new Error("Hébergeur vidéo non pris en charge.");
     }
@@ -811,7 +849,7 @@ videoForm.addEventListener("submit", async (event) => {
       } catch (coverError) {
         coverWarning = provider === "cloudinary"
           ? " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée."
-          : " La miniature n'a pas pu être envoyée (" + coverError.message + "). La vidéo hébergée sur " + (provider === "dropbox" ? "Dropbox" : "Vioo") + " sera enregistrée sans cette miniature.";
+          : " La miniature n'a pas pu être envoyée (" + coverError.message + "). La vidéo hébergée sur " + (provider === "dropbox" ? "Dropbox" : provider === "onedrive" ? "OneDrive" : "Vioo") + " sera enregistrée sans cette miniature.";
         console.error("Zeno Video cover upload:", coverError);
       }
     }
@@ -898,7 +936,7 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : "Cloudinary";
+  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : video.provider === "onedrive" ? "OneDrive" : "Cloudinary";
   if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera hébergé sur " + providerName + ".")) return;
 
   const { error } = await db.from("videos").delete().eq("id", video.id);
