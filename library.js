@@ -31,7 +31,7 @@ async function registerDownload(videoId) {
 async function loadVideos() {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,thumbnail_url,cloudinary_public_id,provider&is_published=eq.true&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider&is_published=eq.true&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -93,6 +93,15 @@ async function loadVideos() {
         download.href =
           `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
         download.hidden = false;
+      } else if (provider === "onedrive" && v.download_url) {
+        try {
+          const downloadUrl = new URL(v.download_url);
+          downloadUrl.searchParams.set("download", "1");
+          download.href = downloadUrl.toString();
+          download.hidden = false;
+        } catch (error) {
+          console.error("Lien de téléchargement OneDrive invalide :", error);
+        }
       } else if (provider === "dropbox" && v.playback_url) {
         try {
           const downloadUrl = new URL(v.playback_url);
@@ -112,8 +121,8 @@ async function loadVideos() {
         download.addEventListener("click", async (event) => {
           event.preventDefault();
           const destination = download.href;
+          window.open(destination, "_blank", "noopener,noreferrer");
           await registerDownload(v.id);
-          window.location.assign(destination);
         });
       }
 
