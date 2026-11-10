@@ -174,8 +174,13 @@ async function loadVideo() {
         console.error("Erreur de lecture Dropbox :", media.error);
       });
       wrap.replaceChildren(media);
-      // Aucun lien de téléchargement Dropbox distinct n'a été validé.
-      downloadButton.remove();
+
+      // Dropbox prend en charge dl=1 pour forcer le téléchargement du fichier partagé.
+      const downloadUrl = new URL(video.playback_url);
+      downloadUrl.searchParams.delete("raw");
+      downloadUrl.searchParams.set("dl", "1");
+      downloadButton.href = downloadUrl.toString();
+      downloadButton.hidden = false;
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
     }
