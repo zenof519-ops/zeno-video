@@ -156,7 +156,9 @@ async function loadVideo() {
 
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
-      downloadButton.hidden = true;
+      // Aucun lien de téléchargement direct Vioo n'étant disponible,
+      // retirer complètement le bouton de la page de lecture.
+      downloadButton.remove();
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
     }
