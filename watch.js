@@ -156,8 +156,25 @@ async function loadVideo() {
 
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
-      // Aucun lien de téléchargement direct Vioo n'étant disponible,
-      // retirer complètement le bouton de la page de lecture.
+      // Aucun lien de téléchargement direct Vioo n'étant disponible.
+      downloadButton.remove();
+    } else if (provider === "dropbox" && video.playback_url) {
+      const media = document.createElement("video");
+      media.controls = true;
+      media.playsInline = true;
+      media.preload = "metadata";
+      media.style.width = "100%";
+      media.style.maxWidth = "100%";
+      media.style.height = "auto";
+      media.style.display = "block";
+      media.style.background = "#000";
+      media.src = video.playback_url;
+      media.addEventListener("playing", registerViewOnce);
+      media.addEventListener("error", () => {
+        console.error("Erreur de lecture Dropbox :", media.error);
+      });
+      wrap.replaceChildren(media);
+      // Aucun lien de téléchargement Dropbox distinct n'a été validé.
       downloadButton.remove();
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
