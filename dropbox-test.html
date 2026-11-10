@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Test lecteur Dropbox — Zeno Video</title>
+  <link rel="stylesheet" href="style.css?v=10">
+  <style>
+    main { max-width: 900px; }
+    .test-note { margin:22px 0; padding:14px 16px; border:1px solid rgba(255,216,77,.45); border-radius:12px; background:rgba(100,74,28,.22); color:#ffe9a0; line-height:1.6; }
+    .player { width:100%; }
+    .player video { display:block; width:100%; max-height:75vh; background:#000; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .actions .btn { margin:0; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
+    <span>PAGE DE TEST · DROPBOX</span>
+  </header>
+  <main>
+    <p class="eyebrow">TEST D’HÉBERGEMENT EXTERNE</p>
+    <h1>Lecteur <em>Dropbox.</em></h1>
+    <p class="intro">Cette page indépendante teste la lecture d’un fichier Dropbox dans le lecteur vidéo natif de Zeno Video. Elle ne modifie ni la bibliothèque publique, ni l’administration, ni la base Supabase.</p>
+    <div class="test-note"><strong>Test uniquement :</strong> la vidéo est servie directement par Dropbox via un lien de rendu navigateur. La lecture dépend des autorisations et des limites de trafic Dropbox.</div>
+    <section>
+      <div class="section-title"><h2>Vidéo test</h2><span>DROPBOX · MP4</span></div>
+      <div class="player">
+        <video controls playsinline preload="metadata">
+          <source src="https://www.dropbox.com/scl/fi/g4f6h9tmn6f1j4d397fke/snaptik_7698773988155100437_v3.mp4?rlkey=uqg2qvg8likm0ehc6djodd437&st=799hkup1&raw=1" type="video/mp4">
+          Ton navigateur ne prend pas en charge la lecture vidéo HTML5.
+        </video>
+      </div>
+      <div class="actions">
+        <a class="btn" href="https://www.dropbox.com/scl/fi/g4f6h9tmn6f1j4d397fke/snaptik_7698773988155100437_v3.mp4?rlkey=uqg2qvg8likm0ehc6djodd437&st=799hkup1&dl=0" target="_blank" rel="noopener noreferrer">Ouvrir le lecteur Dropbox</a>
+        <a class="btn alt" href="index.html">Retour à Zeno Video</a>
+      </div>
+    </section>
+    <section class="card" style="margin-top:24px;padding:18px">
+      <h2>Ce qu’on vérifie</h2>
+      <ul>
+        <li>La vidéo démarre dans le lecteur Zeno sans ouvrir la page Dropbox.</li>
+        <li>La barre de progression permet d’avancer et de reculer.</li>
+        <li>La lecture fonctionne sur Android et sur ordinateur.</li>
+      </ul>
+      <p class="stats-note">Si la vidéo ne démarre pas, indique-moi le message affiché ou envoie une capture d’écran. Le lecteur Dropbox reste accessible avec le bouton ci-dessus.</p>
+    </section>
+  </main>
+  <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+</body>
+</html>
