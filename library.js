@@ -30,7 +30,7 @@ async function loadVideos() {
     grid.innerHTML = "";
 
     for (const v of videos) {
-      const url = "watch.html?id=" + encodeURIComponent(v.id);
+      const url = "watch.html?v=9&id=" + encodeURIComponent(v.id);
       const card = document.createElement("article");
       card.className = "card";
 
