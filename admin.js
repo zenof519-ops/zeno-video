@@ -123,7 +123,9 @@ function normalizeOneDriveDownloadUrl(value) {
     throw new Error("Colle le lien de partage OneDrive classique destiné au téléchargement.");
   }
   const allowedHost = ["1drv.ms", "onedrive.live.com", "www.onedrive.com"].includes(url.hostname);
-  if (url.protocol !== "https:" || !allowedHost || isOneDriveEmbedUrl(url.toString())) {
+  const classicEmbed = ["onedrive.live.com", "www.onedrive.com"].includes(url.hostname) &&
+    (url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed"));
+  if (url.protocol !== "https:" || !allowedHost || classicEmbed) {
     throw new Error("Le lien de téléchargement doit être un lien de partage OneDrive classique, pas le lien embed du lecteur.");
   }
   return url.toString();
