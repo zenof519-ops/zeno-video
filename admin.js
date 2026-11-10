@@ -135,8 +135,23 @@ providerSelect.addEventListener("change", updateProviderFields);
 function isOneDriveEmbedUrl(value) {
   try {
     const url = new URL(String(value || "").trim());
-    if (url.protocol !== "https:" || url.hostname !== "onedrive.live.com") return false;
-    return url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed");
+    if (url.protocol !== "https:") return false;
+
+    // Liens d'intégration OneDrive classiques.
+    if (["onedrive.live.com", "www.onedrive.com"].includes(url.hostname)) {
+      return url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed");
+    }
+
+    // Microsoft Graph peut retourner un lien embed raccourci 1drv.ms/v/c/...
+    // Pour le format observé, le lien embed n'a pas le paramètre ?e= des liens
+    // de partage classiques copiés depuis OneDrive.
+    if (url.hostname === "1drv.ms") {
+      return /^\/v\/c\/[^/]+\/[^/]+\/?$/i.test(url.pathname) &&
+        url.search === "" &&
+        url.hash === "";
+    }
+
+    return false;
   } catch {
     return false;
   }
