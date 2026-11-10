@@ -23,6 +23,11 @@ const coverPreviewImage = document.getElementById("cover-preview-image");
 const coverPreviewCaption = document.getElementById("cover-preview-caption");
 const removeCoverButton = document.getElementById("remove-cover");
 const cloudinaryIdInput = document.getElementById("cloudinary-id");
+const providerSelect = document.getElementById("video-provider");
+const cloudinaryFields = document.getElementById("cloudinary-fields");
+const viooFields = document.getElementById("vioo-fields");
+const viooIdInput = document.getElementById("vioo-id");
+const viooThumbnailInput = document.getElementById("vioo-thumbnail-url");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -34,6 +39,52 @@ let previewObjectUrl = null;
 function showMessage(element, message) {
   element.textContent = message;
 }
+
+function normalizeViooEmbedUrl(value) {
+  const raw = String(value || "").trim();
+  if (/^[A-Za-z0-9_-]+$/.test(raw)) {
+    return "https://vioo.cc/embed/" + raw;
+  }
+
+  const iframeSource = raw.match(/src\s*=\s*["']([^"']+)["']/i);
+  const candidate = iframeSource ? iframeSource[1] : raw;
+  let url;
+
+  try {
+    url = new URL(candidate);
+  } catch {
+    throw new Error("Indique un identifiant Vioo ou une URL de lecteur Vioo valide.");
+  }
+
+  if (url.protocol !== "https:" || !["vioo.cc", "www.vioo.cc"].includes(url.hostname)) {
+    throw new Error("Le lecteur doit provenir de https://vioo.cc.");
+  }
+
+  const match = url.pathname.match(/^\/embed\/([A-Za-z0-9_-]+)\/?$/);
+  if (!match) {
+    throw new Error("Utilise le lien du lecteur Vioo au format https://vioo.cc/embed/IDENTIFIANT.");
+  }
+
+  return "https://vioo.cc/embed/" + match[1];
+}
+
+function updateProviderFields() {
+  const isVioo = providerSelect.value === "vioo";
+  cloudinaryFields.classList.toggle("admin-hidden", isVioo);
+  viooFields.classList.toggle("admin-hidden", !isVioo);
+
+  if (isVioo) {
+    videoFileInput.value = "";
+    coverFileInput.value = "";
+    clearCoverPreview();
+  }
+
+  videoFileInput.disabled = isVioo || Boolean(editingId);
+  coverFileInput.disabled = isVioo;
+  cloudinaryIdInput.disabled = isVioo;
+}
+
+providerSelect.addEventListener("change", updateProviderFields);
 
 function clearCoverPreview() {
   if (previewObjectUrl) {
@@ -98,6 +149,10 @@ function resetVideoForm() {
   videoFileInput.disabled = false;
   coverFileInput.disabled = false;
   cloudinaryIdInput.readOnly = false;
+  providerSelect.value = "cloudinary";
+  viooIdInput.value = "";
+  viooThumbnailInput.value = "";
+  updateProviderFields();
 }
 
 async function openDashboard(user) {
@@ -188,6 +243,9 @@ async function loadAdminVideos() {
     const status = document.createElement("p");
     status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
 
+    const providerLabel = document.createElement("p");
+    providerLabel.textContent = "Hébergeur : " + (video.provider === "vioo" ? "Vioo" : "Cloudinary");
+
     const actions = document.createElement("div");
     actions.className = "admin-actions";
 
@@ -210,8 +268,11 @@ async function loadAdminVideos() {
     permanentDeleteButton.textContent = "Supprimer définitivement";
     permanentDeleteButton.addEventListener("click", () => permanentlyDeleteVideo(video));
 
-    actions.append(editButton, publishButton, deleteButton, permanentDeleteButton);
-    card.append(title, description, views, downloads, status, actions);
+    actions.append(editButton, publishButton, deleteButton);
+    if ((video.provider || "cloudinary") === "cloudinary") {
+      actions.append(permanentDeleteButton);
+    }
+    card.append(title, description, views, downloads, status, providerLabel, actions);
     videoList.append(card);
   }
 }
@@ -220,25 +281,35 @@ function editVideo(video) {
   editingId = video.id;
   videoFormat = video.format || "mp4";
   currentThumbnailUrl = video.thumbnail_url || null;
+  providerSelect.value = video.provider || "cloudinary";
 
   document.getElementById("video-name").value = video.title;
   document.getElementById("video-description").value = video.description || "";
-  cloudinaryIdInput.value = video.cloudinary_public_id;
+  cloudinaryIdInput.value = video.cloudinary_public_id || "";
 
-  if (currentThumbnailUrl) {
-    displayCoverPreview(currentThumbnailUrl, "Couverture actuellement enregistrée");
-  } else {
+  if (providerSelect.value === "vioo") {
+    viooIdInput.value = video.playback_url || "";
+    viooThumbnailInput.value = video.thumbnail_url || "";
     clearCoverPreview();
+  } else {
+    viooIdInput.value = "";
+    viooThumbnailInput.value = "";
+    if (currentThumbnailUrl) {
+      displayCoverPreview(currentThumbnailUrl, "Couverture actuellement enregistrée");
+    } else {
+      clearCoverPreview();
+    }
   }
+  updateProviderFields();
 
   document.getElementById("form-title").textContent = "Modifier la vidéo";
   saveButton.textContent = "Enregistrer les modifications";
   cancelEditButton.classList.remove("admin-hidden");
 
   videoFileInput.value = "";
-  videoFileInput.disabled = true;
+  videoFileInput.disabled = providerSelect.value === "vioo" || true;
   coverFileInput.value = "";
-  coverFileInput.disabled = false;
+  coverFileInput.disabled = providerSelect.value === "vioo";
   videoForm.scrollIntoView({ behavior: "smooth" });
 }
 
@@ -601,20 +672,30 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
 videoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
+  const provider = providerSelect.value;
   const title = document.getElementById("video-name").value.trim();
   const description = document.getElementById("video-description").value.trim();
-  const selectedFile = videoFileInput.files[0];
-  const selectedCover = coverFileInput.files[0];
-  let publicId = cloudinaryIdInput.value.trim();
-  let thumbnail = currentThumbnailUrl;
+  const selectedFile = provider === "cloudinary" ? videoFileInput.files[0] : null;
+  const selectedCover = provider === "cloudinary" ? coverFileInput.files[0] : null;
+  let publicId = provider === "cloudinary" ? cloudinaryIdInput.value.trim() : null;
+  let thumbnail = provider === "vioo"
+    ? viooThumbnailInput.value.trim()
+    : currentThumbnailUrl;
+  let playbackUrl = null;
+  let coverWarning = "";
 
   if (!title) {
     showMessage(videoMessage, "Indique un titre pour la vidéo.");
     return;
   }
 
-  if (!editingId && !selectedFile && !publicId) {
+  if (provider === "cloudinary" && !editingId && !selectedFile && !publicId) {
     showMessage(videoMessage, "Choisis un fichier vidéo ou saisis un identifiant public Cloudinary.");
+    return;
+  }
+
+  if (provider === "vioo" && !viooIdInput.value.trim()) {
+    showMessage(videoMessage, "Indique l'identifiant ou le lien du lecteur Vioo.");
     return;
   }
 
@@ -628,59 +709,82 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (provider === "vioo" && thumbnail) {
+    try {
+      const thumbnailUrl = new URL(thumbnail);
+      if (thumbnailUrl.protocol !== "https:") throw new Error();
+    } catch {
+      showMessage(videoMessage, "L'URL de la miniature doit être une adresse HTTPS valide.");
+      return;
+    }
+  }
+
   saveButton.disabled = true;
   videoFileInput.disabled = true;
   coverFileInput.disabled = true;
 
   try {
-    if (selectedFile) {
-      let fileToUpload = selectedFile;
-      const quality = document.getElementById("upload-quality")?.value || "original";
+    if (provider === "cloudinary") {
+      if (selectedFile) {
+        let fileToUpload = selectedFile;
+        const quality = document.getElementById("upload-quality")?.value || "original";
 
-      if (quality === "480p") {
-        showMessage(videoMessage, "Préparation de la compression locale en 480p…");
-        fileToUpload = await compressVideoTo480p(selectedFile);
+        if (quality === "480p") {
+          showMessage(videoMessage, "Préparation de la compression locale en 480p…");
+          fileToUpload = await compressVideoTo480p(selectedFile);
+        }
+
+        showMessage(videoMessage, "Envoi de la vidéo vers Cloudinary en cours...");
+        const uploadedVideo = await uploadToCloudinary(fileToUpload, "video");
+        publicId = uploadedVideo.public_id;
+        videoFormat = uploadedVideo.format || fileToUpload.name.split(".").pop().toLowerCase();
+
+        if (!selectedCover) {
+          thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
+        }
+        cloudinaryIdInput.value = publicId;
       }
 
-      showMessage(videoMessage, "Envoi de la vidéo vers Cloudinary en cours...");
-      const uploadedVideo = await uploadToCloudinary(fileToUpload, "video");
-      publicId = uploadedVideo.public_id;
-      videoFormat = uploadedVideo.format || fileToUpload.name.split(".").pop().toLowerCase();
+      if (selectedCover) {
+        try {
+          showMessage(videoMessage, "Conversion de la couverture en PNG...");
+          const uploadedCover = await uploadToCloudinary(selectedCover, "image");
+          thumbnail = uploadedCover.secure_url;
+        } catch (coverError) {
+          coverWarning = " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée.";
+          console.error("Zeno Video cover upload:", coverError);
+        }
+      }
 
-      if (!selectedCover) {
+      if (!thumbnail && publicId) {
         thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
       }
-      cloudinaryIdInput.value = publicId;
-    }
 
-    let coverWarning = "";
-    if (selectedCover) {
-      try {
-        showMessage(videoMessage, "Conversion de la couverture en PNG...");
-        const uploadedCover = await uploadToCloudinary(selectedCover, "image");
-        thumbnail = uploadedCover.secure_url;
-      } catch (coverError) {
-        coverWarning = " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée.";
-        console.error("Zeno Video cover upload:", coverError);
+      if (!publicId) {
+        throw new Error("Identifiant Cloudinary manquant.");
       }
-    }
 
-    if (!thumbnail && publicId) {
-      thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
+      const playerUrl = new URL("https://player.cloudinary.com/embed/");
+      playerUrl.searchParams.set("cloud_name", CLOUD_NAME);
+      playerUrl.searchParams.set("public_id", publicId);
+      playbackUrl = playerUrl.toString();
+    } else if (provider === "vioo") {
+      playbackUrl = normalizeViooEmbedUrl(viooIdInput.value);
+      publicId = null;
+      videoFormat = null;
+    } else {
+      throw new Error("Hébergeur vidéo non pris en charge.");
     }
 
     showMessage(videoMessage, "Enregistrement de la vidéo dans la bibliothèque...");
-    const playerUrl = new URL("https://player.cloudinary.com/embed/");
-    playerUrl.searchParams.set("cloud_name", CLOUD_NAME);
-    playerUrl.searchParams.set("public_id", publicId);
-
     const videoData = {
       title,
       description,
+      provider,
       cloudinary_public_id: publicId,
-      playback_url: playerUrl.toString(),
+      playback_url: playbackUrl,
       thumbnail_url: thumbnail || null,
-      format: videoFormat
+      format: provider === "cloudinary" ? videoFormat : null
     };
 
     let result;
@@ -692,8 +796,7 @@ videoForm.addEventListener("submit", async (event) => {
 
     if (result.error) {
       throw new Error(
-        "Fichier envoyé sur Cloudinary, mais Supabase n'a pas pu enregistrer la vidéo : " +
-        result.error.message
+        "Vidéo préparée, mais Supabase n'a pas pu l'enregistrer : " + result.error.message
       );
     }
 
@@ -704,8 +807,8 @@ videoForm.addEventListener("submit", async (event) => {
     showMessage(videoMessage, "Erreur : " + error.message);
   } finally {
     saveButton.disabled = false;
-    videoFileInput.disabled = Boolean(editingId);
-    coverFileInput.disabled = false;
+    videoFileInput.disabled = providerSelect.value === "vioo" || Boolean(editingId);
+    coverFileInput.disabled = providerSelect.value === "vioo";
   }
 });
 
@@ -727,7 +830,8 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera stocké sur Cloudinary.")) return;
+  const providerName = video.provider === "vioo" ? "Vioo" : "Cloudinary";
+  if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera hébergé sur " + providerName + ".")) return;
 
   const { error } = await db.from("videos").delete().eq("id", video.id);
   if (error) {
@@ -735,7 +839,7 @@ async function deleteVideo(video) {
     return;
   }
 
-  showMessage(videoMessage, "Vidéo retirée de Supabase. Le fichier Cloudinary est toujours conservé.");
+  showMessage(videoMessage, "Vidéo retirée de Supabase. Le fichier reste hébergé sur " + providerName + ".");
   await loadAdminVideos();
 }
 
@@ -783,6 +887,11 @@ async function checkPermanentDeleteConfig() {
 }
 
 async function permanentlyDeleteVideo(video) {
+  if ((video.provider || "cloudinary") !== "cloudinary") {
+    showMessage(videoMessage, "La suppression définitive automatique n'est disponible que pour Cloudinary.");
+    return;
+  }
+
   const confirmed = confirm(
     "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
     " » sera supprimée de Cloudinary ET de Supabase. Cette action est irréversible.\n\nContinuer ?"
