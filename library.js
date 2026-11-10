@@ -53,7 +53,7 @@ async function loadVideos() {
 
     for (const v of videos) {
       const url = "watch.html?v=9&id=" + encodeURIComponent(v.id);
-      const provider = v.provider || "cloudinary";
+      const provider = String(v.provider || "cloudinary").toLowerCase();
       const card = document.createElement("article");
       card.className = "card";
 
@@ -105,7 +105,10 @@ async function loadVideos() {
         }
       }
 
-      if (!download.hidden) {
+      const canDownload = !download.hidden;
+      if (canDownload) {
+        download.removeAttribute("hidden");
+        download.style.display = "inline-flex";
         download.addEventListener("click", async (event) => {
           event.preventDefault();
           const destination = download.href;
@@ -129,12 +132,9 @@ async function loadVideos() {
       };
 
       card.append(a, h, p, watch);
-
-      // Le téléchargement est disponible pour Cloudinary et Dropbox, pas pour Vioo.
-      if (!download.hidden) {
+      if (canDownload) {
         card.append(download);
       }
-
       card.append(copy);
       grid.append(card);
     }
