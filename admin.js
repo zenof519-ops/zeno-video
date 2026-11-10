@@ -205,7 +205,7 @@ async function loadAdminVideos() {
     .order("created_at", { ascending: false });
 
   if (error) {
-    showMessage(videoMessage, "Erreur : " + error.message);
+    showMessage(videoMessage, "Impossible d'actualiser la liste : " + error.message);
     return;
   }
 
