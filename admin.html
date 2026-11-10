@@ -6,7 +6,7 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=17" defer></script>
+  <script src="admin.js?v=18" defer></script>
 </head>
 <body>
   <header>
@@ -53,6 +53,13 @@
       <section class="admin-panel">
         <h2 id="form-title">Ajouter une vidéo</h2>
         <form id="video-form" class="admin-form">
+          <label>Hébergeur de la vidéo
+            <select id="video-provider">
+              <option value="cloudinary">Cloudinary</option>
+              <option value="vioo">Vioo — lecteur intégré</option>
+            </select>
+          </label>
+          <div id="cloudinary-fields">
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
           </label>
@@ -86,6 +93,16 @@
               <button type="button" id="remove-cover" class="alt">Retirer la couverture sélectionnée</button>
             </div>
             <p class="cover-help">L'image sera envoyée automatiquement sur Cloudinary. Son URL sera enregistrée avec la vidéo.</p>
+          </div>
+          </div>
+          <div id="vioo-fields" class="admin-hidden">
+            <label>Identifiant ou URL du lecteur Vioo
+              <input type="text" id="vioo-id" placeholder="3Yg6 ou https://vioo.cc/embed/3Yg6">
+            </label>
+            <label>URL de la miniature (facultatif)
+              <input type="url" id="vioo-thumbnail-url" placeholder="https://...">
+            </label>
+            <p class="cover-help">Téléverse d’abord la vidéo dans ton compte Vioo, puis colle ici son identifiant ou le lien de son lecteur. Zeno Video intégrera automatiquement le lecteur.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
