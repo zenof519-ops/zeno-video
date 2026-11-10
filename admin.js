@@ -788,21 +788,49 @@ videoForm.addEventListener("submit", async (event) => {
     };
 
     let result;
+    const saveStartedAt = new Date().toISOString();
     if (editingId) {
       result = await db.from("videos").update(videoData).eq("id", editingId);
     } else {
       result = await db.from("videos").insert({ ...videoData, is_published: true });
     }
 
+    if (result.error && !editingId && result.error.message.includes("Failed to fetch")) {
+      // Le serveur peut avoir validé l'insertion alors que le navigateur a perdu la réponse.
+      const verification = await db.from("videos")
+        .select("id,title,provider,playback_url")
+        .eq("title", title)
+        .eq("provider", provider)
+        .eq("playback_url", playbackUrl)
+        .gte("created_at", saveStartedAt)
+        .limit(1)
+        .maybeSingle();
+
+      if (verification.error) {
+        throw new Error(
+          "Réponse réseau incertaine : impossible de confirmer si Supabase a enregistré la vidéo. " +
+          "Ne la renvoie pas tout de suite ; recharge « Mes vidéos » pour vérifier."
+        );
+      }
+
+      if (verification.data) result = { error: null };
+    }
+
     if (result.error) {
       throw new Error(
-        "Vidéo préparée, mais Supabase n'a pas pu l'enregistrer : " + result.error.message
+        "Supabase a refusé l'enregistrement : " + result.error.message
       );
     }
 
-    showMessage(videoMessage, (editingId ? "Vidéo modifiée avec succès !" : "Vidéo ajoutée avec succès !") + coverWarning);
+    const successMessage = (editingId ? "Vidéo modifiée avec succès !" : "Vidéo ajoutée avec succès !") + coverWarning;
+    showMessage(videoMessage, successMessage);
     resetVideoForm();
-    await loadAdminVideos();
+    try {
+      await loadAdminVideos();
+    } catch (refreshError) {
+      console.error("Zeno Video: refresh after save failed:", refreshError);
+      showMessage(videoMessage, successMessage + " La liste n'a pas pu être actualisée ; recharge la page pour la voir.");
+    }
   } catch (error) {
     showMessage(videoMessage, "Erreur : " + error.message);
   } finally {
