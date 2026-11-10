@@ -6,7 +6,7 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=22" defer></script>
+  <script src="admin.js?v=23" defer></script>
 </head>
 <body>
   <header>
@@ -115,11 +115,15 @@
             <p class="cover-help">Téléverse la vidéo dans Dropbox, crée un lien de partage en lecture seule, puis colle ce lien ici. Zeno Video le convertira automatiquement pour son lecteur vidéo. Le fichier reste hébergé chez Dropbox.</p>
           </div>
           <div id="onedrive-fields" class="admin-hidden">
-            <label>Lien de lecteur OneDrive (URL du lecteur / intégration)
-              <input type="url" id="onedrive-url" placeholder="https://1drv.ms/v/..." inputmode="url">
+            <label>Lien de partage / lecteur OneDrive
+              <input type="url" id="onedrive-url" placeholder="Colle ici le lien obtenu sur OneDrive" inputmode="url" autocomplete="url">
             </label>
-            <a class="btn alt" href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">Ouvrir OneDrive ↗</a>
-            <p class="cover-help">Colle le lien de lecture OneDrive. La vidéo sera affichée dans un lecteur intégré. Le fichier reste hébergé chez Microsoft OneDrive.</p>
+            <a class="btn alt" href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">Ouvrir OneDrive pour héberger une vidéo ↗</a>
+            <div id="onedrive-helper" class="admin-panel admin-hidden" aria-live="polite">
+              <p id="onedrive-helper-message" class="cover-help">Ce lien doit être converti en véritable lien d’intégration avant l’enregistrement.</p>
+              <button type="button" id="onedrive-chatgpt-button" class="alt">Copier le lien et ouvrir ChatGPT</button>
+            </div>
+            <p class="cover-help">Téléverse ta vidéo sur OneDrive, copie son lien de partage puis reviens ici. Si le lien n’est pas déjà un lien d’intégration, utilise le bouton pour le transmettre à ChatGPT. Le fichier reste hébergé chez Microsoft OneDrive.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
