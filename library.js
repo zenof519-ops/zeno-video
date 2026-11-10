@@ -9,7 +9,7 @@ const empty = document.getElementById("empty-message");
 async function loadVideos() {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,thumbnail_url,cloudinary_public_id&is_published=eq.true&order=created_at.desc`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,thumbnail_url,cloudinary_public_id,provider&is_published=eq.true&order=created_at.desc`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -59,8 +59,9 @@ async function loadVideos() {
       const download = document.createElement("a");
       download.className = "btn alt";
       download.textContent = "Télécharger";
+      download.hidden = true;
 
-      if (v.cloudinary_public_id) {
+      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
         const publicId = v.cloudinary_public_id
           .split("/")
           .map(encodeURIComponent)
@@ -68,12 +69,10 @@ async function loadVideos() {
 
         download.href =
           `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
-      } else {
-        download.href = url;
-        download.textContent = "Télécharger depuis le lecteur";
+        download.hidden = false;
       }
 
-      if (v.cloudinary_public_id) {
+      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
         download.addEventListener("click", async (event) => {
           event.preventDefault();
           const destination = download.href;
