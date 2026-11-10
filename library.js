@@ -113,7 +113,14 @@ async function loadVideos() {
         }
       };
 
-      card.append(a, h, p, watch, download, copy);
+      card.append(a, h, p, watch);
+
+      // Le téléchargement n'est proposé que pour les vidéos Cloudinary.
+      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
+        card.append(download);
+      }
+
+      card.append(copy);
       grid.append(card);
     }
   } catch (error) {
