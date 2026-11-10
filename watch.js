@@ -114,7 +114,7 @@ async function loadVideo() {
     }
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id,format,provider&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,cloudinary_public_id,format,provider&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -189,8 +189,14 @@ async function loadVideo() {
       downloadButton.remove();
     } else if (provider === "onedrive" && video.playback_url) {
       showOneDrivePlayer(video);
-      // OneDrive ne fournit pas ici de lien de téléchargement direct fiable.
-      downloadButton.remove();
+      if (video.download_url) {
+        const downloadUrl = new URL(video.download_url);
+        downloadUrl.searchParams.set("download", "1");
+        downloadButton.href = downloadUrl.toString();
+        downloadButton.hidden = false;
+      } else {
+        downloadButton.hidden = true;
+      }
     } else if (provider === "dropbox" && video.playback_url) {
       const media = document.createElement("video");
       media.controls = true;
@@ -252,7 +258,7 @@ downloadButton.addEventListener("click", async (event) => {
   } catch (error) {
     console.error("Comptage du téléchargement impossible :", error);
   }
-  window.location.assign(destination);
+  window.open(destination, "_blank", "noopener,noreferrer");
 });
 
 document.getElementById("copy-watch-link").onclick =
