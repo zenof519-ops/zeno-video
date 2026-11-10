@@ -28,6 +28,8 @@ const cloudinaryFields = document.getElementById("cloudinary-fields");
 const viooFields = document.getElementById("vioo-fields");
 const viooIdInput = document.getElementById("vioo-id");
 const viooThumbnailInput = document.getElementById("vioo-thumbnail-url");
+const dropboxFields = document.getElementById("dropbox-fields");
+const dropboxUrlInput = document.getElementById("dropbox-url");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -68,18 +70,39 @@ function normalizeViooEmbedUrl(value) {
   return "https://vioo.cc/embed/" + match[1];
 }
 
-function updateProviderFields() {
-  const isVioo = providerSelect.value === "vioo";
-  cloudinaryFields.classList.toggle("admin-hidden", isVioo);
-  viooFields.classList.toggle("admin-hidden", !isVioo);
-
-  if (isVioo) {
-    videoFileInput.value = "";
+function normalizeDropboxUrl(value) {
+  const raw = String(value || "").trim();
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("Colle un lien de partage Dropbox valide.");
   }
 
-  videoFileInput.disabled = isVioo || Boolean(editingId);
+  if (url.protocol !== "https:" || !["dropbox.com", "www.dropbox.com"].includes(url.hostname)) {
+    throw new Error("Le lien doit provenir de https://www.dropbox.com.");
+  }
+  if (!/^\/(scl\/fi|s)\//.test(url.pathname)) {
+    throw new Error("Utilise un lien de partage Dropbox vers un fichier, pas un dossier.");
+  }
+
+  url.searchParams.delete("dl");
+  url.searchParams.set("raw", "1");
+  return url.toString();
+}
+
+function updateProviderFields() {
+  const isCloudinary = providerSelect.value === "cloudinary";
+  const isVioo = providerSelect.value === "vioo";
+  const isDropbox = providerSelect.value === "dropbox";
+  cloudinaryFields.classList.toggle("admin-hidden", !isCloudinary);
+  viooFields.classList.toggle("admin-hidden", !isVioo);
+  dropboxFields.classList.toggle("admin-hidden", !isDropbox);
+
+  if (!isCloudinary) videoFileInput.value = "";
+  videoFileInput.disabled = !isCloudinary || Boolean(editingId);
   coverFileInput.disabled = false;
-  cloudinaryIdInput.disabled = isVioo;
+  cloudinaryIdInput.disabled = !isCloudinary;
 }
 
 providerSelect.addEventListener("change", updateProviderFields);
@@ -150,6 +173,7 @@ function resetVideoForm() {
   providerSelect.value = "cloudinary";
   viooIdInput.value = "";
   viooThumbnailInput.value = "";
+  dropboxUrlInput.value = "";
   updateProviderFields();
 }
 
@@ -242,7 +266,8 @@ async function loadAdminVideos() {
     status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
 
     const providerLabel = document.createElement("p");
-    providerLabel.textContent = "Hébergeur : " + (video.provider === "vioo" ? "Vioo" : "Cloudinary");
+    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox" };
+    providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
 
     const actions = document.createElement("div");
     actions.className = "admin-actions";
@@ -288,9 +313,15 @@ function editVideo(video) {
   if (providerSelect.value === "vioo") {
     viooIdInput.value = video.playback_url || "";
     viooThumbnailInput.value = video.thumbnail_url || "";
+    dropboxUrlInput.value = "";
+  } else if (providerSelect.value === "dropbox") {
+    dropboxUrlInput.value = (video.playback_url || "").replace(/([?&])raw=1(&|$)/, "$1dl=0$2").replace(/[?&]$/, "");
+    viooIdInput.value = "";
+    viooThumbnailInput.value = "";
   } else {
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
+    dropboxUrlInput.value = "";
   }
 
   if (currentThumbnailUrl) {
@@ -697,6 +728,11 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (provider === "dropbox" && !dropboxUrlInput.value.trim()) {
+    showMessage(videoMessage, "Colle le lien de partage Dropbox de la vidéo.");
+    return;
+  }
+
   if (selectedFile && !["video/mp4", "video/quicktime", "video/webm"].includes(selectedFile.type)) {
     showMessage(videoMessage, "Format non accepté. Choisis un fichier MP4, MOV ou WebM.");
     return;
@@ -707,7 +743,7 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (provider === "vioo" && thumbnail) {
+  if (provider !== "cloudinary" && thumbnail) {
     try {
       const thumbnailUrl = new URL(thumbnail);
       if (thumbnailUrl.protocol !== "https:") throw new Error();
@@ -759,6 +795,10 @@ videoForm.addEventListener("submit", async (event) => {
       playbackUrl = normalizeViooEmbedUrl(viooIdInput.value);
       publicId = null;
       videoFormat = null;
+    } else if (provider === "dropbox") {
+      playbackUrl = normalizeDropboxUrl(dropboxUrlInput.value);
+      publicId = null;
+      videoFormat = null;
     } else {
       throw new Error("Hébergeur vidéo non pris en charge.");
     }
@@ -771,7 +811,7 @@ videoForm.addEventListener("submit", async (event) => {
       } catch (coverError) {
         coverWarning = provider === "cloudinary"
           ? " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée."
-          : " La miniature n'a pas pu être envoyée (" + coverError.message + "). La vidéo Vioo sera enregistrée sans cette miniature.";
+          : " La miniature n'a pas pu être envoyée (" + coverError.message + "). La vidéo hébergée sur " + (provider === "dropbox" ? "Dropbox" : "Vioo") + " sera enregistrée sans cette miniature.";
         console.error("Zeno Video cover upload:", coverError);
       }
     }
@@ -835,7 +875,7 @@ videoForm.addEventListener("submit", async (event) => {
     showMessage(videoMessage, "Erreur : " + error.message);
   } finally {
     saveButton.disabled = false;
-    videoFileInput.disabled = providerSelect.value === "vioo" || Boolean(editingId);
+    videoFileInput.disabled = providerSelect.value !== "cloudinary" || Boolean(editingId);
     coverFileInput.disabled = false;
   }
 });
@@ -858,7 +898,7 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  const providerName = video.provider === "vioo" ? "Vioo" : "Cloudinary";
+  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : "Cloudinary";
   if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera hébergé sur " + providerName + ".")) return;
 
   const { error } = await db.from("videos").delete().eq("id", video.id);
