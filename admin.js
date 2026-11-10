@@ -32,6 +32,7 @@ const dropboxFields = document.getElementById("dropbox-fields");
 const dropboxUrlInput = document.getElementById("dropbox-url");
 const oneDriveFields = document.getElementById("onedrive-fields");
 const oneDriveUrlInput = document.getElementById("onedrive-url");
+const oneDriveDownloadUrlInput = document.getElementById("onedrive-download-url");
 const oneDriveHelper = document.getElementById("onedrive-helper");
 const oneDriveHelperMessage = document.getElementById("onedrive-helper-message");
 const oneDriveChatGPTButton = document.getElementById("onedrive-chatgpt-button");
@@ -109,6 +110,21 @@ function normalizeOneDriveEmbedUrl(value) {
   const allowedHost = url.hostname === "1drv.ms" || url.hostname === "onedrive.live.com" || url.hostname === "www.onedrive.com";
   if (url.protocol !== "https:" || !allowedHost || !url.pathname.startsWith("/")) {
     throw new Error("Le lien doit provenir de OneDrive (https://1drv.ms ou onedrive.live.com).");
+  }
+  return url.toString();
+}
+
+function normalizeOneDriveDownloadUrl(value) {
+  const raw = String(value || "").trim();
+  let url;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error("Colle le lien de partage OneDrive classique destiné au téléchargement.");
+  }
+  const allowedHost = ["1drv.ms", "onedrive.live.com", "www.onedrive.com"].includes(url.hostname);
+  if (url.protocol !== "https:" || !allowedHost || isOneDriveEmbedUrl(url.toString())) {
+    throw new Error("Le lien de téléchargement doit être un lien de partage OneDrive classique, pas le lien embed du lecteur.");
   }
   return url.toString();
 }
@@ -265,6 +281,7 @@ function resetVideoForm() {
   viooThumbnailInput.value = "";
   dropboxUrlInput.value = "";
   oneDriveUrlInput.value = "";
+  oneDriveDownloadUrlInput.value = "";
   updateProviderFields();
   refreshOneDriveHelper();
 }
@@ -397,6 +414,7 @@ function editVideo(video) {
   videoFormat = video.format || "mp4";
   currentThumbnailUrl = video.thumbnail_url || null;
   providerSelect.value = video.provider || "cloudinary";
+  oneDriveDownloadUrlInput.value = "";
 
   document.getElementById("video-name").value = video.title;
   document.getElementById("video-description").value = video.description || "";
@@ -413,6 +431,7 @@ function editVideo(video) {
     oneDriveUrlInput.value = "";
   } else if (providerSelect.value === "onedrive") {
     oneDriveUrlInput.value = video.playback_url || "";
+    oneDriveDownloadUrlInput.value = video.download_url || "";
     refreshOneDriveHelper();
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
@@ -811,6 +830,7 @@ videoForm.addEventListener("submit", async (event) => {
     ? (viooThumbnailInput.value.trim() || currentThumbnailUrl)
     : currentThumbnailUrl;
   let playbackUrl = null;
+  let downloadUrl = null;
   let coverWarning = "";
 
   if (!title) {
@@ -835,6 +855,12 @@ videoForm.addEventListener("submit", async (event) => {
 
   if (provider === "onedrive" && !oneDriveUrlInput.value.trim()) {
     showMessage(videoMessage, "Colle le lien de lecteur OneDrive.");
+    return;
+  }
+
+  if (provider === "onedrive" && !oneDriveDownloadUrlInput.value.trim()) {
+    showMessage(videoMessage, "Colle aussi le lien de partage OneDrive classique pour activer le téléchargement.");
+    oneDriveDownloadUrlInput.focus();
     return;
   }
 
@@ -912,6 +938,7 @@ videoForm.addEventListener("submit", async (event) => {
       videoFormat = null;
     } else if (provider === "onedrive") {
       playbackUrl = normalizeOneDriveEmbedUrl(oneDriveUrlInput.value);
+      downloadUrl = normalizeOneDriveDownloadUrl(oneDriveDownloadUrlInput.value);
       publicId = null;
       videoFormat = null;
     } else {
@@ -938,6 +965,7 @@ videoForm.addEventListener("submit", async (event) => {
       provider,
       cloudinary_public_id: publicId,
       playback_url: playbackUrl,
+      download_url: downloadUrl,
       thumbnail_url: thumbnail || null,
       format: provider === "cloudinary" ? videoFormat : null
     };
