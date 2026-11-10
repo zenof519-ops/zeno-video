@@ -37,10 +37,45 @@ async function registerViewOnce() {
   } catch (error) {
     viewRegistered = false;
     console.error(
-      "Impossible d'enregistrer la lecture :",
+      "Impossible d'enregistrer le lancement :",
       error
     );
   }
+}
+
+function showViooPlayer(video) {
+  const launchButton = document.createElement("button");
+  launchButton.type = "button";
+  launchButton.className = "btn";
+  launchButton.textContent = "▶ Lancer la lecture";
+
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent =
+    "Le lancement sera comptabilisé lorsque tu appuieras sur ce bouton.";
+
+  launchButton.addEventListener("click", () => {
+    if (launchButton.disabled) return;
+
+    launchButton.disabled = true;
+    launchButton.textContent = "Ouverture du lecteur…";
+
+    // Vioo est dans une iframe externe : Zeno compte le clic de lancement,
+    // pas le démarrage réel de la lecture dans le lecteur Vioo.
+    registerViewOnce();
+
+    const frame = document.createElement("iframe");
+    frame.src = video.playback_url;
+    frame.loading = "eager";
+    frame.allow = "autoplay; fullscreen; picture-in-picture";
+    frame.allowFullscreen = true;
+    frame.title = video.title;
+    frame.referrerPolicy = "strict-origin-when-cross-origin";
+
+    wrap.replaceChildren(frame);
+  });
+
+  wrap.replaceChildren(launchButton, note);
 }
 
 async function loadVideo() {
@@ -120,15 +155,7 @@ async function loadVideo() {
       downloadButton.hidden = false;
 
     } else if (provider === "vioo" && video.playback_url) {
-      const frame = document.createElement("iframe");
-      frame.src = video.playback_url;
-      frame.loading = "eager";
-      frame.allow = "autoplay; fullscreen; picture-in-picture";
-      frame.allowFullscreen = true;
-      frame.title = video.title;
-      frame.referrerPolicy = "strict-origin-when-cross-origin";
-
-      wrap.replaceChildren(frame);
+      showViooPlayer(video);
       downloadButton.hidden = true;
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
