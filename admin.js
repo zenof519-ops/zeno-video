@@ -135,14 +135,8 @@ providerSelect.addEventListener("change", updateProviderFields);
 function isOneDriveEmbedUrl(value) {
   try {
     const url = new URL(String(value || "").trim());
-    if (url.protocol !== "https:") return false;
-    if (url.hostname === "1drv.ms") {
-      return /^\/v\/c\/[^/]+\/[^/]+/.test(url.pathname);
-    }
-    if (url.hostname === "onedrive.live.com") {
-      return url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed");
-    }
-    return false;
+    if (url.protocol !== "https:" || url.hostname !== "onedrive.live.com") return false;
+    return url.pathname.toLowerCase().includes("/embed") || url.searchParams.has("embed");
   } catch {
     return false;
   }
@@ -150,18 +144,20 @@ function isOneDriveEmbedUrl(value) {
 
 function refreshOneDriveHelper() {
   const value = oneDriveUrlInput.value.trim();
-  const hasValue = Boolean(value);
-  const isEmbed = hasValue && isOneDriveEmbedUrl(value);
+  const isEmbed = Boolean(value) && isOneDriveEmbedUrl(value);
 
-  oneDriveHelper.classList.toggle("admin-hidden", !hasValue);
+  // Le panneau et son bouton restent visibles dès que le fournisseur OneDrive est sélectionné.
+  oneDriveHelper.classList.remove("admin-hidden");
   oneDriveChatGPTButton.classList.toggle("admin-hidden", isEmbed);
 
-  if (!hasValue) {
-    oneDriveHelperMessage.textContent = "Colle d’abord le lien obtenu sur OneDrive.";
+  if (!value) {
+    oneDriveHelperMessage.textContent = "Après avoir copié ton lien de partage OneDrive, colle-le dans la case ci-dessus puis clique sur le bouton pour le transmettre à ChatGPT.";
+    oneDriveChatGPTButton.textContent = "Ouvrir ChatGPT pour convertir le lien";
   } else if (isEmbed) {
     oneDriveHelperMessage.textContent = "✓ Un lien d’intégration OneDrive semble détecté. Tu peux l’enregistrer directement.";
   } else {
-    oneDriveHelperMessage.textContent = "⚠ Ce lien ressemble à un lien de partage classique. Convertis-le en véritable lien d’intégration avec ChatGPT avant d’enregistrer la vidéo.";
+    oneDriveHelperMessage.textContent = "⚠ Ce lien semble être un lien de partage classique. Convertis-le en véritable lien d’intégration avec ChatGPT avant d’enregistrer.";
+    oneDriveChatGPTButton.textContent = "Copier le lien et ouvrir ChatGPT";
   }
 }
 
@@ -170,21 +166,20 @@ oneDriveUrlInput.addEventListener("input", refreshOneDriveHelper);
 oneDriveChatGPTButton.addEventListener("click", async () => {
   const sharedUrl = oneDriveUrlInput.value.trim();
   if (!sharedUrl) {
-    refreshOneDriveHelper();
+    oneDriveHelperMessage.textContent = "Colle d’abord le lien de partage que tu as copié sur OneDrive dans la case située juste au-dessus.";
+    oneDriveUrlInput.focus();
     return;
   }
 
   const prompt = "Aide-moi à convertir ce lien de partage OneDrive en véritable URL d’intégration vidéo (iframe) compatible avec mon site Zeno Video. Vérifie le type de lien et, si tu peux accéder au fichier via les outils connectés, récupère le véritable lien embed. Ne modifie aucune autorisation de partage sans me demander confirmation. Voici le lien : " + sharedUrl;
 
-  // Ouvrir l’onglet pendant le clic utilisateur pour éviter le blocage des fenêtres.
-  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
-
   try {
     await navigator.clipboard.writeText(prompt);
-    oneDriveHelperMessage.textContent = "✓ La demande avec ton lien a été copiée. Colle-la dans l’onglet ChatGPT qui vient de s’ouvrir.";
+    oneDriveHelperMessage.textContent = "✓ Demande copiée. Ouverture de ChatGPT… Colle simplement le texte dans la conversation.";
   } catch {
-    oneDriveHelperMessage.textContent = "ChatGPT est ouvert. Copie le lien OneDrive dans la conversation et demande sa conversion en véritable lien d’intégration vidéo.";
+    oneDriveHelperMessage.textContent = "ChatGPT va s’ouvrir. Si la demande n’est pas copiée automatiquement, copie le lien OneDrive et colle-le dans la conversation.";
   }
+  window.open("https://chatgpt.com/", "_blank", "noopener,noreferrer");
 });
 
 function clearCoverPreview() {
