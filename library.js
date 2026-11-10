@@ -6,6 +6,28 @@ const grid = document.getElementById("video-grid");
 const count = document.getElementById("video-count");
 const empty = document.getElementById("empty-message");
 
+async function registerDownload(videoId) {
+  try {
+    const response = await fetch(
+      `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
+      {
+        method: "POST",
+        headers: {
+          apikey: SUPABASE_KEY,
+          Authorization: `Bearer ${SUPABASE_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ p_video_id: videoId })
+      }
+    );
+    if (!response.ok) {
+      console.error("Comptage du téléchargement impossible :", await response.text());
+    }
+  } catch (error) {
+    console.error("Comptage du téléchargement impossible :", error);
+  }
+}
+
 async function loadVideos() {
   try {
     const response = await fetch(
@@ -31,6 +53,7 @@ async function loadVideos() {
 
     for (const v of videos) {
       const url = "watch.html?v=9&id=" + encodeURIComponent(v.id);
+      const provider = v.provider || "cloudinary";
       const card = document.createElement("article");
       card.className = "card";
 
@@ -61,7 +84,7 @@ async function loadVideos() {
       download.textContent = "Télécharger";
       download.hidden = true;
 
-      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
+      if (provider === "cloudinary" && v.cloudinary_public_id) {
         const publicId = v.cloudinary_public_id
           .split("/")
           .map(encodeURIComponent)
@@ -70,31 +93,23 @@ async function loadVideos() {
         download.href =
           `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
         download.hidden = false;
+      } else if (provider === "dropbox" && v.playback_url) {
+        try {
+          const downloadUrl = new URL(v.playback_url);
+          downloadUrl.searchParams.delete("raw");
+          downloadUrl.searchParams.set("dl", "1");
+          download.href = downloadUrl.toString();
+          download.hidden = false;
+        } catch (error) {
+          console.error("Lien Dropbox invalide :", error);
+        }
       }
 
-      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
+      if (!download.hidden) {
         download.addEventListener("click", async (event) => {
           event.preventDefault();
           const destination = download.href;
-          try {
-            const response = await fetch(
-              `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
-              {
-                method: "POST",
-                headers: {
-                  apikey: SUPABASE_KEY,
-                  Authorization: `Bearer ${SUPABASE_KEY}`,
-                  "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ p_video_id: v.id })
-              }
-            );
-            if (!response.ok) {
-              console.error("Comptage du téléchargement impossible :", await response.text());
-            }
-          } catch (error) {
-            console.error("Comptage du téléchargement impossible :", error);
-          }
+          await registerDownload(v.id);
           window.location.assign(destination);
         });
       }
@@ -115,8 +130,8 @@ async function loadVideos() {
 
       card.append(a, h, p, watch);
 
-      // Le téléchargement n'est proposé que pour les vidéos Cloudinary.
-      if ((v.provider || "cloudinary") === "cloudinary" && v.cloudinary_public_id) {
+      // Le téléchargement est disponible pour Cloudinary et Dropbox, pas pour Vioo.
+      if (!download.hidden) {
         card.append(download);
       }
 
