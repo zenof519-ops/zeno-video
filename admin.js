@@ -707,7 +707,7 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (provider === "vioo" && thumbnail && !selectedCover) {
+  if (provider === "vioo" && thumbnail) {
     try {
       const thumbnailUrl = new URL(thumbnail);
       if (thumbnailUrl.protocol !== "https:") throw new Error();
