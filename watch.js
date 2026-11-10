@@ -78,6 +78,35 @@ function showViooPlayer(video) {
   wrap.replaceChildren(launchButton, note);
 }
 
+function showOneDrivePlayer(video) {
+  const launchButton = document.createElement("button");
+  launchButton.type = "button";
+  launchButton.className = "btn";
+  launchButton.textContent = "▶ Lancer la lecture";
+
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "Le lancement sera comptabilisé lorsque tu appuieras sur ce bouton.";
+
+  launchButton.addEventListener("click", () => {
+    if (launchButton.disabled) return;
+    launchButton.disabled = true;
+    launchButton.textContent = "Ouverture du lecteur OneDrive…";
+    registerViewOnce();
+
+    const frame = document.createElement("iframe");
+    frame.src = video.playback_url;
+    frame.loading = "eager";
+    frame.allow = "autoplay; fullscreen; picture-in-picture";
+    frame.allowFullscreen = true;
+    frame.title = video.title;
+    frame.referrerPolicy = "strict-origin-when-cross-origin";
+    wrap.replaceChildren(frame);
+  });
+
+  wrap.replaceChildren(launchButton, note);
+}
+
 async function loadVideo() {
   try {
     if (!id) {
@@ -157,6 +186,10 @@ async function loadVideo() {
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
       // Aucun lien de téléchargement direct Vioo n'étant disponible.
+      downloadButton.remove();
+    } else if (provider === "onedrive" && video.playback_url) {
+      showOneDrivePlayer(video);
+      // OneDrive ne fournit pas ici de lien de téléchargement direct fiable.
       downloadButton.remove();
     } else if (provider === "dropbox" && video.playback_url) {
       const media = document.createElement("video");
