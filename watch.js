@@ -50,7 +50,7 @@ async function loadVideo() {
     }
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id,format&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,cloudinary_public_id,format,provider&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -79,7 +79,9 @@ async function loadVideo() {
     document.getElementById("video-description").textContent =
       video.description || "";
 
-    if (video.cloudinary_public_id) {
+    const provider = video.provider || (video.cloudinary_public_id ? "cloudinary" : "vioo");
+
+    if (provider === "cloudinary" && video.cloudinary_public_id) {
       const publicId = video.cloudinary_public_id
         .split("/")
         .map(encodeURIComponent)
@@ -117,16 +119,18 @@ async function loadVideo() {
 
       downloadButton.hidden = false;
 
-    } else {
+    } else if (provider === "vioo" && video.playback_url) {
       const frame = document.createElement("iframe");
-
       frame.src = video.playback_url;
-      frame.allow =
-        "autoplay; fullscreen; encrypted-media; picture-in-picture";
+      frame.allow = "autoplay; fullscreen; picture-in-picture";
       frame.allowFullscreen = true;
       frame.title = video.title;
+      frame.referrerPolicy = "strict-origin-when-cross-origin";
 
       wrap.replaceChildren(frame);
+      downloadButton.hidden = true;
+    } else {
+      throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
     }
 
   } catch (error) {
