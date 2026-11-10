@@ -307,7 +307,7 @@ function editVideo(video) {
   cancelEditButton.classList.remove("admin-hidden");
 
   videoFileInput.value = "";
-  videoFileInput.disabled = providerSelect.value === "vioo" || true;
+  videoFileInput.disabled = true;
   coverFileInput.value = "";
   coverFileInput.disabled = providerSelect.value === "vioo";
   videoForm.scrollIntoView({ behavior: "smooth" });
