@@ -6,7 +6,7 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=24" defer></script>
+  <script src="admin.js?v=25" defer></script>
 </head>
 <body>
   <header>
@@ -115,9 +115,13 @@
             <p class="cover-help">Téléverse la vidéo dans Dropbox, crée un lien de partage en lecture seule, puis colle ce lien ici. Zeno Video le convertira automatiquement pour son lecteur vidéo. Le fichier reste hébergé chez Dropbox.</p>
           </div>
           <div id="onedrive-fields" class="admin-hidden">
-            <label>Lien de partage / lecteur OneDrive
-              <input type="url" id="onedrive-url" placeholder="Colle ici le lien obtenu sur OneDrive" inputmode="url" autocomplete="url">
+            <label>Lien d’intégration du lecteur OneDrive
+              <input type="url" id="onedrive-url" placeholder="Colle ici le lien embed OneDrive" inputmode="url" autocomplete="url">
             </label>
+            <label>Lien de partage classique pour télécharger
+              <input type="url" id="onedrive-download-url" placeholder="Colle ici le lien « Copier le lien » de OneDrive" inputmode="url" autocomplete="url">
+            </label>
+            <p class="cover-help">Ce deuxième lien doit être le lien de partage normal (pas le lien embed). Zeno Video l’utilisera avec l’option de téléchargement de OneDrive.</p>
             <a class="btn alt" href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">Ouvrir OneDrive pour héberger une vidéo ↗</a>
             <div id="onedrive-helper" class="admin-panel" aria-live="polite">
               <p id="onedrive-helper-message" class="cover-help">Ce lien doit être converti en véritable lien d’intégration avant l’enregistrement.</p>
