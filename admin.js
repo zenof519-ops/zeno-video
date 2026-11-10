@@ -824,7 +824,13 @@ videoForm.addEventListener("submit", async (event) => {
   }
 
   if (provider === "onedrive" && !oneDriveUrlInput.value.trim()) {
-    showMessage(videoMessage, "Colle le lien du lecteur OneDrive.");
+    showMessage(videoMessage, "Colle le lien de lecteur OneDrive.");
+    return;
+  }
+
+  if (provider === "onedrive" && !isOneDriveEmbedUrl(oneDriveUrlInput.value)) {
+    showMessage(videoMessage, "Ce lien semble être un lien de partage classique, pas un lien d’intégration. Utilise le bouton « Copier le lien et ouvrir ChatGPT », récupère le lien embed puis remplace celui-ci avant d’enregistrer.");
+    refreshOneDriveHelper();
     return;
   }
 
