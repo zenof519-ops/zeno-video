@@ -75,12 +75,10 @@ function updateProviderFields() {
 
   if (isVioo) {
     videoFileInput.value = "";
-    coverFileInput.value = "";
-    clearCoverPreview();
   }
 
   videoFileInput.disabled = isVioo || Boolean(editingId);
-  coverFileInput.disabled = isVioo;
+  coverFileInput.disabled = false;
   cloudinaryIdInput.disabled = isVioo;
 }
 
@@ -290,15 +288,15 @@ function editVideo(video) {
   if (providerSelect.value === "vioo") {
     viooIdInput.value = video.playback_url || "";
     viooThumbnailInput.value = video.thumbnail_url || "";
-    clearCoverPreview();
   } else {
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
-    if (currentThumbnailUrl) {
-      displayCoverPreview(currentThumbnailUrl, "Couverture actuellement enregistrée");
-    } else {
-      clearCoverPreview();
-    }
+  }
+
+  if (currentThumbnailUrl) {
+    displayCoverPreview(currentThumbnailUrl, "Couverture actuellement enregistrée");
+  } else {
+    clearCoverPreview();
   }
   updateProviderFields();
 
@@ -309,7 +307,7 @@ function editVideo(video) {
   videoFileInput.value = "";
   videoFileInput.disabled = true;
   coverFileInput.value = "";
-  coverFileInput.disabled = providerSelect.value === "vioo";
+  coverFileInput.disabled = false;
   videoForm.scrollIntoView({ behavior: "smooth" });
 }
 
@@ -676,10 +674,10 @@ videoForm.addEventListener("submit", async (event) => {
   const title = document.getElementById("video-name").value.trim();
   const description = document.getElementById("video-description").value.trim();
   const selectedFile = provider === "cloudinary" ? videoFileInput.files[0] : null;
-  const selectedCover = provider === "cloudinary" ? coverFileInput.files[0] : null;
+  const selectedCover = coverFileInput.files[0];
   let publicId = provider === "cloudinary" ? cloudinaryIdInput.value.trim() : null;
   let thumbnail = provider === "vioo"
-    ? viooThumbnailInput.value.trim()
+    ? (viooThumbnailInput.value.trim() || currentThumbnailUrl)
     : currentThumbnailUrl;
   let playbackUrl = null;
   let coverWarning = "";
@@ -709,7 +707,7 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (provider === "vioo" && thumbnail) {
+  if (provider === "vioo" && thumbnail && !selectedCover) {
     try {
       const thumbnailUrl = new URL(thumbnail);
       if (thumbnailUrl.protocol !== "https:") throw new Error();
@@ -745,17 +743,6 @@ videoForm.addEventListener("submit", async (event) => {
         cloudinaryIdInput.value = publicId;
       }
 
-      if (selectedCover) {
-        try {
-          showMessage(videoMessage, "Conversion de la couverture en PNG...");
-          const uploadedCover = await uploadToCloudinary(selectedCover, "image");
-          thumbnail = uploadedCover.secure_url;
-        } catch (coverError) {
-          coverWarning = " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée.";
-          console.error("Zeno Video cover upload:", coverError);
-        }
-      }
-
       if (!thumbnail && publicId) {
         thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
       }
@@ -774,6 +761,19 @@ videoForm.addEventListener("submit", async (event) => {
       videoFormat = null;
     } else {
       throw new Error("Hébergeur vidéo non pris en charge.");
+    }
+
+    if (selectedCover) {
+      try {
+        showMessage(videoMessage, "Conversion de la miniature en PNG...");
+        const uploadedCover = await uploadToCloudinary(selectedCover, "image");
+        thumbnail = uploadedCover.secure_url;
+      } catch (coverError) {
+        coverWarning = provider === "cloudinary"
+          ? " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée."
+          : " La miniature n'a pas pu être envoyée (" + coverError.message + "). La vidéo Vioo sera enregistrée sans cette miniature.";
+        console.error("Zeno Video cover upload:", coverError);
+      }
     }
 
     showMessage(videoMessage, "Enregistrement de la vidéo dans la bibliothèque...");
@@ -836,7 +836,7 @@ videoForm.addEventListener("submit", async (event) => {
   } finally {
     saveButton.disabled = false;
     videoFileInput.disabled = providerSelect.value === "vioo" || Boolean(editingId);
-    coverFileInput.disabled = providerSelect.value === "vioo";
+    coverFileInput.disabled = false;
   }
 });
 
