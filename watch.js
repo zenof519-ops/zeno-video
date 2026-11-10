@@ -239,6 +239,7 @@ downloadButton.addEventListener("click", async (event) => {
   if (downloadButton.hidden || !id) return;
   event.preventDefault();
   const destination = downloadButton.href;
+  window.open(destination, "_blank", "noopener,noreferrer");
   try {
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
@@ -258,7 +259,6 @@ downloadButton.addEventListener("click", async (event) => {
   } catch (error) {
     console.error("Comptage du téléchargement impossible :", error);
   }
-  window.open(destination, "_blank", "noopener,noreferrer");
 });
 
 document.getElementById("copy-watch-link").onclick =
