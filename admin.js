@@ -95,7 +95,7 @@ function normalizeDropboxUrl(value) {
 
 function normalizeOneDriveEmbedUrl(value) {
   const raw = String(value || "").trim();
-  const iframeSource = raw.match(/src\\s*=\\s*["\']([^"\']+)["\']/i);
+  const iframeSource = raw.match(/src\s*=\s*["\']([^"\']+)["\']/i);
   const candidate = iframeSource ? iframeSource[1] : raw;
   let url;
   try {
