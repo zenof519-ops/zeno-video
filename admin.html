@@ -58,6 +58,7 @@
               <option value="cloudinary">Cloudinary</option>
               <option value="vioo">Vioo — lecteur intégré</option>
               <option value="dropbox">Dropbox — lien de partage</option>
+              <option value="onedrive">OneDrive — lecteur intégré</option>
             </select>
           </label>
           <label>Titre de la vidéo
@@ -112,6 +113,13 @@
             </label>
             <a class="btn alt" href="https://www.dropbox.com/" target="_blank" rel="noopener noreferrer">Ouvrir Dropbox pour héberger une vidéo ↗</a>
             <p class="cover-help">Téléverse la vidéo dans Dropbox, crée un lien de partage en lecture seule, puis colle ce lien ici. Zeno Video le convertira automatiquement pour son lecteur vidéo. Le fichier reste hébergé chez Dropbox.</p>
+          </div>
+          <div id="onedrive-fields" class="admin-hidden">
+            <label>Lien de lecteur OneDrive (URL du lecteur / intégration)
+              <input type="url" id="onedrive-url" placeholder="https://1drv.ms/v/..." inputmode="url">
+            </label>
+            <a class="btn alt" href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">Ouvrir OneDrive ↗</a>
+            <p class="cover-help">Colle le lien de lecture OneDrive. La vidéo sera affichée dans un lecteur intégré. Le fichier reste hébergé chez Microsoft OneDrive.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
