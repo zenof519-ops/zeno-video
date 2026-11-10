@@ -59,6 +59,12 @@
               <option value="vioo">Vioo — lecteur intégré</option>
             </select>
           </label>
+          <label>Titre de la vidéo
+            <input type="text" id="video-name" required>
+          </label>
+          <label>Description
+            <textarea id="video-description"></textarea>
+          </label>
           <div id="cloudinary-fields">
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
@@ -70,12 +76,6 @@
             </select>
           </label>
           <p class="cover-help">Le mode 480p réduit la résolution avant l'envoi et conserve le fichier original sur ton téléphone. Le traitement peut prendre du temps et utiliser les ressources du téléphone.</p>
-          <label>Titre de la vidéo
-            <input type="text" id="video-name" required>
-          </label>
-          <label>Description
-            <textarea id="video-description"></textarea>
-          </label>
           <label>Identifiant public Cloudinary (si déjà hébergée)
             <input type="text" id="cloudinary-id">
           </label>
