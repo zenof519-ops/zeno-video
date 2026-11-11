@@ -61,6 +61,7 @@
               <option value="vioo">Vioo — lecteur intégré</option>
               <option value="dropbox">Dropbox — lien de partage</option>
               <option value="onedrive">OneDrive — lecteur intégré</option>
+              <option value="deepstorage">DeepStorage API</option>
             </select>
           </label>
           <label>Titre de la vidéo
@@ -130,6 +131,13 @@
               <button type="button" id="onedrive-chatgpt-button" class="alt">Copier le lien et ouvrir ChatGPT</button>
             </div>
             <p class="cover-help">Téléverse ta vidéo sur OneDrive, copie son lien de partage puis reviens ici. Si le lien n’est pas déjà un lien d’intégration, utilise le bouton pour le transmettre à ChatGPT. Le fichier reste hébergé chez Microsoft OneDrive.</p>
+          </div>
+          <div id="deepstorage-fields" class="admin-hidden">
+            <label>Fichier vidéo à envoyer sur DeepStorage
+              <input type="file" id="deepstorage-file" accept="video/mp4,video/quicktime,video/webm">
+            </label>
+            <p id="deepstorage-status" class="admin-message status-pending" aria-live="polite">Vérification de l'accès API DeepStorage…</p>
+            <p class="cover-help">Zeno vérifie automatiquement l'accès API. Si l'accès Pro n'est pas actif, cet hébergeur sera refusé et tu pourras en choisir un autre. Les vidéos déjà hébergées sur DeepStorage ne seront pas touchées.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
