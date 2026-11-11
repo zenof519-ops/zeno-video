@@ -270,7 +270,11 @@ async function sendDeepStorageBinary(action, params, blob) {
       showDeepStorageStatus();
       deepStorageFileInput.disabled = true;
     }
-    throw new Error(data.error || "DeepStorage a refusé le transfert (HTTP " + response.status + ").");
+    const failure = new Error(data.error || "DeepStorage a refusé le transfert (HTTP " + response.status + ").");
+    failure.code = data.code || "deepstorage_error";
+    failure.nextOffset = data.next_offset;
+    failure.retryAfter = data.retry_after;
+    throw failure;
   }
   return data;
 }
@@ -320,9 +324,21 @@ async function uploadToDeepStorage(file) {
           chunkNumber++;
         } catch (error) {
           lastError = error;
-          if (/indisponible|Pro|clé API|administrateur/i.test(error.message)) throw error;
+          if (error.code === "premium_required" || error.code === "invalid_api_key" ||
+              error.code === "upload_scope_missing" || /indisponible|Pro|clé API|administrateur/i.test(error.message)) {
+            throw error;
+          }
+          if (error.code === "bad_offset") {
+            const resumed = await invokeDeepStorage({ action: "resume", session_id: sessionId });
+            offset = Number(resumed.next_offset || 0);
+            sent = true;
+            break;
+          }
           if (attempt === 5) break;
-          await wait(Math.min(1000 * (2 ** (attempt - 1)), 8000));
+          const delay = error.code === "busy" && Number(error.retryAfter) > 0
+            ? Number(error.retryAfter) * 1000
+            : Math.min(1000 * (2 ** (attempt - 1)), 8000);
+          await wait(delay);
         }
       }
 
@@ -1133,7 +1149,9 @@ videoForm.addEventListener("submit", async (event) => {
   }
 
   saveButton.disabled = true;
+  providerSelect.disabled = true;
   videoFileInput.disabled = true;
+  deepStorageFileInput.disabled = true;
   coverFileInput.disabled = true;
 
   try {
@@ -1275,6 +1293,7 @@ videoForm.addEventListener("submit", async (event) => {
     showMessage(videoMessage, "Erreur : " + error.message);
   } finally {
     saveButton.disabled = false;
+    providerSelect.disabled = false;
     videoFileInput.disabled = providerSelect.value !== "cloudinary" || Boolean(editingId);
     deepStorageFileInput.disabled = providerSelect.value !== "deepstorage" || !deepStorageStatus.available;
     coverFileInput.disabled = false;
