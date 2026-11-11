@@ -335,7 +335,7 @@ async function uploadToDeepStorage(file) {
             break;
           }
           if (attempt === 5) break;
-          const delay = error.code === "busy" && Number(error.retryAfter) > 0
+          const delay = (error.code === "busy" || error.code === "rate_limited") && Number(error.retryAfter) > 0
             ? Number(error.retryAfter) * 1000
             : Math.min(1000 * (2 ** (attempt - 1)), 8000);
           await wait(delay);
