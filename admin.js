@@ -36,10 +36,15 @@ const oneDriveDownloadUrlInput = document.getElementById("onedrive-download-url"
 const oneDriveHelper = document.getElementById("onedrive-helper");
 const oneDriveHelperMessage = document.getElementById("onedrive-helper-message");
 const oneDriveChatGPTButton = document.getElementById("onedrive-chatgpt-button");
+const deepStorageFields = document.getElementById("deepstorage-fields");
+const deepStorageFileInput = document.getElementById("deepstorage-file");
+const deepStorageStatusElement = document.getElementById("deepstorage-status");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
 let editingId = null;
+let editingVideo = null;
+let deepStorageStatus = { checked: false, available: false, message: "Vérification de l'accès API DeepStorage…" };
 let videoFormat = "mp4";
 let currentThumbnailUrl = null;
 let previewObjectUrl = null;
@@ -180,8 +185,163 @@ function normalizeOneDriveDownloadUrl(value) {
   return url.toString();
 }
 
+
+function showDeepStorageStatus() {
+  if (!deepStorageStatusElement) return;
+  deepStorageStatusElement.textContent = deepStorageStatus.message;
+  deepStorageStatusElement.className = "admin-message " +
+    (deepStorageStatus.available ? "success" : deepStorageStatus.checked ? "error" : "status-pending");
+}
+
+async function invokeDeepStorage(payload) {
+  const { data, error } = await db.functions.invoke("deepstorage-upload", { body: payload });
+  if (error) {
+    let details = error.message || "La fonction DeepStorage a échoué.";
+    try {
+      if (error.context && typeof error.context.json === "function") {
+        const response = await error.context.json();
+        details = response.error || response.message || details;
+        if (response.code === "premium_required" || response.code === "invalid_api_key") {
+          deepStorageStatus = { checked: true, available: false, message: details };
+          showDeepStorageStatus();
+        }
+      }
+    } catch {}
+    throw new Error(details);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+
+async function checkDeepStorageAvailability(force = false) {
+  if (!force && deepStorageStatus.checked) return deepStorageStatus.available;
+  deepStorageStatus = { checked: false, available: false, message: "Vérification de l'accès API DeepStorage…" };
+  showDeepStorageStatus();
+  try {
+    const data = await invokeDeepStorage({ action: "status" });
+    if (!data?.available) {
+      deepStorageStatus = {
+        checked: true,
+        available: false,
+        message: data?.message || "DeepStorage API indisponible. Choisis un autre hébergeur."
+      };
+    } else {
+      deepStorageStatus = {
+        checked: true,
+        available: true,
+        message: "✓ DeepStorage API disponible (" + (data.plan || "offre payante") + "). Tu peux envoyer une vidéo."
+      };
+    }
+  } catch (error) {
+    deepStorageStatus = {
+      checked: true,
+      available: false,
+      message: (error.message || "Vérification impossible.") + " Choisis un autre hébergeur si l'accès API n'est pas actif."
+    };
+  }
+  showDeepStorageStatus();
+  if (providerSelect.value === "deepstorage") {
+    deepStorageFileInput.disabled = !deepStorageStatus.available;
+    saveButton.disabled = !deepStorageStatus.available;
+  }
+  return deepStorageStatus.available;
+}
+
+async function sendDeepStorageBinary(action, params, blob) {
+  const { data: sessionData, error: sessionError } = await db.auth.getSession();
+  const session = sessionData?.session;
+  if (sessionError || !session?.access_token) {
+    throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant de relancer l'envoi.");
+  }
+  const query = new URLSearchParams({ action, ...params });
+  const response = await fetch(SUPABASE_URL + "/functions/v1/deepstorage-upload?" + query.toString(), {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer " + session.access_token,
+      apikey: SUPABASE_KEY,
+      "Content-Type": blob.type || "application/octet-stream"
+    },
+    body: blob
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    if (data.code === "premium_required" || data.code === "invalid_api_key") {
+      deepStorageStatus = { checked: true, available: false, message: data.error || "Accès API DeepStorage indisponible." };
+      showDeepStorageStatus();
+      deepStorageFileInput.disabled = true;
+    }
+    throw new Error(data.error || "DeepStorage a refusé le transfert (HTTP " + response.status + ").");
+  }
+  return data;
+}
+
+async function uploadToDeepStorage(file) {
+  const started = await invokeDeepStorage({
+    action: "start",
+    filename: file.name,
+    size: file.size,
+    content_type: file.type || "application/octet-stream"
+  });
+
+  if (started.mode === "one_shot") {
+    showMessage(videoMessage, "Envoi de la vidéo vers DeepStorage…");
+    return await sendDeepStorageBinary("single", { filename: file.name }, file);
+  }
+
+  if (!started.session_id || !started.chunk_size) {
+    throw new Error("DeepStorage n'a pas fourni les informations nécessaires pour le transfert reprenable.");
+  }
+
+  const sessionId = started.session_id;
+  const chunkSize = Number(started.chunk_size);
+  let offset = Number(started.next_offset || 0);
+  let chunkNumber = 0;
+
+  try {
+    while (offset < file.size) {
+      await waitForOnlineConnection();
+      const end = Math.min(offset + chunkSize, file.size);
+      const chunk = file.slice(offset, end);
+      let sent = false;
+      let lastError = null;
+
+      for (let attempt = 1; attempt <= 5 && !sent; attempt++) {
+        try {
+          showMessage(videoMessage,
+            "Envoi DeepStorage : " + Math.round((offset / file.size) * 100) +
+            "% · morceau " + (chunkNumber + 1) + " · tentative " + attempt + "/5"
+          );
+          const result = await sendDeepStorageBinary("chunk", {
+            session_id: sessionId,
+            offset: String(offset)
+          }, chunk);
+          offset = Number(result.next_offset ?? end);
+          sent = true;
+          chunkNumber++;
+        } catch (error) {
+          lastError = error;
+          if (/indisponible|Pro|clé API|administrateur/i.test(error.message)) throw error;
+          if (attempt === 5) break;
+          await wait(Math.min(1000 * (2 ** (attempt - 1)), 8000));
+        }
+      }
+
+      if (!sent) throw new Error("Le morceau n'a pas pu être envoyé après plusieurs tentatives. " + (lastError?.message || ""));
+    }
+
+    showMessage(videoMessage, "Finalisation du fichier sur DeepStorage…");
+    const finished = await invokeDeepStorage({ action: "finish", session_id: sessionId });
+    if (!finished?.link) throw new Error("DeepStorage n'a pas renvoyé le lien de lecture final.");
+    return finished;
+  } catch (error) {
+    try { await invokeDeepStorage({ action: "abort", session_id: sessionId }); } catch {}
+    throw error;
+  }
+}
+
 function updateProviderFields() {
   const isCloudinary = providerSelect.value === "cloudinary";
+  const isDeepStorage = providerSelect.value === "deepstorage";
   const isVioo = providerSelect.value === "vioo";
   const isDropbox = providerSelect.value === "dropbox";
   const isOneDrive = providerSelect.value === "onedrive";
@@ -189,12 +349,21 @@ function updateProviderFields() {
   viooFields.classList.toggle("admin-hidden", !isVioo);
   dropboxFields.classList.toggle("admin-hidden", !isDropbox);
   oneDriveFields.classList.toggle("admin-hidden", !isOneDrive);
+  deepStorageFields.classList.toggle("admin-hidden", !isDeepStorage);
 
   if (!isCloudinary) videoFileInput.value = "";
+  if (!isDeepStorage) deepStorageFileInput.value = "";
   videoFileInput.disabled = !isCloudinary || Boolean(editingId);
+  deepStorageFileInput.disabled = !isDeepStorage || !deepStorageStatus.available;
   coverFileInput.disabled = false;
   cloudinaryIdInput.disabled = !isCloudinary;
   refreshOneDriveHelper();
+  if (isDeepStorage) {
+    saveButton.disabled = !deepStorageStatus.available;
+    checkDeepStorageAvailability(true);
+  } else {
+    saveButton.disabled = false;
+  }
 }
 
 providerSelect.addEventListener("change", updateProviderFields);
@@ -317,6 +486,7 @@ removeCoverButton.addEventListener("click", () => {
 function resetVideoForm() {
   videoForm.reset();
   editingId = null;
+  editingVideo = null;
   videoFormat = "mp4";
   currentThumbnailUrl = null;
   clearCoverPreview();
@@ -333,6 +503,7 @@ function resetVideoForm() {
   dropboxUrlInput.value = "";
   oneDriveUrlInput.value = "";
   oneDriveDownloadUrlInput.value = "";
+  deepStorageFileInput.value = "";
   updateProviderFields();
   refreshOneDriveHelper();
 }
@@ -350,6 +521,7 @@ async function openDashboard(user) {
   dashboard.classList.remove("admin-hidden");
   await loadAdminVideos();
   await checkPermanentDeleteConfig();
+  await checkDeepStorageAvailability(true);
 }
 
 loginForm.addEventListener("submit", async (event) => {
@@ -426,7 +598,7 @@ async function loadAdminVideos() {
     status.textContent = video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
 
     const providerLabel = document.createElement("p");
-    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive" };
+    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage" };
     providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
 
     const actions = document.createElement("div");
@@ -467,6 +639,7 @@ async function loadAdminVideos() {
 
 function editVideo(video) {
   editingId = video.id;
+  editingVideo = video;
   videoFormat = video.format || "mp4";
   currentThumbnailUrl = video.thumbnail_url || null;
   providerSelect.value = video.provider || "cloudinary";
@@ -879,7 +1052,9 @@ videoForm.addEventListener("submit", async (event) => {
   const provider = providerSelect.value;
   const title = document.getElementById("video-name").value.trim();
   const description = document.getElementById("video-description").value.trim();
-  const selectedFile = provider === "cloudinary" ? videoFileInput.files[0] : null;
+  const selectedFile = provider === "cloudinary"
+    ? videoFileInput.files[0]
+    : provider === "deepstorage" ? deepStorageFileInput.files[0] : null;
   const selectedCover = coverFileInput.files[0];
   let publicId = provider === "cloudinary" ? cloudinaryIdInput.value.trim() : null;
   let thumbnail = provider === "vioo"
@@ -891,6 +1066,17 @@ videoForm.addEventListener("submit", async (event) => {
 
   if (!title) {
     showMessage(videoMessage, "Indique un titre pour la vidéo.");
+    return;
+  }
+
+  if (provider === "deepstorage" && !editingId && !selectedFile) {
+    showMessage(videoMessage, "Choisis le fichier vidéo à envoyer sur DeepStorage.");
+    return;
+  }
+
+  if (provider === "deepstorage" && selectedFile && !deepStorageStatus.available) {
+    showMessage(videoMessage, deepStorageStatus.message || "L'accès API DeepStorage n'est pas disponible. Choisis un autre hébergeur.");
+    await checkDeepStorageAvailability(true);
     return;
   }
 
@@ -997,6 +1183,21 @@ videoForm.addEventListener("submit", async (event) => {
       downloadUrl = normalizeOneDriveDownloadUrl(oneDriveDownloadUrlInput.value);
       publicId = null;
       videoFormat = null;
+    } else if (provider === "deepstorage") {
+      publicId = null;
+      if (selectedFile) {
+        showMessage(videoMessage, "Préparation de l'envoi sécurisé vers DeepStorage…");
+        const uploaded = await uploadToDeepStorage(selectedFile);
+        playbackUrl = uploaded.link;
+        downloadUrl = uploaded.link;
+        videoFormat = selectedFile.name.split(".").pop()?.toLowerCase() || null;
+      } else if (editingVideo?.provider === "deepstorage") {
+        playbackUrl = editingVideo.playback_url;
+        downloadUrl = editingVideo.download_url || editingVideo.playback_url;
+        videoFormat = editingVideo.format || null;
+      } else {
+        throw new Error("Aucun fichier DeepStorage à envoyer.");
+      }
     } else {
       throw new Error("Hébergeur vidéo non pris en charge.");
     }
@@ -1075,7 +1276,9 @@ videoForm.addEventListener("submit", async (event) => {
   } finally {
     saveButton.disabled = false;
     videoFileInput.disabled = providerSelect.value !== "cloudinary" || Boolean(editingId);
+    deepStorageFileInput.disabled = providerSelect.value !== "deepstorage" || !deepStorageStatus.available;
     coverFileInput.disabled = false;
+    if (providerSelect.value === "deepstorage" && !deepStorageStatus.available) saveButton.disabled = true;
   }
 });
 
@@ -1097,7 +1300,7 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : video.provider === "onedrive" ? "OneDrive" : "Cloudinary";
+  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : video.provider === "onedrive" ? "OneDrive" : video.provider === "deepstorage" ? "DeepStorage" : "Cloudinary";
   if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera hébergé sur " + providerName + ".")) return;
 
   const { error } = await db.from("videos").delete().eq("id", video.id);
