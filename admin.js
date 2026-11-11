@@ -242,7 +242,7 @@ async function checkDeepStorageAvailability(force = false) {
   showDeepStorageStatus();
   if (providerSelect.value === "deepstorage") {
     deepStorageFileInput.disabled = !deepStorageStatus.available;
-    saveButton.disabled = !deepStorageStatus.available;
+    saveButton.disabled = !deepStorageStatus.available && !editingId;
   }
   return deepStorageStatus.available;
 }
@@ -375,7 +375,7 @@ function updateProviderFields() {
   cloudinaryIdInput.disabled = !isCloudinary;
   refreshOneDriveHelper();
   if (isDeepStorage) {
-    saveButton.disabled = !deepStorageStatus.available;
+    saveButton.disabled = !deepStorageStatus.available && !editingId;
     checkDeepStorageAvailability(true);
   } else {
     saveButton.disabled = false;
@@ -1297,7 +1297,7 @@ videoForm.addEventListener("submit", async (event) => {
     videoFileInput.disabled = providerSelect.value !== "cloudinary" || Boolean(editingId);
     deepStorageFileInput.disabled = providerSelect.value !== "deepstorage" || !deepStorageStatus.available;
     coverFileInput.disabled = false;
-    if (providerSelect.value === "deepstorage" && !deepStorageStatus.available) saveButton.disabled = true;
+    if (providerSelect.value === "deepstorage" && !deepStorageStatus.available && !editingId) saveButton.disabled = true;
   }
 });
 
