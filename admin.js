@@ -48,6 +48,55 @@ function showMessage(element, message) {
   element.textContent = message;
 }
 
+async function resetVideoStatistics(videoId, videoTitle) {
+  const confirmed = confirm(
+    "Réinitialiser les statistiques de « " + videoTitle + " » ?\\n\\nSes lectures et téléchargements passeront à zéro. Cette action ne peut pas être annulée."
+  );
+  if (!confirmed) return;
+
+  const message = document.getElementById("stats-reset-message");
+  const { error } = await db.from("videos")
+    .update({ views: 0, downloads: 0 })
+    .eq("id", videoId);
+
+  if (error) {
+    showMessage(message, "Erreur : " + error.message);
+    return;
+  }
+
+  showMessage(message, "✓ Compteurs de « " + videoTitle + " » remis à zéro.");
+  await loadAdminVideos();
+}
+
+async function resetAllVideoStatistics() {
+  const confirmed = confirm(
+    "Réinitialiser les statistiques de TOUTES les vidéos ?\\n\\nTous les compteurs de lectures et de téléchargements passeront à zéro. Cette action ne peut pas être annulée."
+  );
+  if (!confirmed) return;
+
+  const button = document.getElementById("reset-all-stats");
+  const message = document.getElementById("stats-reset-message");
+  button.disabled = true;
+  showMessage(message, "Réinitialisation des statistiques en cours…");
+
+  try {
+    const { error } = await db.from("videos")
+      .update({ views: 0, downloads: 0 })
+      .not("id", "is", null);
+
+    if (error) throw error;
+
+    showMessage(message, "✓ Les statistiques globales et celles de chaque vidéo ont été remises à zéro.");
+    await loadAdminVideos();
+  } catch (error) {
+    showMessage(message, "Erreur : " + (error.message || "réinitialisation impossible."));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+document.getElementById("reset-all-stats").addEventListener("click", resetAllVideoStatistics);
+
 function normalizeViooEmbedUrl(value) {
   const raw = String(value || "").trim();
   if (/^[A-Za-z0-9_-]+$/.test(raw)) {
@@ -397,12 +446,17 @@ async function loadAdminVideos() {
     deleteButton.textContent = "Supprimer de Supabase";
     deleteButton.addEventListener("click", () => deleteVideo(video));
 
+    const resetStatsButton = document.createElement("button");
+    resetStatsButton.className = "danger";
+    resetStatsButton.textContent = "Réinitialiser les compteurs";
+    resetStatsButton.addEventListener("click", () => resetVideoStatistics(video.id, video.title));
+
     const permanentDeleteButton = document.createElement("button");
     permanentDeleteButton.className = "danger";
     permanentDeleteButton.textContent = "Supprimer définitivement";
     permanentDeleteButton.addEventListener("click", () => permanentlyDeleteVideo(video));
 
-    actions.append(editButton, publishButton, deleteButton);
+    actions.append(editButton, publishButton, deleteButton, resetStatsButton);
     if ((video.provider || "cloudinary") === "cloudinary") {
       actions.append(permanentDeleteButton);
     }
