@@ -220,6 +220,24 @@ async function loadVideo() {
       downloadUrl.searchParams.set("dl", "1");
       downloadButton.href = downloadUrl.toString();
       downloadButton.hidden = false;
+    } else if (provider === "deepstorage" && video.playback_url) {
+      const media = document.createElement("video");
+      media.controls = true;
+      media.playsInline = true;
+      media.preload = "metadata";
+      media.style.width = "100%";
+      media.style.maxWidth = "100%";
+      media.style.height = "auto";
+      media.style.display = "block";
+      media.style.background = "#000";
+      media.src = video.playback_url;
+      media.addEventListener("playing", registerViewOnce);
+      media.addEventListener("error", () => {
+        console.error("Erreur de lecture DeepStorage :", media.error);
+      });
+      wrap.replaceChildren(media);
+      downloadButton.href = video.download_url || video.playback_url;
+      downloadButton.hidden = false;
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
     }
