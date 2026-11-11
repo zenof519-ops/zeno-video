@@ -102,6 +102,9 @@ async function loadVideos() {
         } catch (error) {
           console.error("Lien de téléchargement OneDrive invalide :", error);
         }
+      } else if (provider === "deepstorage" && (v.download_url || v.playback_url)) {
+        download.href = v.download_url || v.playback_url;
+        download.hidden = false;
       } else if (provider === "dropbox" && v.playback_url) {
         try {
           const downloadUrl = new URL(v.playback_url);
