@@ -6,7 +6,8 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=26" defer></script>
+  <script src="admin.js?v=27" defer></script>
+  <script src="admin-stats.js?v=1" defer></script>
 </head>
 <body>
   <header>
@@ -44,6 +45,8 @@
           <article class="stat-card"><span>Téléchargements lancés</span><strong id="stat-downloads">—</strong></article>
         </div>
         <p class="stats-note">Totaux calculés à partir des statistiques de toutes les vidéos enregistrées.</p>
+        <button type="button" id="reset-all-stats" class="danger">Réinitialiser les statistiques globales</button>
+        <p id="stats-reset-message" class="admin-message" aria-live="polite"></p>
       </section>
       <section class="admin-panel delete-status-panel" aria-live="polite">
         <h2>État de la suppression définitive</h2>
