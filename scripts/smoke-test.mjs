@@ -15,12 +15,12 @@ const home = read('index.html');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const checks = [
-  ['Accueil : feuille de style avec préfixe GitHub Pages', /href="\\/zeno-video\\/style\\.css/i.test(home)],
-  ['Accueil : chargement des données vidéos', /\\/zeno-video\\/videos\\.js/i.test(home)],
-  ['Accueil : chargement de la galerie', /\\/zeno-video\\/library\\.js/i.test(home)],
-  ['Administration : script conservé', /admin\\.js/i.test(admin)],
-  ['Lecteur : script conservé', /watch\\.js/i.test(watch)],
-  ['Lecteur : lecture par identifiant URL', /location\\.search/i.test(read('watch.js'))]
+  ['Accueil : feuille de style avec préfixe GitHub Pages', home.includes('/zeno-video/style.css')],
+  ['Accueil : chargement des données vidéos', home.includes('/zeno-video/videos.js')],
+  ['Accueil : chargement de la galerie', home.includes('/zeno-video/library.js')],
+  ['Administration : script conservé', admin.includes('admin.js')],
+  ['Lecteur : script conservé', watch.includes('watch.js')],
+  ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')]
 ];
 let failed = false;
 for (const [label, passed] of checks) {
