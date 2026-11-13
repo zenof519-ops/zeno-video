@@ -90,6 +90,9 @@ Deno.serve(async (req: Request) => {
   const contentType = String(payload.content_type ?? "");
   const size = Number(payload.size);
   const thumbnailUrl = payload.thumbnail_url ? String(payload.thumbnail_url) : null;
+  const thumbnailProvider = payload.thumbnail_provider ? String(payload.thumbnail_provider) : null;
+  const thumbnailCloudinaryPublicId = payload.thumbnail_cloudinary_public_id ? String(payload.thumbnail_cloudinary_public_id) : null;
+  const thumbnailImageKitFileId = payload.thumbnail_imagekit_file_id ? String(payload.thumbnail_imagekit_file_id) : null;
 
   if (!title || title.length > 200 || description.length > 5000) {
     return json({ error: "Le titre est obligatoire (200 caractères maximum) et la description ne doit pas dépasser 5 000 caractères." }, 400, origin);
@@ -149,6 +152,9 @@ Deno.serve(async (req: Request) => {
     playback_url: "",
     download_url: null,
     thumbnail_url: thumbnailUrl,
+    thumbnail_provider: thumbnailProvider,
+    thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
+    thumbnail_imagekit_file_id: thumbnailImageKitFileId,
     format: null,
     is_published: false,
     mux_upload_id: muxPayload.data.id,
