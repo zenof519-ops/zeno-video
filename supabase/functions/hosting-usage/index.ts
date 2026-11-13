@@ -148,7 +148,7 @@ async function muxMetrics() {
 
   const now = new Date();
   const start = Math.floor(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime() / 1000);
-  const end = Math.floor(now.getTime() / 1000) - 12 * 60 * 60;
+  const end = Math.floor((now.getTime() / 1000 - 12 * 60 * 60) / 3600) * 3600;
   const usageUrl = new URL("https://api.mux.com/video/v1/delivery-usage");
   usageUrl.searchParams.append("timeframe[]", String(start));
   usageUrl.searchParams.append("timeframe[]", String(end));
