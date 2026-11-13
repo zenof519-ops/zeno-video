@@ -59,6 +59,166 @@ function showMessage(element, message) {
   element.textContent = message;
 }
 
+const hostingUsageCards = document.getElementById("hosting-usage-cards");
+const hostingUsageUpdated = document.getElementById("hosting-usage-updated");
+const refreshHostingUsageButton = document.getElementById("refresh-hosting-usage");
+
+function formatUsageBytes(value) {
+  const bytes = Number(value);
+  if (!Number.isFinite(bytes) || bytes < 0) return "Non disponible";
+  if (bytes < 1024) return bytes.toLocaleString("fr-FR") + " o";
+  const units = ["Ko", "Mo", "Go", "To"];
+  let size = bytes / 1024;
+  let index = 0;
+  while (size >= 1024 && index < units.length - 1) {
+    size /= 1024;
+    index++;
+  }
+  return size.toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " " + units[index];
+}
+
+function formatUsageNumber(value, digits = 1) {
+  const number = Number(value);
+  return Number.isFinite(number)
+    ? number.toLocaleString("fr-FR", { maximumFractionDigits: digits })
+    : "Non disponible";
+}
+
+function addHostingMetric(card, label, value) {
+  const line = document.createElement("p");
+  const strong = document.createElement("strong");
+  strong.textContent = label + " : ";
+  const span = document.createElement("span");
+  span.textContent = String(value ?? "Non disponible");
+  line.append(strong, span);
+  card.appendChild(line);
+}
+
+function formatCloudinaryBucket(bucket) {
+  if (!bucket || typeof bucket !== "object") return "Non disponible";
+  const used = bucket.usage ?? bucket.used ?? bucket.used_bytes;
+  const limit = bucket.limit ?? bucket.quota;
+  const percent = bucket.used_percent ?? bucket.percent;
+  const parts = [];
+  if (used !== undefined) parts.push(String(used) + (bucket.unit ? " " + bucket.unit : ""));
+  if (limit !== undefined) parts.push("limite " + String(limit));
+  if (percent !== undefined) parts.push(String(percent) + "%");
+  return parts.join(" / ") || "Données disponibles dans le compte, format non reconnu";
+}
+
+function renderHostingUsage(snapshots) {
+  hostingUsageCards.replaceChildren();
+  const labels = {
+    cloudinary: "Cloudinary",
+    mux: "Mux",
+    imagekit: "ImageKit (miniatures)",
+    deepstorage: "DeepStorage",
+    dropbox: "Dropbox",
+    onedrive: "OneDrive",
+    vioo: "Vioo"
+  };
+  const statusLabels = {
+    ok: "Mesure API disponible",
+    partial: "Mesure partielle",
+    needs_permission: "Autorisation API requise",
+    error: "Mesure indisponible"
+  };
+
+  if (!snapshots.length) {
+    const empty = document.createElement("p");
+    empty.className = "admin-message status-pending";
+    empty.textContent = "Aucune mesure enregistrée. Lance une première actualisation.";
+    hostingUsageCards.appendChild(empty);
+    return;
+  }
+
+  for (const snapshot of snapshots) {
+    const metrics = snapshot.metrics || {};
+    const zeno = metrics.zeno || {};
+    const card = document.createElement("article");
+    card.className = "hosting-usage-card";
+    const heading = document.createElement("div");
+    heading.className = "hosting-usage-heading";
+    const title = document.createElement("h3");
+    title.textContent = labels[snapshot.provider] || snapshot.provider;
+    const status = document.createElement("span");
+    status.className = "hosting-usage-status " + (snapshot.status || "error");
+    status.textContent = statusLabels[snapshot.status] || "État inconnu";
+    heading.append(title, status);
+    card.appendChild(heading);
+
+    addHostingMetric(card, "Vidéos Zeno", formatUsageNumber(zeno.videos || 0, 0) + " (" + formatUsageNumber(zeno.published || 0, 0) + " publiées)");
+    addHostingMetric(card, "Lectures lancées", formatUsageNumber(zeno.plays || 0, 0));
+    addHostingMetric(card, "Téléchargements lancés", formatUsageNumber(zeno.downloads || 0, 0));
+
+    if (snapshot.provider === "cloudinary") {
+      addHostingMetric(card, "Crédits", formatCloudinaryBucket(metrics.credits));
+      addHostingMetric(card, "Stockage", formatCloudinaryBucket(metrics.storage));
+      addHostingMetric(card, "Bande passante", formatCloudinaryBucket(metrics.bandwidth));
+      addHostingMetric(card, "Transformations", formatCloudinaryBucket(metrics.transformations));
+    } else if (snapshot.provider === "mux") {
+      addHostingMetric(card, "Assets stockés", formatUsageNumber(metrics.assets, 0) + " / " + formatUsageNumber(metrics.freeAssetLimit, 0));
+      addHostingMetric(card, "Places restantes (offre gratuite)", formatUsageNumber(metrics.assetsRemainingOnFree, 0));
+      addHostingMetric(card, "Durée vidéo stockée", formatUsageNumber(metrics.storedDurationMinutes, 1) + " min");
+      addHostingMetric(card, "Livraison ce mois", formatUsageNumber(metrics.deliveredMinutesThisMonth, 1) + " / 100 000 min");
+      addHostingMetric(card, "Minutes gratuites restantes", formatUsageNumber(metrics.freeDeliveryMinutesRemaining, 1));
+    } else if (snapshot.provider === "imagekit") {
+      addHostingMetric(card, "Stockage DAM", formatUsageBytes(metrics.mediaLibraryStorageBytes) + " / 3 Go (repère gratuit)");
+      addHostingMetric(card, "Stockage restant estimé", formatUsageBytes(metrics.storageRemainingReferenceBytes));
+      addHostingMetric(card, "Bande passante sur 30 jours", formatUsageBytes(metrics.bandwidthBytesLast30Days) + " / 20 Go (repère gratuit)");
+      addHostingMetric(card, "Bande passante restante estimée", formatUsageBytes(metrics.bandwidthRemainingReferenceBytes));
+    } else if (snapshot.provider === "deepstorage") {
+      addHostingMetric(card, "Offre détectée", metrics.plan || "Non communiquée par l'API");
+      addHostingMetric(card, "Droit de lecture API", metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API");
+      addHostingMetric(card, "Limites / quotas retournés", JSON.stringify(metrics.accountLimits || {}).slice(0, 320) || "Aucune donnée de quota reconnue");
+    } else if (snapshot.provider === "dropbox" || snapshot.provider === "onedrive") {
+      addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
+      addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
+      addHostingMetric(card, "Quota global du compte", "Connexion OAuth nécessaire pour obtenir une valeur exacte");
+    } else if (snapshot.provider === "vioo") {
+      addHostingMetric(card, "Quota et stockage fournisseur", "Non accessibles automatiquement pour le moment");
+    }
+
+    if (metrics.note) addHostingMetric(card, "Note", metrics.note);
+    if (snapshot.error) addHostingMetric(card, "Détail", snapshot.error);
+    hostingUsageCards.appendChild(card);
+  }
+}
+
+async function loadHostingUsage(refresh = false) {
+  if (!hostingUsageCards) return;
+  if (refreshHostingUsageButton) refreshHostingUsageButton.disabled = true;
+  showMessage(hostingUsageUpdated, refresh ? "Actualisation des hébergeurs en cours…" : "Récupération de la dernière mesure…");
+
+  try {
+    let { data, error } = await db.functions.invoke("hosting-usage", {
+      body: { action: refresh ? "refresh" : "latest" }
+    });
+    if (error) throw new Error(error.message || "Impossible de récupérer les statistiques des hébergeurs.");
+    let snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];
+
+    if (!refresh && snapshots.length === 0) {
+      ({ data, error } = await db.functions.invoke("hosting-usage", { body: { action: "refresh" } }));
+      if (error) throw new Error(error.message || "Impossible de lancer la première mesure.");
+      snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];
+    }
+
+    renderHostingUsage(snapshots);
+    const timestamps = snapshots.map(item => item.collected_at).filter(Boolean).sort();
+    const latest = timestamps.length ? new Date(timestamps[timestamps.length - 1]) : null;
+    showMessage(hostingUsageUpdated, latest
+      ? "Dernière mesure : " + latest.toLocaleString("fr-FR") + (refresh ? " · actualisation terminée." : "")
+      : "Aucune mesure disponible pour le moment.");
+  } catch (error) {
+    showMessage(hostingUsageUpdated, "Erreur de suivi : " + (error.message || "connexion impossible."));
+  } finally {
+    if (refreshHostingUsageButton) refreshHostingUsageButton.disabled = false;
+  }
+}
+
+refreshHostingUsageButton?.addEventListener("click", () => loadHostingUsage(true));
+
+
 async function resetVideoStatistics(videoId, videoTitle) {
   const confirmed = confirm(
     "Réinitialiser les statistiques de « " + videoTitle + " » ?\\n\\nSes lectures et téléchargements passeront à zéro. Cette action ne peut pas être annulée."
@@ -562,6 +722,7 @@ async function openDashboard(user) {
   loginSection.classList.add("admin-hidden");
   dashboard.classList.remove("admin-hidden");
   await loadAdminVideos();
+  await loadHostingUsage(false);
   await checkPermanentDeleteConfig();
   await checkDeepStorageAvailability(true);
 }
