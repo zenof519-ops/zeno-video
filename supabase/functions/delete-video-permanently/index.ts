@@ -273,6 +273,10 @@ Deno.serve(async (req: Request) => {
 
   const message = deleteVideoAsset
     ? "Vidéo et couverture supprimées de leurs hébergeurs et de Supabase."
-    : "Vidéo retirée de Supabase ; sa couverture hébergée a été supprimée.";
+    : coverResult.startsWith("miniature générée")
+      ? "Vidéo retirée de Supabase. La miniature automatique reste liée au fichier vidéo conservé sur Cloudinary."
+      : coverResult.startsWith("URL externe")
+        ? "Vidéo retirée de Supabase. La référence de couverture externe a été retirée, mais le fichier externe n'a pas été touché."
+        : "Vidéo retirée de Supabase ; sa couverture hébergée a été supprimée.";
   return json({ success: true, title: video.title, cover: coverResult, video: videoResult, message }, 200, origin);
 });
