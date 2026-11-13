@@ -102,6 +102,17 @@ Deno.serve(async (req: Request) => {
         .eq("id", videoId)
         .is("thumbnail_url", null);
     }
+  } else if (event.type === "video.upload.errored" || event.type === "video.upload.cancelled") {
+    const uploadId = String(data.id || "");
+    if (uploadId) {
+      const { error } = await db.from("videos")
+        .update({
+          mux_status: event.type === "video.upload.cancelled" ? "upload_failed" : "errored",
+          is_published: false
+        })
+        .eq("mux_upload_id", uploadId);
+      if (error) return Response.json({ error: error.message }, { status: 500 });
+    }
   } else if (event.type === "video.asset.errored") {
     const videoId = String(data.passthrough || "");
     if (videoId) {
