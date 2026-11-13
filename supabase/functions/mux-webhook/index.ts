@@ -116,13 +116,14 @@ Deno.serve(async (req: Request) => {
       if (error) return Response.json({ error: error.message }, { status: 500 });
     }
   } else if (event.type === "video.asset.static_rendition.ready") {
-    const assetId = String(event.object?.id || data.asset_id || data.asset?.id || "");
+    const assetId = String(data.id || data.asset_id || data.asset?.id || (event.object?.type === "asset" ? event.object.id : ""));
     if (assetId && muxTokenId && muxTokenSecret) {
       const assetResponse = await fetch("https://api.mux.com/video/v1/assets/" + encodeURIComponent(assetId), {
         headers: { "Authorization": "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
       });
       const assetPayload = await assetResponse.json().catch(() => ({}));
       if (!assetResponse.ok) {
+        console.error("Mux static rendition: asset lookup failed", { assetId, status: assetResponse.status, message: assetPayload?.error?.messages?.[0] || assetPayload?.error?.message || "Unknown Mux API error" });
         return Response.json({ error: "Impossible de vérifier le MP4 prêt sur Mux." }, { status: 502 });
       }
       const renditionFiles = Array.isArray(assetPayload?.data?.static_renditions)
