@@ -93,7 +93,7 @@ async function remoteFileSize(url: string | null) {
     let response = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(12000) });
     let size = asNumber(response.headers.get("content-length"));
     const contentType = response.headers.get("content-type") || "";
-    if (response.ok && size && size > 0 && !/text\\/html|application\\/json/i.test(contentType)) return size;
+    if (response.ok && size && size > 0 && !contentType.toLowerCase().includes("text/html") && !contentType.toLowerCase().includes("application/json")) return size;
     response = await fetch(url, {
       method: "GET",
       headers: { Range: "bytes=0-0" },
