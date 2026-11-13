@@ -81,6 +81,9 @@ function summarizeZeno(videos: any[]) {
       downloads: rows.reduce((sum, v) => sum + Number(v.downloads || 0), 0)
     };
   }
+  result.imagekit = {
+    covers: videos.filter(v => v.thumbnail_provider === "imagekit" && v.thumbnail_url).length
+  };
   return result;
 }
 
@@ -145,7 +148,7 @@ async function muxMetrics() {
 
   const now = new Date();
   const start = Math.floor(new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).getTime() / 1000);
-  const end = Math.floor(now.getTime() / 1000);
+  const end = Math.floor(now.getTime() / 1000) - 12 * 60 * 60;
   const usageUrl = new URL("https://api.mux.com/video/v1/delivery-usage");
   usageUrl.searchParams.append("timeframe[]", String(start));
   usageUrl.searchParams.append("timeframe[]", String(end));
@@ -171,7 +174,9 @@ async function muxMetrics() {
     deliveredMinutesThisMonth: deliveredSeconds / 60,
     freeDeliveryMinutes: 100000,
     freeDeliveryMinutesRemaining: Math.max(0, 100000 - deliveredSeconds / 60),
-    periodStart: new Date(start * 1000).toISOString()
+    periodStart: new Date(start * 1000).toISOString(),
+    periodEnd: new Date(end * 1000).toISOString(),
+    note: "La livraison Mux est agrégée avec un délai d’environ 12 heures."
   };
 }
 
@@ -294,7 +299,7 @@ async function getLatest() {
 async function refresh() {
   const { data: videos, error } = await service
     .from("videos")
-    .select("id,title,provider,playback_url,download_url,views,downloads,is_published");
+    .select("id,title,provider,playback_url,download_url,views,downloads,is_published,thumbnail_provider,thumbnail_url");
   if (error) throw error;
 
   const zeno = summarizeZeno(videos || []);
