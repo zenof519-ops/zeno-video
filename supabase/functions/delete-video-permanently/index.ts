@@ -108,15 +108,36 @@ async function resolveImageKitFileId(urlValue: string, privateKey: string) {
   return sameName.length === 1 ? String(sameName[0].fileId) : null;
 }
 
-async function deleteImageKitFile(fileId: string, privateKey: string) {
+async function purgeImageKitCache(urlValue: string, privateKey: string) {
+  const response = await fetch("https://api.imagekit.io/v1/files/purge", {
+    method: "POST",
+    headers: {
+      Authorization: "Basic " + btoa(privateKey + ":"),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ url: urlValue })
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (response.status === 201 || response.ok) {
+    return payload.requestId
+      ? "purge CDN demandée (" + payload.requestId + ")"
+      : "purge CDN demandée";
+  }
+  return "purge CDN non confirmée (HTTP " + response.status + ")";
+}
+
+async function deleteImageKitFile(fileId: string, urlValue: string, privateKey: string) {
   const response = await fetch("https://api.imagekit.io/v1/files/" + encodeURIComponent(fileId), {
     method: "DELETE",
     headers: { Authorization: "Basic " + btoa(privateKey + ":") }
   });
-  if (response.status === 204 || response.status === 200) return "ok";
-  if (response.status === 404) return "not found";
-  const payload = await response.json().catch(() => ({}));
-  throw new Error(payload.message || `ImageKit HTTP ${response.status}`);
+  if (response.status !== 204 && response.status !== 200 && response.status !== 404) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(payload.message || `ImageKit HTTP ${response.status}`);
+  }
+  const deleted = response.status === 404 ? "not found" : "ok";
+  const purge = await purgeImageKitCache(urlValue, privateKey);
+  return deleted + " · " + purge;
 }
 
 Deno.serve(async (req: Request) => {
@@ -227,7 +248,7 @@ Deno.serve(async (req: Request) => {
     let fileId = video.thumbnail_imagekit_file_id as string | null;
     if (!fileId) fileId = await resolveImageKitFileId(thumbnailUrl, imageKitPrivateKey);
     if (fileId) {
-      try { coverResult = await deleteImageKitFile(fileId, imageKitPrivateKey); }
+      try { coverResult = await deleteImageKitFile(fileId, thumbnailUrl, imageKitPrivateKey); }
       catch (error) {
         return json({ error: "ImageKit a refusé la suppression de la couverture. La vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
       }
