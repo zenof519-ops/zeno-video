@@ -78,6 +78,44 @@ function showViooPlayer(video) {
   wrap.replaceChildren(launchButton, note);
 }
 
+function showMuxPlayer(video) {
+  const launchButton = document.createElement("button");
+  launchButton.type = "button";
+  launchButton.className = "btn";
+  launchButton.textContent = "▶ Lancer la lecture";
+
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "Le lancement sera comptabilisé lorsque tu appuieras sur ce bouton.";
+
+  launchButton.addEventListener("click", () => {
+    if (launchButton.disabled || !video.mux_playback_id) return;
+    launchButton.disabled = true;
+    launchButton.textContent = "Ouverture du lecteur Mux…";
+    registerViewOnce();
+
+    const playerUrl = new URL("https://player.mux.com/" + encodeURIComponent(video.mux_playback_id));
+    playerUrl.searchParams.set("accent-color", "#b88cff");
+    playerUrl.searchParams.set("metadata-video-id", video.id);
+    playerUrl.searchParams.set("metadata-video-title", video.title);
+
+    const frame = document.createElement("iframe");
+    frame.src = playerUrl.toString();
+    frame.loading = "eager";
+    frame.allow = "accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;";
+    frame.allowFullscreen = true;
+    frame.title = video.title;
+    frame.referrerPolicy = "strict-origin-when-cross-origin";
+    frame.style.width = "100%";
+    frame.style.aspectRatio = "16 / 9";
+    frame.style.border = "0";
+    wrap.replaceChildren(frame);
+    downloadButton.hidden = true;
+  });
+
+  wrap.replaceChildren(launchButton, note);
+}
+
 function showOneDrivePlayer(video) {
   const launchButton = document.createElement("button");
   launchButton.type = "button";
@@ -114,7 +152,7 @@ async function loadVideo() {
     }
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,cloudinary_public_id,format,provider&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -183,6 +221,9 @@ async function loadVideo() {
 
       downloadButton.hidden = false;
 
+    } else if (provider === "mux" && video.mux_playback_id) {
+      showMuxPlayer(video);
+      downloadButton.hidden = true;
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
       // Aucun lien de téléchargement direct Vioo n'étant disponible.
