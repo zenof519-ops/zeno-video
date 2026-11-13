@@ -5,9 +5,6 @@ const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const ALLOWED_ORIGIN = "https://zenof519-ops.github.io";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const PUBLISHABLE_KEY = Deno.env.get("SUPABASE_ANON_KEY") ??
-  (() => { try { return JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}").default; } catch { return ""; } })();
-
 const service = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { persistSession: false, autoRefreshToken: false }
 });
@@ -31,8 +28,10 @@ async function authorized(req: Request) {
   if (origin && origin !== ALLOWED_ORIGIN) return false;
 
   const authorization = req.headers.get("Authorization");
-  if (authorization?.startsWith("Bearer ") && PUBLISHABLE_KEY) {
-    const userClient = createClient(SUPABASE_URL, PUBLISHABLE_KEY, {
+  const publishableKey = req.headers.get("apikey") ?? Deno.env.get("SUPABASE_ANON_KEY") ??
+    (() => { try { return JSON.parse(Deno.env.get("SUPABASE_PUBLISHABLE_KEYS") ?? "{}").default; } catch { return ""; } })();
+  if (authorization?.startsWith("Bearer ") && publishableKey) {
+    const userClient = createClient(SUPABASE_URL, publishableKey, {
       global: { headers: { Authorization: authorization } },
       auth: { persistSession: false, autoRefreshToken: false }
     });
