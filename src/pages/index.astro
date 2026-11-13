@@ -1,5 +1,6 @@
 ---
-const base = import.meta.env.BASE_URL;
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
 ---
 <!doctype html>
 <html lang="fr">
@@ -8,7 +9,7 @@ const base = import.meta.env.BASE_URL;
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="description" content="Retrouve les vidéos disponibles sur Zeno Video et partage leur lecteur en un seul lien." />
     <title>Zeno Video</title>
-    <link rel="stylesheet" href={`${base}style.css?v=10`} />
+    <link rel="stylesheet" href={`${base}style.css?v=11`} />
   </head>
   <body>
     <header>
@@ -27,6 +28,6 @@ const base = import.meta.env.BASE_URL;
     </main>
     <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
     <script is:inline src={`${base}videos.js`} defer></script>
-    <script is:inline src={`${base}library.js?v=10`} defer></script>
+    <script is:inline src={`${base}library.js?v=11`} defer></script>
   </body>
 </html>
