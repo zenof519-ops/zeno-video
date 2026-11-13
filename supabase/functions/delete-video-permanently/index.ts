@@ -89,7 +89,7 @@ async function resolveImageKitFileId(urlValue: string, privateKey: string) {
   if (!filename) return null;
   const query = new URLSearchParams({
     path: "/zeno-covers",
-    searchQuery: `name="${filename.replace(/"/g, "\\\"")}"`,
+    searchQuery: `name = "${filename.replace(/"/g, "\\\"")}"`,
     limit: "1000"
   });
   const response = await fetch("https://api.imagekit.io/v1/files?" + query.toString(), {
