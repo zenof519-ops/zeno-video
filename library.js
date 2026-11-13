@@ -115,6 +115,16 @@ async function loadVideos() {
         } catch (error) {
           console.error("Lien Dropbox invalide :", error);
         }
+      } else if (provider === "mux" && v.download_url) {
+        try {
+          // Mux fournit une URL MP4 directe lorsque la rendition statique est prête.
+          // L'URL contient déjà le paramètre de téléchargement forcé généré côté serveur.
+          const downloadUrl = new URL(v.download_url);
+          download.href = downloadUrl.toString();
+          download.hidden = false;
+        } catch (error) {
+          console.error("Lien de téléchargement Mux invalide :", error);
+        }
       }
 
       const canDownload = !download.hidden;
