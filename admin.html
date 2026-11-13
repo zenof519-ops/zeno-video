@@ -6,7 +6,8 @@
   <title>Administration — Zeno Video</title>
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=28" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
+  <script src="admin.js?v=30" defer></script>
 </head>
 <body>
   <header>
@@ -62,6 +63,7 @@
               <option value="dropbox">Dropbox — lien de partage</option>
               <option value="onedrive">OneDrive — lecteur intégré</option>
               <option value="deepstorage">DeepStorage API</option>
+              <option value="mux">Mux — streaming vidéo</option>
             </select>
           </label>
           <label>Titre de la vidéo
@@ -138,6 +140,13 @@
             </label>
             <p id="deepstorage-status" class="admin-message status-pending" aria-live="polite">Vérification de l'accès API DeepStorage…</p>
             <p class="cover-help">Zeno vérifie automatiquement l'accès API. Si l'accès Pro n'est pas actif, cet hébergeur sera refusé et tu pourras en choisir un autre. Les vidéos déjà hébergées sur DeepStorage ne seront pas touchées.</p>
+          </div>
+          <div id="mux-fields" class="admin-hidden">
+            <label>Fichier vidéo à envoyer sur Mux (MP4, MOV ou WebM)
+              <input type="file" id="mux-file" accept="video/mp4,video/quicktime,video/webm">
+            </label>
+            <p id="mux-status" class="admin-message status-pending" aria-live="polite">Mux utilisera un envoi direct et sécurisé. La vidéo sera publiée après son traitement.</p>
+            <p class="cover-help">Le fichier part directement de ton téléphone vers Mux. Zeno Video ne le stocke pas sur GitHub ni dans Supabase. Les vidéos en cours de traitement restent invisibles au public.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
