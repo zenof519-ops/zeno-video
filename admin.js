@@ -702,7 +702,7 @@ async function loadAdminVideos() {
 
     const deleteButton = document.createElement("button");
     deleteButton.className = "alt";
-    deleteButton.textContent = "Supprimer de Supabase";
+    deleteButton.textContent = "Supprimer + couverture";
     deleteButton.addEventListener("click", () => deleteVideo(video));
 
     const resetStatsButton = document.createElement("button");
@@ -712,7 +712,7 @@ async function loadAdminVideos() {
 
     const permanentDeleteButton = document.createElement("button");
     permanentDeleteButton.className = "danger";
-    permanentDeleteButton.textContent = "Supprimer définitivement";
+    permanentDeleteButton.textContent = "Supprimer vidéo + couverture";
     permanentDeleteButton.addEventListener("click", () => permanentlyDeleteVideo(video));
 
     actions.append(editButton, publishButton, deleteButton, resetStatsButton);
@@ -1248,6 +1248,9 @@ videoForm.addEventListener("submit", async (event) => {
   let thumbnail = provider === "vioo"
     ? (viooThumbnailInput.value.trim() || currentThumbnailUrl)
     : currentThumbnailUrl;
+  let thumbnailProvider = editingVideo?.thumbnail_provider || null;
+  let thumbnailCloudinaryPublicId = editingVideo?.thumbnail_cloudinary_public_id || null;
+  let thumbnailImageKitFileId = editingVideo?.thumbnail_imagekit_file_id || null;
   let playbackUrl = null;
   let downloadUrl = null;
   let coverWarning = "";
@@ -1357,12 +1360,18 @@ videoForm.addEventListener("submit", async (event) => {
 
         if (!selectedCover) {
           thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
+          thumbnailProvider = "cloudinary_video";
+          thumbnailCloudinaryPublicId = null;
+          thumbnailImageKitFileId = null;
         }
         cloudinaryIdInput.value = publicId;
       }
 
       if (!thumbnail && publicId) {
         thumbnail = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/so_0/${publicId}.jpg`;
+        thumbnailProvider = "cloudinary_video";
+        thumbnailCloudinaryPublicId = null;
+        thumbnailImageKitFileId = null;
       }
 
       if (!publicId) {
@@ -1418,6 +1427,9 @@ videoForm.addEventListener("submit", async (event) => {
               ? await uploadToImageKit(selectedCover)
               : await uploadToCloudinary(selectedCover, "image");
             thumbnail = uploadedCover.url || uploadedCover.secure_url;
+            thumbnailProvider = coverProviderSelect.value;
+            thumbnailCloudinaryPublicId = coverProviderSelect.value === "cloudinary" ? uploadedCover.public_id : null;
+            thumbnailImageKitFileId = coverProviderSelect.value === "imagekit" ? uploadedCover.fileId : null;
           } catch (coverError) {
             coverWarning = " La miniature n'a pas pu être envoyée (" + coverError.message + ").";
             console.error("Zeno Video Mux cover upload:", coverError);
@@ -1432,7 +1444,10 @@ videoForm.addEventListener("submit", async (event) => {
             filename: selectedFile.name,
             content_type: selectedFile.type || "application/octet-stream",
             size: selectedFile.size,
-            thumbnail_url: thumbnail || null
+            thumbnail_url: thumbnail || null,
+            thumbnail_provider: thumbnailProvider,
+            thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
+            thumbnail_imagekit_file_id: thumbnailImageKitFileId
           }
         });
 
@@ -1478,6 +1493,9 @@ videoForm.addEventListener("submit", async (event) => {
           ? await uploadToImageKit(selectedCover)
           : await uploadToCloudinary(selectedCover, "image");
         thumbnail = uploadedCover.url || uploadedCover.secure_url;
+        thumbnailProvider = coverProviderSelect.value;
+        thumbnailCloudinaryPublicId = coverProviderSelect.value === "cloudinary" ? uploadedCover.public_id : null;
+        thumbnailImageKitFileId = coverProviderSelect.value === "imagekit" ? uploadedCover.fileId : null;
       } catch (coverError) {
         coverWarning = provider === "cloudinary"
           ? " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée."
@@ -1502,6 +1520,9 @@ videoForm.addEventListener("submit", async (event) => {
       playback_url: playbackUrl,
       download_url: downloadUrl,
       thumbnail_url: thumbnail || null,
+      thumbnail_provider: thumbnailProvider,
+      thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
+      thumbnail_imagekit_file_id: thumbnailImageKitFileId,
       format: provider === "cloudinary" ? videoFormat : null,
       mux_upload_id: provider === "mux" ? (editingVideo?.mux_upload_id || null) : null,
       mux_asset_id: provider === "mux" ? (editingVideo?.mux_asset_id || null) : null,
@@ -1584,17 +1605,39 @@ async function togglePublication(video) {
 }
 
 async function deleteVideo(video) {
-  const providerName = video.provider === "vioo" ? "Vioo" : video.provider === "dropbox" ? "Dropbox" : video.provider === "onedrive" ? "OneDrive" : video.provider === "deepstorage" ? "DeepStorage" : video.provider === "mux" ? "Mux" : "Cloudinary";
-  if (!confirm("Retirer cette vidéo de la bibliothèque Supabase ? Le fichier restera hébergé sur " + providerName + ".")) return;
-
-  const { error } = await db.from("videos").delete().eq("id", video.id);
-  if (error) {
+  const coverProvider = video.thumbnail_provider ||
+    (video.thumbnail_url?.includes("ik.imagekit.io") ? "imagekit" :
+      video.thumbnail_url?.includes("res.cloudinary.com") ? "cloudinary" : null);
+  const coverMessage = coverProvider === "imagekit"
+    ? " Sa couverture sera également supprimée d'ImageKit."
+    : coverProvider === "cloudinary"
+      ? " Sa couverture sera également supprimée de Cloudinary."
+      : " La référence de couverture sera retirée de Supabase.";
+  if (!confirm("Retirer « " + video.title + " » de la bibliothèque ?" + coverMessage + " Le fichier vidéo restera chez son hébergeur.")) return;
+  showMessage(videoMessage, "Suppression de la vidéo et de sa couverture en cours…");
+  const buttons = videoList.querySelectorAll("button");
+  buttons.forEach(button => button.disabled = true);
+  try {
+    const { data, error } = await db.functions.invoke("delete-video-permanently", {
+      body: { videoId: video.id, deleteVideoAsset: false }
+    });
+    if (error) {
+      let details = error.message;
+      try {
+        if (error.context && typeof error.context.json === "function") {
+          const payload = await error.context.json();
+          details = payload.error || payload.message || details;
+        }
+      } catch {}
+      throw new Error(details);
+    }
+    if (!data?.success) throw new Error(data?.error || "La suppression n'a pas été confirmée.");
+    showMessage(videoMessage, data.message || "Vidéo retirée de Supabase et couverture nettoyée.");
+    await loadAdminVideos();
+  } catch (error) {
     showMessage(videoMessage, "Erreur : " + error.message);
-    return;
+    buttons.forEach(button => button.disabled = false);
   }
-
-  showMessage(videoMessage, "Vidéo retirée de Supabase. Le fichier reste hébergé sur " + providerName + ".");
-  await loadAdminVideos();
 }
 
 async function checkPermanentDeleteConfig() {
@@ -1632,7 +1675,7 @@ async function checkPermanentDeleteConfig() {
       return;
     }
 
-    status.textContent = "✓ Suppression définitive prête : connexion Cloudinary vérifiée. Aucun fichier n'a été supprimé.";
+    status.textContent = "✓ Nettoyage des couvertures prêt : connexions Cloudinary et ImageKit vérifiées. Aucun fichier n'a été supprimé.";
     status.className = "admin-message success";
   } catch (error) {
     status.textContent = "⚠ Vérification impossible : " + (error?.message || "erreur de communication avec Supabase.");
@@ -1648,7 +1691,7 @@ async function permanentlyDeleteVideo(video) {
 
   const confirmed = confirm(
     "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
-    " » sera supprimée de Cloudinary ET de Supabase. Cette action est irréversible.\n\nContinuer ?"
+    " » et sa couverture seront supprimées de Cloudinary/ImageKit ET de Supabase. Cette action est irréversible.\n\nContinuer ?"
   );
   if (!confirmed) return;
 
@@ -1658,7 +1701,7 @@ async function permanentlyDeleteVideo(video) {
 
   try {
     const { data, error } = await db.functions.invoke("delete-video-permanently", {
-      body: { videoId: video.id }
+      body: { videoId: video.id, deleteVideoAsset: true }
     });
 
     if (error) {
@@ -1674,7 +1717,7 @@ async function permanentlyDeleteVideo(video) {
 
     if (!data?.success) throw new Error(data?.error || "La suppression n'a pas été confirmée.");
 
-    showMessage(videoMessage, "Vidéo supprimée définitivement de Cloudinary et Supabase.");
+    showMessage(videoMessage, data.message || "Vidéo et couverture supprimées définitivement de leurs hébergeurs et de Supabase.");
     await loadAdminVideos();
   } catch (error) {
     showMessage(videoMessage, "Erreur : " + error.message);

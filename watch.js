@@ -155,6 +155,39 @@ function showMuxPlayer(video) {
   showCoverPreview(video, launchButton, note);
 }
 
+function showCloudinaryPlayer(video, mediaUrl, downloadUrl) {
+  const launchButton = document.createElement("button");
+  launchButton.type = "button";
+  launchButton.className = "btn";
+  launchButton.textContent = "▶ Lancer la lecture";
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "Le lancement sera comptabilisé lorsque la lecture commencera.";
+  launchButton.addEventListener("click", async () => {
+    if (launchButton.disabled) return;
+    launchButton.disabled = true;
+    launchButton.textContent = "Ouverture du lecteur…";
+    const media = document.createElement("video");
+    media.controls = true;
+    media.playsInline = true;
+    media.preload = "metadata";
+    if (video.thumbnail_url) media.poster = video.thumbnail_url;
+    media.style.width = "100%";
+    media.style.maxWidth = "100%";
+    media.style.height = "auto";
+    media.style.display = "block";
+    media.style.background = "#000";
+    media.src = mediaUrl;
+    media.addEventListener("playing", registerViewOnce);
+    media.addEventListener("error", () => console.error("Erreur de lecture vidéo Cloudinary :", media.error));
+    wrap.replaceChildren(media);
+    try { await media.play(); } catch { /* Contrôles disponibles si autoplay est refusé. */ }
+  });
+  downloadButton.href = downloadUrl;
+  downloadButton.hidden = false;
+  showCoverPreview(video, launchButton, note);
+}
+
 function showOneDrivePlayer(video) {
   const launchButton = document.createElement("button");
   launchButton.type = "button";
@@ -223,44 +256,11 @@ async function loadVideo() {
     const provider = video.provider || (video.cloudinary_public_id ? "cloudinary" : "vioo");
 
     if (provider === "cloudinary" && video.cloudinary_public_id) {
-      const publicId = video.cloudinary_public_id
-        .split("/")
-        .map(encodeURIComponent)
-        .join("/");
-
-      const media = document.createElement("video");
-
-      media.controls = true;
-      media.playsInline = true;
-      media.preload = "metadata";
-      if (video.thumbnail_url) media.poster = video.thumbnail_url;
-      media.style.width = "100%";
-      media.style.maxWidth = "100%";
-      media.style.height = "auto";
-      media.style.display = "block";
-      media.style.background = "#000";
-
+      const publicId = video.cloudinary_public_id.split("/").map(encodeURIComponent).join("/");
       const format = (video.format || "mp4").toLowerCase();
-
-      media.src =
-        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${format}`;
-
-      media.addEventListener("playing", registerViewOnce);
-
-      media.addEventListener("error", () => {
-        console.error(
-          "Erreur de lecture vidéo :",
-          media.error
-        );
-      });
-
-      wrap.replaceChildren(media);
-
-      downloadButton.href =
-        `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
-
-      downloadButton.hidden = false;
-
+      const mediaUrl = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${format}`;
+      const downloadUrl = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
+      showCloudinaryPlayer(video, mediaUrl, downloadUrl);
     } else if (provider === "mux" && video.mux_playback_id) {
       showMuxPlayer(video);
       if (video.download_url) {
