@@ -147,15 +147,21 @@ function renderHostingUsage(snapshots) {
     heading.append(title, status);
     card.appendChild(heading);
 
-    addHostingMetric(card, "Vidéos Zeno", formatUsageNumber(zeno.videos || 0, 0) + " (" + formatUsageNumber(zeno.published || 0, 0) + " publiées)");
-    addHostingMetric(card, "Lectures lancées", formatUsageNumber(zeno.plays || 0, 0));
-    addHostingMetric(card, "Téléchargements lancés", formatUsageNumber(zeno.downloads || 0, 0));
+    if (snapshot.provider === "imagekit") {
+      addHostingMetric(card, "Couvertures Zeno hébergées", formatUsageNumber(zeno.covers || 0, 0));
+    } else {
+      addHostingMetric(card, "Vidéos Zeno", formatUsageNumber(zeno.videos || 0, 0) + " (" + formatUsageNumber(zeno.published || 0, 0) + " publiées)");
+      addHostingMetric(card, "Lectures lancées", formatUsageNumber(zeno.plays || 0, 0));
+      addHostingMetric(card, "Téléchargements lancés", formatUsageNumber(zeno.downloads || 0, 0));
+    }
 
     if (snapshot.provider === "cloudinary") {
-      addHostingMetric(card, "Crédits", formatCloudinaryBucket(metrics.credits));
-      addHostingMetric(card, "Stockage", formatCloudinaryBucket(metrics.storage));
-      addHostingMetric(card, "Bande passante", formatCloudinaryBucket(metrics.bandwidth));
-      addHostingMetric(card, "Transformations", formatCloudinaryBucket(metrics.transformations));
+      const credits = metrics.credits || {};
+      addHostingMetric(card, "Crédits consommés", formatUsageNumber(credits.usage, 2) + " / " + formatUsageNumber(credits.limit, 0) + " (" + formatUsageNumber(credits.used_percent, 0) + "%)");
+      addHostingMetric(card, "Crédits restants", formatUsageNumber(Math.max(0, Number(credits.limit || 0) - Number(credits.usage || 0)), 2));
+      addHostingMetric(card, "Stockage utilisé", formatUsageBytes(metrics.storage?.usage));
+      addHostingMetric(card, "Bande passante utilisée", formatUsageBytes(metrics.bandwidth?.usage));
+      addHostingMetric(card, "Transformations", formatUsageNumber(metrics.transformations?.usage, 0));
     } else if (snapshot.provider === "mux") {
       addHostingMetric(card, "Assets stockés", formatUsageNumber(metrics.assets, 0) + " / " + formatUsageNumber(metrics.freeAssetLimit, 0));
       addHostingMetric(card, "Places restantes (offre gratuite)", formatUsageNumber(metrics.assetsRemainingOnFree, 0));
@@ -167,6 +173,7 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Stockage restant estimé", formatUsageBytes(metrics.storageRemainingReferenceBytes));
       addHostingMetric(card, "Bande passante sur 30 jours", formatUsageBytes(metrics.bandwidthBytesLast30Days) + " / 20 Go (repère gratuit)");
       addHostingMetric(card, "Bande passante restante estimée", formatUsageBytes(metrics.bandwidthRemainingReferenceBytes));
+      if (metrics.note) addHostingMetric(card, "Période", metrics.note);
     } else if (snapshot.provider === "deepstorage") {
       addHostingMetric(card, "Offre détectée", metrics.plan || "Non communiquée par l'API");
       addHostingMetric(card, "Droit de lecture API", metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API");
