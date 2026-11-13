@@ -52,7 +52,8 @@ async function fetchJson(url: string, init: RequestInit = {}) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(15000) });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = new Error(body?.error?.message || body?.message || body?.error || ("HTTP " + response.status));
+    const detail = typeof body?.error === "string" ? body.error : (body?.error?.message || body?.error?.messages?.join?.(", ") || body?.message || JSON.stringify(body));
+    const error = new Error(detail || ("HTTP " + response.status));
     (error as any).status = response.status;
     throw error;
   }
