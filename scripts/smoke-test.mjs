@@ -12,12 +12,14 @@ if (missing.length) {
 }
 const read = (file) => readFileSync(join(root, file), 'utf8');
 const home = read('index.html');
+const astroConfig = readFileSync('astro.config.mjs', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const checks = [
-  ['Accueil : feuille de style avec préfixe GitHub Pages', home.includes('/zeno-video/style.css')],
-  ['Accueil : chargement des données vidéos', home.includes('/zeno-video/videos.js')],
-  ['Accueil : chargement de la galerie', home.includes('/zeno-video/library.js')],
+  ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
+  ['Accueil : feuille de style présente', home.includes('style.css?v=10')],
+  ['Accueil : chargement des données vidéos', home.includes('videos.js')],
+  ['Accueil : chargement de la galerie', home.includes('library.js?v=10')],
   ['Administration : script conservé', admin.includes('admin.js')],
   ['Lecteur : script conservé', watch.includes('watch.js')],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')]
