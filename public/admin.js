@@ -18,6 +18,8 @@ const videoList = document.getElementById("admin-video-list");
 const adminCount = document.getElementById("admin-count");
 const videoFileInput = document.getElementById("video-file");
 const coverFileInput = document.getElementById("cover-file");
+const coverProviderSelect = document.getElementById("cover-provider");
+const coverUploadHelp = document.getElementById("cover-upload-help");
 const coverPreview = document.getElementById("cover-preview");
 const coverPreviewImage = document.getElementById("cover-preview-image");
 const coverPreviewCaption = document.getElementById("cover-preview-caption");
@@ -466,6 +468,15 @@ function clearCoverPreview() {
   coverPreview.classList.add("admin-hidden");
 }
 
+function updateCoverProviderHelp() {
+  if (!coverUploadHelp || !coverProviderSelect) return;
+  coverUploadHelp.textContent = coverProviderSelect.value === "imagekit"
+    ? "La miniature sera envoyée sur ImageKit (offre gratuite : 25 Mo maximum par image). Cloudinary reste disponible dans le menu si besoin."
+    : "La miniature sera envoyée sur Cloudinary, quel que soit l’hébergeur de la vidéo. Tu peux choisir ImageKit dans le menu pour utiliser son CDN à la place.";
+}
+coverProviderSelect?.addEventListener("change", updateCoverProviderHelp);
+updateCoverProviderHelp();
+
 function displayCoverPreview(source, caption) {
   if (previewObjectUrl) {
     URL.revokeObjectURL(previewObjectUrl);
@@ -491,6 +502,12 @@ coverFileInput.addEventListener("change", () => {
   if (!allowedTypes.includes(file.type)) {
     coverFileInput.value = "";
     showMessage(videoMessage, "Format d'image non accepté. Choisis un fichier PNG, JPG ou WebP.");
+    return;
+  }
+
+  if (coverProviderSelect.value === "imagekit" && file.size > 25 * 1024 * 1024) {
+    coverFileInput.value = "";
+    showMessage(videoMessage, "ImageKit Free accepte les images jusqu’à 25 Mo. Choisis une image plus légère ou utilise Cloudinary.");
     return;
   }
 
@@ -1131,6 +1148,60 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
   });
 }
 
+async function uploadToImageKit(file) {
+  const { data: auth, error: authError } = await db.functions.invoke("imagekit-upload-auth", { body: {} });
+  if (authError) {
+    let details = authError.message || "Impossible d'obtenir l'autorisation ImageKit.";
+    try {
+      if (authError.context && typeof authError.context.json === "function") {
+        const payload = await authError.context.json();
+        details = payload.error || payload.message || details;
+      }
+    } catch {}
+    throw new Error(details);
+  }
+  if (!auth?.token || !auth?.signature || !auth?.expire || !auth?.publicKey) {
+    throw new Error("Supabase n'a pas fourni les paramètres sécurisés d'envoi ImageKit.");
+  }
+  const form = new FormData();
+  form.append("file", file, file.name);
+  form.append("fileName", file.name);
+  form.append("publicKey", auth.publicKey);
+  form.append("token", auth.token);
+  form.append("expire", String(auth.expire));
+  form.append("signature", auth.signature);
+  form.append("folder", "/zeno-covers");
+  form.append("useUniqueFileName", "true");
+  form.append("isPrivateFile", "false");
+  return await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "https://upload.imagekit.io/api/v1/files/upload");
+    xhr.timeout = 300000;
+    xhr.upload.addEventListener("progress", event => {
+      const percent = event.lengthComputable ? Math.round((event.loaded / event.total) * 100) : null;
+      showMessage(videoMessage, percent === null ? "Envoi de la miniature vers ImageKit…" : "Envoi de la miniature vers ImageKit : " + percent + "%");
+    });
+    xhr.addEventListener("load", () => {
+      let uploaded;
+      try { uploaded = JSON.parse(xhr.responseText || "{}"); }
+      catch { reject(new Error("Réponse illisible d'ImageKit (HTTP " + xhr.status + ").")); return; }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(uploaded.message || uploaded.help || "ImageKit a refusé l'image (HTTP " + xhr.status + ")."));
+        return;
+      }
+      if (!uploaded.url || !uploaded.fileId) {
+        reject(new Error("ImageKit n'a pas renvoyé l'URL publique attendue."));
+        return;
+      }
+      resolve(uploaded);
+    });
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers ImageKit.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers ImageKit a dépassé 5 minutes.")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi ImageKit annulé.")));
+    xhr.send(form);
+  });
+}
+
 function uploadToMux(file, uploadUrl) {
   return new Promise((resolve, reject) => {
     const upChunkLibrary = window.UpChunk;
@@ -1342,9 +1413,11 @@ videoForm.addEventListener("submit", async (event) => {
         if (selectedCover) {
           coverAlreadyUploaded = true;
           try {
-            showMessage(videoMessage, "Envoi de la miniature vers Cloudinary...");
-            const uploadedCover = await uploadToCloudinary(selectedCover, "image");
-            thumbnail = uploadedCover.secure_url;
+            showMessage(videoMessage, coverProviderSelect.value === "imagekit" ? "Envoi de la miniature vers ImageKit..." : "Envoi de la miniature vers Cloudinary...");
+            const uploadedCover = coverProviderSelect.value === "imagekit"
+              ? await uploadToImageKit(selectedCover)
+              : await uploadToCloudinary(selectedCover, "image");
+            thumbnail = uploadedCover.url || uploadedCover.secure_url;
           } catch (coverError) {
             coverWarning = " La miniature n'a pas pu être envoyée (" + coverError.message + ").";
             console.error("Zeno Video Mux cover upload:", coverError);
@@ -1400,9 +1473,11 @@ videoForm.addEventListener("submit", async (event) => {
 
     if (selectedCover && !coverAlreadyUploaded) {
       try {
-        showMessage(videoMessage, "Conversion de la miniature en PNG...");
-        const uploadedCover = await uploadToCloudinary(selectedCover, "image");
-        thumbnail = uploadedCover.secure_url;
+        showMessage(videoMessage, coverProviderSelect.value === "imagekit" ? "Envoi de la miniature vers ImageKit..." : "Conversion de la miniature en PNG...");
+        const uploadedCover = coverProviderSelect.value === "imagekit"
+          ? await uploadToImageKit(selectedCover)
+          : await uploadToCloudinary(selectedCover, "image");
+        thumbnail = uploadedCover.url || uploadedCover.secure_url;
       } catch (coverError) {
         coverWarning = provider === "cloudinary"
           ? " La couverture n'a pas pu être envoyée (" + coverError.message + "). Une miniature automatique sera utilisée."
