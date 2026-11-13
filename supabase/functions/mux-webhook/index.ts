@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
       if (error) return Response.json({ error: error.message }, { status: 500 });
     }
   } else if (event.type === "video.asset.static_rendition.ready") {
-    const assetId = String(data.id || "");
+    const assetId = String(event.object?.id || data.asset_id || data.asset?.id || "");
     if (assetId && muxTokenId && muxTokenSecret) {
       const assetResponse = await fetch("https://api.mux.com/video/v1/assets/" + encodeURIComponent(assetId), {
         headers: { "Authorization": "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
