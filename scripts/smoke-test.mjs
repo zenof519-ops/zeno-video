@@ -17,9 +17,10 @@ const admin = read('admin.html');
 const watch = read('watch.html');
 const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
-  ['Accueil : feuille de style présente', home.includes('style.css?v=10')],
-  ['Accueil : chargement des données vidéos', home.includes('videos.js')],
-  ['Accueil : chargement de la galerie', home.includes('library.js?v=10')],
+  ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
+  ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
+  ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
+  ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', admin.includes('admin.js')],
   ['Lecteur : script conservé', watch.includes('watch.js')],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')]
