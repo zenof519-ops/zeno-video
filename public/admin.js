@@ -1075,24 +1075,32 @@ async function uploadToCloudinary(file, resourceType, progressMessage) {
 
 function uploadToMux(file, uploadUrl) {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", uploadUrl, true);
-    xhr.timeout = 1800000;
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    xhr.upload.addEventListener("progress", event => {
-      if (event.lengthComputable) {
-        const percent = Math.round((event.loaded / event.total) * 100);
-        showMessage(videoMessage, "Envoi direct vers Mux : " + percent + "%");
-      }
+    const upChunkLibrary = window.UpChunk;
+    if (!upChunkLibrary?.createUpload) {
+      reject(new Error("Le module d'envoi Mux n'a pas pu se charger. Recharge la page puis réessaie."));
+      return;
+    }
+
+    const upload = upChunkLibrary.createUpload({
+      endpoint: uploadUrl,
+      file,
+      chunkSize: 5120,
+      attempts: 5,
+      dynamicChunkSize: true,
+      minChunkSize: 256,
+      maxChunkSize: 20480
     });
-    xhr.addEventListener("load", () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve();
-      else reject(new Error("Mux a refusé le transfert (HTTP " + xhr.status + ")."));
+
+    upload.on("progress", event => {
+      const percent = Math.round(Number(event.detail) || 0);
+      showMessage(videoMessage, "Envoi reprenable vers Mux : " + percent + "%");
     });
-    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Mux.")));
-    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Mux a dépassé 30 minutes.")));
-    xhr.addEventListener("abort", () => reject(new Error("Envoi vers Mux annulé.")));
-    xhr.send(file);
+    upload.on("offline", () => showMessage(videoMessage, "Connexion interrompue : Mux met l'envoi en pause et le reprendra automatiquement."));
+    upload.on("online", () => showMessage(videoMessage, "Connexion rétablie : reprise de l'envoi vers Mux…"));
+    upload.on("error", event => {
+      reject(new Error(event.detail?.message || "Le transfert vers Mux a échoué après plusieurs tentatives."));
+    });
+    upload.on("success", resolve);
   });
 }
 
