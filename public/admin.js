@@ -173,7 +173,6 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Stockage restant estimé", formatUsageBytes(metrics.storageRemainingReferenceBytes));
       addHostingMetric(card, "Bande passante sur 30 jours", formatUsageBytes(metrics.bandwidthBytesLast30Days) + " / 20 Go (repère gratuit)");
       addHostingMetric(card, "Bande passante restante estimée", formatUsageBytes(metrics.bandwidthRemainingReferenceBytes));
-      if (metrics.note) addHostingMetric(card, "Période", metrics.note);
     } else if (snapshot.provider === "deepstorage") {
       addHostingMetric(card, "Offre détectée", metrics.plan || "Non communiquée par l'API");
       addHostingMetric(card, "Droit de lecture API", metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API");
