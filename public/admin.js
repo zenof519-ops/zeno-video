@@ -573,6 +573,43 @@ document.getElementById("logout-button").addEventListener("click", async () => {
   showMessage(loginMessage, "Déconnexion réussie.");
 });
 
+async function prepareMuxDownload(video, button) {
+  if (!video?.id || video.provider !== "mux" || video.mux_status !== "ready") return;
+  if (!confirm("Préparer le fichier MP4 téléchargeable de « " + video.title + " » ? Mux facturera le stockage du MP4 et sa livraison lorsqu'il sera téléchargé.")) return;
+
+  button.disabled = true;
+  button.textContent = "Préparation du MP4…";
+  showMessage(videoMessage, "Demande de génération du fichier MP4 sur Mux…");
+
+  try {
+    const { data, error } = await db.functions.invoke("mux-enable-download", {
+      body: { videoId: video.id }
+    });
+    if (error) {
+      let details = error.message || "Impossible de préparer le téléchargement Mux.";
+      try {
+        if (error.context && typeof error.context.json === "function") {
+          const payload = await error.context.json();
+          details = payload.error || payload.message || details;
+        }
+      } catch {}
+      throw new Error(details);
+    }
+    if (data?.error) throw new Error(data.error);
+
+    if (data?.ready && data?.downloadUrl) {
+      showMessage(videoMessage, "✓ Le fichier MP4 est prêt. Le bouton de téléchargement est maintenant disponible sur la page publique.");
+    } else {
+      showMessage(videoMessage, "✓ Mux prépare le fichier MP4. Le bouton apparaîtra automatiquement dès que le fichier sera prêt. Actualise la liste dans quelques instants.");
+    }
+    await loadAdminVideos();
+  } catch (error) {
+    showMessage(videoMessage, "Erreur : " + error.message);
+    button.disabled = false;
+    button.textContent = "Activer le téléchargement MP4";
+  }
+}
+
 async function loadAdminVideos() {
   showMessage(videoMessage, "Chargement des vidéos...");
   videoList.innerHTML = "";
@@ -656,6 +693,18 @@ async function loadAdminVideos() {
     permanentDeleteButton.addEventListener("click", () => permanentlyDeleteVideo(video));
 
     actions.append(editButton, publishButton, deleteButton, resetStatsButton);
+    if (video.provider === "mux" && video.mux_status === "ready") {
+      const muxDownloadButton = document.createElement("button");
+      muxDownloadButton.className = "alt";
+      if (video.download_url) {
+        muxDownloadButton.textContent = "MP4 prêt";
+        muxDownloadButton.disabled = true;
+      } else {
+        muxDownloadButton.textContent = "Activer téléchargement MP4";
+        muxDownloadButton.addEventListener("click", () => prepareMuxDownload(video, muxDownloadButton));
+      }
+      actions.append(muxDownloadButton);
+    }
     if ((video.provider || "cloudinary") === "cloudinary") {
       actions.append(permanentDeleteButton);
     }
