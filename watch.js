@@ -288,6 +288,7 @@ async function loadVideo() {
       media.controls = true;
       media.playsInline = true;
       media.preload = "metadata";
+      if (video.thumbnail_url) media.poster = video.thumbnail_url;
       media.style.width = "100%";
       media.style.maxWidth = "100%";
       media.style.height = "auto";
@@ -311,6 +312,7 @@ async function loadVideo() {
       media.controls = true;
       media.playsInline = true;
       media.preload = "metadata";
+      if (video.thumbnail_url) media.poster = video.thumbnail_url;
       media.style.width = "100%";
       media.style.maxWidth = "100%";
       media.style.height = "auto";
