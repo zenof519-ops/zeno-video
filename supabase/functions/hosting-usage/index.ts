@@ -97,8 +97,8 @@ async function remoteFileSize(url: string | null) {
     const range = response.headers.get("content-range");
     const match = range?.match(/\/(\d+)$/);
     if (match) return Number(match[1]);
-    size = asNumber(response.headers.get("content-length"));
-    return response.ok && size && size > 1 ? size : null;
+    await response.body?.cancel();
+    return null;
   } catch {
     return null;
   }
@@ -147,7 +147,7 @@ async function muxMetrics() {
   const usageUrl = new URL("https://api.mux.com/video/v1/delivery-usage");
   usageUrl.searchParams.append("timeframe[]", String(start));
   usageUrl.searchParams.append("timeframe[]", String(end));
-  usageUrl.searchParams.set("limit", "1000");
+  usageUrl.searchParams.set("limit", "100");
 
   let deliveredSeconds = 0;
   let page = 1;
@@ -156,7 +156,7 @@ async function muxMetrics() {
     const data = await fetchJson(usageUrl.toString(), { headers });
     const rows = Array.isArray(data.data) ? data.data : [];
     deliveredSeconds += rows.reduce((sum: number, row: any) => sum + Number(row.delivered_seconds || 0), 0);
-    if (rows.length < 1000 || rows.length === 0) break;
+    if (rows.length < 100 || rows.length === 0) break;
     page++;
   }
 
