@@ -43,6 +43,46 @@ async function registerViewOnce() {
   }
 }
 
+function showCoverPreview(video, launchButton, note) {
+  if (!video.thumbnail_url) {
+    wrap.replaceChildren(launchButton, note);
+    return;
+  }
+
+  const preview = document.createElement("div");
+  preview.style.position = "relative";
+  preview.style.width = "100%";
+  preview.style.aspectRatio = "16 / 9";
+  preview.style.overflow = "hidden";
+  preview.style.background = "#000";
+  preview.style.borderRadius = "12px";
+
+  const cover = document.createElement("img");
+  cover.src = video.thumbnail_url;
+  cover.alt = "Couverture de " + (video.title || "la vidéo");
+  cover.loading = "eager";
+  cover.decoding = "async";
+  cover.style.display = "block";
+  cover.style.width = "100%";
+  cover.style.height = "100%";
+  cover.style.objectFit = "contain";
+  cover.addEventListener("error", () => {
+    preview.remove();
+    wrap.replaceChildren(launchButton, note);
+  }, { once: true });
+
+  launchButton.style.position = "absolute";
+  launchButton.style.left = "50%";
+  launchButton.style.top = "50%";
+  launchButton.style.transform = "translate(-50%, -50%)";
+  launchButton.style.zIndex = "1";
+  launchButton.style.margin = "0";
+  launchButton.style.whiteSpace = "nowrap";
+
+  preview.append(cover, launchButton);
+  wrap.replaceChildren(preview, note);
+}
+
 function showViooPlayer(video) {
   const launchButton = document.createElement("button");
   launchButton.type = "button";
@@ -75,7 +115,7 @@ function showViooPlayer(video) {
     wrap.replaceChildren(frame);
   });
 
-  wrap.replaceChildren(launchButton, note);
+  showCoverPreview(video, launchButton, note);
 }
 
 function showMuxPlayer(video) {
@@ -112,7 +152,7 @@ function showMuxPlayer(video) {
     wrap.replaceChildren(frame);
   });
 
-  wrap.replaceChildren(launchButton, note);
+  showCoverPreview(video, launchButton, note);
 }
 
 function showOneDrivePlayer(video) {
@@ -141,7 +181,7 @@ function showOneDrivePlayer(video) {
     wrap.replaceChildren(frame);
   });
 
-  wrap.replaceChildren(launchButton, note);
+  showCoverPreview(video, launchButton, note);
 }
 
 async function loadVideo() {
@@ -151,7 +191,7 @@ async function loadVideo() {
     }
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -193,6 +233,7 @@ async function loadVideo() {
       media.controls = true;
       media.playsInline = true;
       media.preload = "metadata";
+      if (video.thumbnail_url) media.poster = video.thumbnail_url;
       media.style.width = "100%";
       media.style.maxWidth = "100%";
       media.style.height = "auto";
@@ -247,6 +288,7 @@ async function loadVideo() {
       media.controls = true;
       media.playsInline = true;
       media.preload = "metadata";
+      if (video.thumbnail_url) media.poster = video.thumbnail_url;
       media.style.width = "100%";
       media.style.maxWidth = "100%";
       media.style.height = "auto";
@@ -270,6 +312,7 @@ async function loadVideo() {
       media.controls = true;
       media.playsInline = true;
       media.preload = "metadata";
+      if (video.thumbnail_url) media.poster = video.thumbnail_url;
       media.style.width = "100%";
       media.style.maxWidth = "100%";
       media.style.height = "auto";
