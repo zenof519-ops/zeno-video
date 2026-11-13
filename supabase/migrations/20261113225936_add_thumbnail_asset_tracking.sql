@@ -21,7 +21,7 @@ set thumbnail_cloudinary_public_id =
       '^v[0-9]+/',
       ''
     ),
-    '\\.[^.]+$',
+    '[.][^.]+$',
     ''
   )
 where thumbnail_provider = 'cloudinary'
