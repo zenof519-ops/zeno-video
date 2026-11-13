@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=13">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=32" defer></script>
+  <script src="admin.js?v=33" defer></script>
 </head>
 <body>
   <header>
@@ -88,6 +88,11 @@
           </label>
           </div>
           <div class="cover-field">
+            <label for="cover-provider">Hébergeur de la miniature</label>
+            <select id="cover-provider">
+              <option value="cloudinary" selected>Cloudinary</option>
+              <option value="imagekit">ImageKit — CDN d’images</option>
+            </select>
             <label for="cover-file">Miniature / couverture (facultatif)</label>
             <label class="cover-picker" for="cover-file">
               <span class="cover-picker-icon">▧</span>
@@ -100,7 +105,7 @@
               <p id="cover-preview-caption">Aperçu de la couverture</p>
               <button type="button" id="remove-cover" class="alt">Retirer la couverture sélectionnée</button>
             </div>
-            <p class="cover-help">L’image choisie sera envoyée automatiquement sur Cloudinary, quel que soit l’hébergeur de la vidéo. Seule la miniature sera hébergée sur Cloudinary.</p>
+            <p id="cover-upload-help" class="cover-help">La miniature sera envoyée sur Cloudinary, quel que soit l’hébergeur de la vidéo. Tu peux choisir ImageKit dans le menu pour utiliser son CDN à la place.</p>
           </div>
           <div id="vioo-fields" class="admin-hidden">
             <label>Identifiant ou URL du lecteur Vioo
