@@ -51,6 +51,7 @@ let deepStorageStatus = { checked: false, available: false, message: "Vérificat
 let videoFormat = "mp4";
 let currentThumbnailUrl = null;
 let previewObjectUrl = null;
+const muxDownloadsPreparing = new Set();
 
 function showMessage(element, message) {
   element.textContent = message;
@@ -598,15 +599,20 @@ async function prepareMuxDownload(video, button) {
     if (data?.error) throw new Error(data.error);
 
     if (data?.ready && data?.downloadUrl) {
-      showMessage(videoMessage, "✓ Le fichier MP4 est prêt. Le bouton de téléchargement est maintenant disponible sur la page publique.");
+      muxDownloadsPreparing.delete(video.id);
+      button.textContent = "Téléchargement activé";
+      showMessage(videoMessage, "✓ Téléchargement activé. Le bouton est maintenant disponible sur la page publique.");
+      await loadAdminVideos();
     } else {
-      showMessage(videoMessage, "✓ Mux prépare le fichier MP4. Le bouton apparaîtra automatiquement dès que le fichier sera prêt. Actualise la liste dans quelques instants.");
+      muxDownloadsPreparing.add(video.id);
+      button.textContent = "MP4 en préparation…";
+      showMessage(videoMessage, "✓ Demande acceptée par Mux. Le bouton public apparaîtra automatiquement dès que le MP4 sera prêt.");
     }
-    await loadAdminVideos();
   } catch (error) {
+    muxDownloadsPreparing.delete(video.id);
     showMessage(videoMessage, "Erreur : " + error.message);
     button.disabled = false;
-    button.textContent = "Activer le téléchargement MP4";
+    button.textContent = "Activer téléchargement MP4";
   }
 }
 
@@ -697,7 +703,10 @@ async function loadAdminVideos() {
       const muxDownloadButton = document.createElement("button");
       muxDownloadButton.className = "alt";
       if (video.download_url) {
-        muxDownloadButton.textContent = "MP4 prêt";
+        muxDownloadButton.textContent = "Téléchargement activé";
+        muxDownloadButton.disabled = true;
+      } else if (muxDownloadsPreparing.has(video.id)) {
+        muxDownloadButton.textContent = "MP4 en préparation…";
         muxDownloadButton.disabled = true;
       } else {
         muxDownloadButton.textContent = "Activer téléchargement MP4";
