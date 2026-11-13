@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Administration — Zeno Video</title>
+  <link rel="stylesheet" href="style.css?v=13">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js?v=28" defer></script>
+</head>
+<body>
+  <header>
+    <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
+    <span>ADMINISTRATION</span>
+  </header>
+  <main class="admin-main">
+    <p class="eyebrow">ESPACE PRIVÉ</p>
+    <h1>Gestion de <em>tes vidéos.</em></h1>
+    <p class="intro">Bienvenue dans le tableau de bord de Zeno Video.</p>
+    <section id="login-section" class="admin-panel">
+      <h2>Connexion administrateur</h2>
+      <form id="login-form" class="admin-form">
+        <label>Adresse e-mail
+          <input type="email" id="email" autocomplete="username" required>
+        </label>
+        <label>Mot de passe
+          <input type="password" id="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">Se connecter</button>
+      </form>
+      <p id="login-message" class="admin-message"></p>
+    </section>
+    <section id="dashboard" class="admin-hidden">
+      <div class="section-title">
+        <h2>Tableau de bord</h2>
+        <button id="logout-button" class="alt">Déconnexion</button>
+      </div>
+      <section class="admin-panel stats-panel">
+        <h2>Statistiques globales</h2>
+        <div class="stats-grid">
+          <article class="stat-card"><span>Vidéos enregistrées</span><strong id="stat-total">—</strong></article>
+          <article class="stat-card"><span>Vidéos publiées</span><strong id="stat-published">—</strong></article>
+          <article class="stat-card"><span>Lectures démarrées</span><strong id="stat-views">—</strong></article>
+          <article class="stat-card"><span>Téléchargements lancés</span><strong id="stat-downloads">—</strong></article>
+        </div>
+        <p class="stats-note">Totaux calculés à partir des statistiques de toutes les vidéos enregistrées.</p>
+        <button type="button" id="reset-all-stats" class="danger">Réinitialiser les statistiques globales</button>
+        <p id="stats-reset-message" class="admin-message" aria-live="polite"></p>
+      </section>
+      <section class="admin-panel delete-status-panel" aria-live="polite">
+        <h2>État de la suppression définitive</h2>
+        <p id="permanent-delete-status" class="admin-message status-pending">Vérification de la connexion Cloudinary en attente…</p>
+        <p class="status-help">Ce contrôle ne supprime aucune vidéo. Il vérifie uniquement que Zeno Video peut communiquer avec Cloudinary.</p>
+      </section>
+      <section class="admin-panel">
+        <h2 id="form-title">Ajouter une vidéo</h2>
+        <form id="video-form" class="admin-form">
+          <label>Hébergeur de la vidéo
+            <select id="video-provider">
+              <option value="cloudinary">Cloudinary</option>
+              <option value="vioo">Vioo — lecteur intégré</option>
+              <option value="dropbox">Dropbox — lien de partage</option>
+              <option value="onedrive">OneDrive — lecteur intégré</option>
+              <option value="deepstorage">DeepStorage API</option>
+            </select>
+          </label>
+          <label>Titre de la vidéo
+            <input type="text" id="video-name" required>
+          </label>
+          <label>Description
+            <textarea id="video-description"></textarea>
+          </label>
+          <div id="cloudinary-fields">
+          <label>Fichier vidéo (MP4, MOV ou WebM)
+            <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
+          </label>
+          <label>Qualité d'envoi
+            <select id="upload-quality">
+              <option value="original" selected>Qualité originale (sans compression)</option>
+              <option value="480p">Qualité optimisée (480p, compression sur ce téléphone)</option>
+            </select>
+          </label>
+          <p class="cover-help">Le mode 480p réduit la résolution avant l'envoi et conserve le fichier original sur ton téléphone. Le traitement peut prendre du temps et utiliser les ressources du téléphone.</p>
+          <label>Identifiant public Cloudinary (si déjà hébergée)
+            <input type="text" id="cloudinary-id">
+          </label>
+          </div>
+          <div class="cover-field">
+            <label for="cover-file">Miniature / couverture (facultatif)</label>
+            <label class="cover-picker" for="cover-file">
+              <span class="cover-picker-icon">▧</span>
+              <strong>Choisir une image</strong>
+              <span>PNG, JPG ou WebP</span>
+              <input type="file" id="cover-file" accept="image/png,image/jpeg,image/webp">
+            </label>
+            <div id="cover-preview" class="cover-preview admin-hidden">
+              <img id="cover-preview-image" alt="Aperçu de la couverture sélectionnée">
+              <p id="cover-preview-caption">Aperçu de la couverture</p>
+              <button type="button" id="remove-cover" class="alt">Retirer la couverture sélectionnée</button>
+            </div>
+            <p class="cover-help">L’image choisie sera envoyée automatiquement sur Cloudinary, quel que soit l’hébergeur de la vidéo. Seule la miniature sera hébergée sur Cloudinary.</p>
+          </div>
+          <div id="vioo-fields" class="admin-hidden">
+            <label>Identifiant ou URL du lecteur Vioo
+              <input type="text" id="vioo-id" placeholder="3Yg6 ou https://vioo.cc/embed/3Yg6">
+            </label>
+            <label>URL de miniature de secours (facultatif)
+              <input type="url" id="vioo-thumbnail-url" placeholder="https://...">
+            </label>
+            <a class="btn alt" href="https://vioo.cc/" target="_blank" rel="noopener noreferrer">Ouvrir Vioo pour héberger une vidéo ↗</a>
+            <p class="cover-help">Téléverse d’abord la vidéo dans ton compte Vioo, puis colle ici son identifiant ou le lien de son lecteur. Zeno Video intégrera automatiquement le lecteur.</p>
+          </div>
+          <div id="dropbox-fields" class="admin-hidden">
+            <label>Lien de partage Dropbox de la vidéo
+              <input type="url" id="dropbox-url" placeholder="https://www.dropbox.com/scl/fi/..." inputmode="url">
+            </label>
+            <a class="btn alt" href="https://www.dropbox.com/" target="_blank" rel="noopener noreferrer">Ouvrir Dropbox pour héberger une vidéo ↗</a>
+            <p class="cover-help">Téléverse la vidéo dans Dropbox, crée un lien de partage en lecture seule, puis colle ce lien ici. Zeno Video le convertira automatiquement pour son lecteur vidéo. Le fichier reste hébergé chez Dropbox.</p>
+          </div>
+          <div id="onedrive-fields" class="admin-hidden">
+            <label>Lien d’intégration du lecteur OneDrive
+              <input type="url" id="onedrive-url" placeholder="Colle ici le lien embed OneDrive" inputmode="url" autocomplete="url">
+            </label>
+            <label>Lien de partage classique pour télécharger
+              <input type="url" id="onedrive-download-url" placeholder="Colle ici le lien « Copier le lien » de OneDrive" inputmode="url" autocomplete="url">
+            </label>
+            <p class="cover-help">Ce deuxième lien doit être le lien de partage normal (pas le lien embed). Zeno Video l’utilisera avec l’option de téléchargement de OneDrive.</p>
+            <a class="btn alt" href="https://onedrive.live.com/" target="_blank" rel="noopener noreferrer">Ouvrir OneDrive pour héberger une vidéo ↗</a>
+            <div id="onedrive-helper" class="admin-panel" aria-live="polite">
+              <p id="onedrive-helper-message" class="cover-help">Ce lien doit être converti en véritable lien d’intégration avant l’enregistrement.</p>
+              <button type="button" id="onedrive-chatgpt-button" class="alt">Copier le lien et ouvrir ChatGPT</button>
+            </div>
+            <p class="cover-help">Téléverse ta vidéo sur OneDrive, copie son lien de partage puis reviens ici. Si le lien n’est pas déjà un lien d’intégration, utilise le bouton pour le transmettre à ChatGPT. Le fichier reste hébergé chez Microsoft OneDrive.</p>
+          </div>
+          <div id="deepstorage-fields" class="admin-hidden">
+            <label>Fichier vidéo à envoyer sur DeepStorage
+              <input type="file" id="deepstorage-file" accept="video/mp4,video/quicktime,video/webm">
+            </label>
+            <p id="deepstorage-status" class="admin-message status-pending" aria-live="polite">Vérification de l'accès API DeepStorage…</p>
+            <p class="cover-help">Zeno vérifie automatiquement l'accès API. Si l'accès Pro n'est pas actif, cet hébergeur sera refusé et tu pourras en choisir un autre. Les vidéos déjà hébergées sur DeepStorage ne seront pas touchées.</p>
+          </div>
+          <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
+          <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
+        </form>
+        <p id="video-message" class="admin-message"></p>
+      </section>
+      <section>
+        <div class="section-title">
+          <h2>Mes vidéos</h2>
+          <span id="admin-count"></span>
+        </div>
+        <div id="admin-video-list"></div>
+      </section>
+    </section>
+  </main>
+  <footer>ZENO VIDEO · Administration privée.</footer>
+</body>
+</html>

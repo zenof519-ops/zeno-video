@@ -1,0 +1,14 @@
+{
+  "name": "zeno-video",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test:smoke": "node scripts/smoke-test.mjs"
+  },
+  "dependencies": {
+    "astro": "7.4.11"
+  }
+}

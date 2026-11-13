@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <title>Test lecteur Vioo — Zeno Video</title>
+  <link rel="stylesheet" href="style.css?v=10">
+  <style>
+    main { max-width: 900px; }
+    .test-note {
+      margin: 22px 0;
+      padding: 14px 16px;
+      border: 1px solid rgba(255,216,77,.45);
+      border-radius: 12px;
+      background: rgba(100,74,28,.22);
+      color: #ffe9a0;
+      line-height: 1.6;
+    }
+    .player { width: 100%; }
+    .actions { display:flex; flex-wrap:wrap; gap:10px; margin-top:18px; }
+    .actions .btn { margin:0; }
+    .details { margin-top:24px; padding:18px; }
+    .details p { overflow-wrap:anywhere; color:var(--zeno-muted); line-height:1.6; }
+    code { color:var(--zeno-cyan); overflow-wrap:anywhere; }
+  </style>
+</head>
+<body>
+  <header>
+    <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
+    <span>PAGE DE TEST · VIOO</span>
+  </header>
+  <main>
+    <p class="eyebrow">TEST D’HÉBERGEMENT EXTERNE</p>
+    <h1>Lecteur <em>Vioo.</em></h1>
+    <p class="intro">Cette page indépendante vérifie l’intégration d’un lecteur Vioo dans l’environnement graphique de Zeno Video. Elle ne modifie pas la bibliothèque publique ni l’administration.</p>
+    <div class="test-note"><strong>Page de démonstration :</strong> cette vidéo sert uniquement à tester l’affichage du lecteur intégré.</div>
+    <section>
+      <div class="section-title"><h2>Vidéo test</h2><span>VIOO · 16:9</span></div>
+      <div class="player">
+        <iframe
+          src="https://vioo.cc/embed/3Yg6"
+          title="Vidéo de test hébergée sur Vioo"
+          loading="lazy"
+          allow="autoplay; fullscreen; picture-in-picture"
+          allowfullscreen
+          referrerpolicy="strict-origin-when-cross-origin">
+        </iframe>
+      </div>
+      <div class="actions">
+        <a class="btn" href="https://vioo.cc/v/3Yg6?thumbnail=1" target="_blank" rel="noopener noreferrer">Ouvrir sur Vioo</a>
+        <a class="btn alt" href="index.html">Retour à Zeno Video</a>
+      </div>
+    </section>
+    <section class="details card">
+      <h2>Informations techniques</h2>
+      <p><strong>Fournisseur :</strong> Vioo</p>
+      <p><strong>Identifiant :</strong> <code>3Yg6</code></p>
+      <p><strong>URL du lecteur :</strong> <code>https://vioo.cc/embed/3Yg6</code></p>
+      <p><strong>Mode d’intégration :</strong> iframe responsive au format 16:9</p>
+    </section>
+  </main>
+  <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+</body>
+</html>
