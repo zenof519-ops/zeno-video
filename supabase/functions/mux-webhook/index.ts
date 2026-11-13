@@ -43,6 +43,8 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return new Response("Method not allowed", { status: 405 });
 
   const secret = Deno.env.get("MUX_WEBHOOK_SECRET");
+  const muxTokenId = Deno.env.get("MUX_TOKEN_ID");
+  const muxTokenSecret = Deno.env.get("MUX_TOKEN_SECRET");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   if (!secret || !serviceRoleKey || !supabaseUrl) {
@@ -112,6 +114,49 @@ Deno.serve(async (req: Request) => {
         })
         .eq("mux_upload_id", uploadId);
       if (error) return Response.json({ error: error.message }, { status: 500 });
+    }
+  } else if (event.type === "video.asset.static_rendition.ready") {
+    const assetId = String(event.object?.id || data.asset_id || data.asset?.id || "");
+    if (assetId && muxTokenId && muxTokenSecret) {
+      const assetResponse = await fetch("https://api.mux.com/video/v1/assets/" + encodeURIComponent(assetId), {
+        headers: { "Authorization": "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
+      });
+      const assetPayload = await assetResponse.json().catch(() => ({}));
+      if (!assetResponse.ok) {
+        return Response.json({ error: "Impossible de vérifier le MP4 prêt sur Mux." }, { status: 502 });
+      }
+      const renditionFiles = Array.isArray(assetPayload?.data?.static_renditions)
+        ? assetPayload.data.static_renditions
+        : Array.isArray(assetPayload?.data?.static_renditions?.files)
+          ? assetPayload.data.static_renditions.files
+          : [];
+      const mp4 = renditionFiles.find((file: any) =>
+        file?.ext === "mp4" && file?.status === "ready" && file?.name
+      );
+      const playbackId = Array.isArray(assetPayload?.data?.playback_ids)
+        ? assetPayload.data.playback_ids.find((item: any) => item?.policy === "public")?.id
+        : null;
+      if (mp4 && playbackId) {
+        const { data: videoRow, error: lookupError } = await db.from("videos")
+          .select("id,title")
+          .eq("mux_asset_id", assetId)
+          .maybeSingle();
+        if (lookupError) return Response.json({ error: lookupError.message }, { status: 500 });
+        if (videoRow) {
+          const safeName = String(videoRow.title || "zeno-video")
+            .normalize("NFD")
+            .replace(/\p{Diacritic}/gu, "")
+            .replace(/[^a-zA-Z0-9_-]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 80) || "zeno-video";
+          const downloadUrl = "https://stream.mux.com/" + encodeURIComponent(playbackId) +
+            "/" + encodeURIComponent(mp4.name) + "?download=" + encodeURIComponent(safeName + ".mp4");
+          const { error } = await db.from("videos")
+            .update({ download_url: downloadUrl })
+            .eq("id", videoRow.id);
+          if (error) return Response.json({ error: error.message }, { status: 500 });
+        }
+      }
     }
   } else if (event.type === "video.asset.errored") {
     const videoId = String(data.passthrough || "");

@@ -110,7 +110,6 @@ function showMuxPlayer(video) {
     frame.style.aspectRatio = "16 / 9";
     frame.style.border = "0";
     wrap.replaceChildren(frame);
-    downloadButton.hidden = true;
   });
 
   wrap.replaceChildren(launchButton, note);
@@ -223,7 +222,12 @@ async function loadVideo() {
 
     } else if (provider === "mux" && video.mux_playback_id) {
       showMuxPlayer(video);
-      downloadButton.hidden = true;
+      if (video.download_url) {
+        downloadButton.href = video.download_url;
+        downloadButton.hidden = false;
+      } else {
+        downloadButton.hidden = true;
+      }
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
       // Aucun lien de téléchargement direct Vioo n'étant disponible.
