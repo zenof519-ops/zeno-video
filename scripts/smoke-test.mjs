@@ -23,7 +23,7 @@ const checks = [
   ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=12"') && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
-  ['Administration : script conservé', admin.includes('admin.js?v=33')],
+  ['Administration : script conservé', admin.includes('admin.js?v=34')],
   ['Administration : choix ImageKit pour les miniatures', admin.includes('id="cover-provider"') && admin.includes('value="imagekit"')],
   ['Lecteur : script conservé et cache actualisé', watch.includes('watch.js?v=16')],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')],
