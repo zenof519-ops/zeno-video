@@ -122,6 +122,7 @@ Deno.serve(async (req: Request) => {
       new_asset_settings: {
         playback_policies: ["public"],
         video_quality: "basic",
+        static_renditions: [{ resolution: "highest" }],
         passthrough: videoId,
         meta: { title }
       }
