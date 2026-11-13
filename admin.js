@@ -1323,7 +1323,7 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (provider !== "cloudinary" && thumbnail) {
+  if (provider !== "cloudinary" && thumbnail && !selectedCover) {
     try {
       const thumbnailUrl = new URL(thumbnail);
       if (thumbnailUrl.protocol !== "https:") throw new Error();
