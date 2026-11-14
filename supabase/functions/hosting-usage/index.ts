@@ -226,22 +226,48 @@ function pickUsageFields(value: any, depth = 0): any {
   return out;
 }
 
-async function deepStorageMetrics() {
+async function deepStorageMetrics(videos: any[]) {
+  const rows = videos.filter(v => v.provider === "deepstorage");
+  const sizes = await Promise.all(rows.map(v => remoteFileSize(v.playback_url)));
+  const known = sizes.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
   const key = Deno.env.get("DEEPSTORAGE_API_KEY");
-  if (!key) throw new Error("Clé API DeepStorage absente.");
-  const data = await fetchJson("https://deepstorage.dev/api/v1/me", {
-    headers: { Authorization: "Bearer " + key }
-  });
-  const scopes = Array.isArray(data?.key?.scopes) ? data.key.scopes : [];
+  let account: any = null;
+  let apiError: string | null = null;
+
+  if (key) {
+    try {
+      account = await fetchJson("https://deepstorage.dev/api/v1/me", {
+        headers: { Authorization: "Bearer " + key }
+      });
+    } catch (error) {
+      apiError = error instanceof Error ? error.message : "Erreur API inconnue.";
+    }
+  }
+
+  const scopes = Array.isArray(account?.key?.scopes) ? account.key.scopes : [];
+  const apiAvailable = Boolean(account);
+  let note = "Les tailles des fichiers Zeno sont mesurées à partir des liens publics lorsque le fournisseur expose leur taille.";
+  if (!key) {
+    note += " Le quota global et l’offre ne peuvent pas être lus automatiquement sans clé API. DeepStorage indique que l’accès API est réservé aux offres payantes.";
+  } else if (!apiAvailable) {
+    note += " L’API n’a pas répondu : " + (apiError || "accès indisponible") + ". Le quota global reste inconnu.";
+  } else {
+    note += " L’API /me confirme l’offre et les limites de la clé, mais ne donne pas à elle seule l’espace total déjà occupé du compte.";
+  }
+
   return {
     account: "DeepStorage",
-    plan: data.plan ?? null,
+    linkedVideos: rows.length,
+    measuredFiles: known.length,
+    unknownFiles: rows.length - known.length,
+    zenoFilesSizeBytes: known.reduce((sum, size) => sum + size, 0),
+    plan: account?.plan ?? null,
     scopes,
+    apiAvailable,
     readScopeAvailable: scopes.includes("read"),
-    accountLimits: pickUsageFields(data),
-    note: scopes.includes("read")
-      ? "La clé dispose du droit de lecture ; les limites et métadonnées exposées par /me sont affichées ci-dessus."
-      : "La clé actuelle ne déclare pas le droit read. Le suivi détaillé des fichiers nécessitera une clé avec les droits upload + read."
+    accountLimits: account ? pickUsageFields(account) : {},
+    apiError,
+    note
   };
 }
 
@@ -268,14 +294,14 @@ async function collectProvider(provider: string, videos: any[], zeno: Record<str
     if (provider === "cloudinary") metrics = await cloudinaryMetrics();
     else if (provider === "mux") metrics = await muxMetrics();
     else if (provider === "imagekit") metrics = await imageKitMetrics();
-    else if (provider === "deepstorage") metrics = await deepStorageMetrics();
+    else if (provider === "deepstorage") metrics = await deepStorageMetrics(videos);
     else if (provider === "dropbox" || provider === "onedrive") metrics = await externalStorageMetrics(provider, videos);
     else metrics = {
       account: "Vioo",
       note: "Zeno suit les lectures et téléchargements initiés depuis son site. Aucun accès API officiel de quota n'est configuré pour Vioo."
     };
 
-    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" ? "partial" : "ok";
+    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" || provider === "deepstorage" ? "partial" : "ok";
     return { provider, status, metrics: { ...metrics, zeno: zeno[provider] } };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
