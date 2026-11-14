@@ -16,6 +16,8 @@ const home = read('index.html');
 const astroConfig = readFileSync('astro.config.mjs', 'utf8');
 const hostingUsageFunction = readFileSync('supabase/functions/hosting-usage/index.ts', 'utf8');
 const muxWebhookFunction = readFileSync('supabase/functions/mux-webhook/index.ts', 'utf8');
+const videoCounterFunction = readFileSync('supabase/functions/video-counter/index.ts', 'utf8');
+const videoCounterMigration = readFileSync('supabase/migrations/20261114201000_rate_limit_public_video_counters.sql', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js'];
@@ -24,7 +26,7 @@ const checks = [
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
   ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
   ['Accueil : CSS relié au bon chemin GitHub Pages', home.includes('href="/zeno-video/style.css?v=11"')],
-  ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=12"') && home.includes('src="/zeno-video/videos.js"')],
+  ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=13"') && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
@@ -36,8 +38,11 @@ const checks = [
   ['Administration : fichiers de stockage non mesurés signalés', read('admin.js').includes('Fichiers dont la taille est inconnue')],
   ['Administration : stockage DeepStorage estimé depuis les liens', read('admin.js').includes('Stockage Zeno mesuré') && read('admin.js').includes('Fichiers Zeno mesurés')],
   ['Administration : choix ImageKit pour les miniatures', admin.includes('id="cover-provider"') && admin.includes('value="imagekit"')],
-  ['Lecteur : script conservé et cache actualisé', watch.includes('watch.js?v=17')],
+  ['Lecteur : script conservé et cache actualisé', watch.includes('watch.js?v=18')],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')],
+  ['Compteurs : lecteur et galerie utilisent la fonction Edge sécurisée', read('watch.js').includes('/functions/v1/video-counter') && read('library.js').includes('/functions/v1/video-counter')],
+  ['Compteurs : anciennes RPC publiques retirées du JavaScript', !read('watch.js').includes('/rest/v1/rpc/register_video_') && !read('library.js').includes('/rest/v1/rpc/register_video_')],
+  ['Sécurité : limitation par IP hachée côté serveur', videoCounterFunction.includes('HMAC') && videoCounterFunction.includes('SUPABASE_SERVICE_ROLE_KEY') && videoCounterMigration.includes('THEN 120 ELSE 30 END')],
   ['Lecteur : miniature récupérée depuis Supabase', read('watch.js').includes('thumbnail_url,playback_url')],
   ['Lecteur : couverture affichée avant lancement', read('watch.js').includes('function showCoverPreview')],
   ['Lecteur : aperçu préalable Cloudinary', read('watch.js').includes('function showCloudinaryPlayer')],
