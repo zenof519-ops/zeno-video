@@ -9,7 +9,7 @@ const empty = document.getElementById("empty-message");
 async function registerDownload(videoId) {
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
+      `${SUPABASE_URL}/functions/v1/video-counter`,
       {
         method: "POST",
         headers: {
@@ -17,7 +17,7 @@ async function registerDownload(videoId) {
           Authorization: `Bearer ${SUPABASE_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ p_video_id: videoId })
+        body: JSON.stringify({ videoId, event: "download" })
       }
     );
     if (!response.ok) {
