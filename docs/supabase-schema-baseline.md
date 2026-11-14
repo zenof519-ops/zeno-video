@@ -11,7 +11,7 @@
 
 ## Applied migration history (live Supabase)
 
-The database reports these 9 applied migrations, in order:
+The database reports these 12 applied migrations, in order:
 
 | Version | Name |
 |---|---|
@@ -24,6 +24,9 @@ The database reports these 9 applied migrations, in order:
 | 20261113233134 | hosting_usage_monitor |
 | 20261114082703 | dropbox_oauth_storage_monitor |
 | 20261114083707 | grant_dropbox_oauth_service_role_privileges |
+| 20261114194743 | optimize_video_rls_policies |
+| 20261114194756 | merge_video_select_rls_policy |
+| 20261114194916 | lock_down_dropbox_oauth_table_privileges |
 
 ## Migration files present before recovery
 
@@ -46,9 +49,9 @@ The following original SQL bodies were read from the applied migration registry 
 
 The source query selected only `version`, `name`, and `statements` for these five migration records. It did not read OAuth credential values. No migration was replayed and no production schema, data, or permissions were changed during recovery.
 
-## Remaining reconciliation issue
+## Mux migration version reconciliation
 
-The committed Mux migration filename uses version `20261113090000`, while the live migration history records `20261113210007` for `add_mux_video_host`. Its SQL body was already recoverable from PR #3 and matches the committed file; only the version/name alignment remains unexplained. Preserve both records until the cause is established. Do not rename it or edit the production migration ledger as part of this recovery.
+The original Mux migration SQL was compared with the exact statement stored in the live migration registry for `20261113210007_add_mux_video_host`; the SQL bodies match. The repository file has therefore been renamed to `20261113210007_add_mux_video_host.sql` so the local migration filename matches the already-applied production version. This is a repository-only correction: the production migration ledger was not edited and the migration was not replayed.
 
 ## Observed live tables
 
@@ -102,10 +105,10 @@ Sensitive column values (OAuth refresh tokens, token hashes) were deliberately n
 
 ## Observed RLS policies
 
-On `public.videos`:
-- Public SELECT for `anon` and `authenticated` only where `is_published = true`.
-- Admin INSERT, UPDATE, DELETE and SELECT policies for the configured administrator UUID.
-- No policies were returned for the other four tables; their RLS remains enabled.
+On `public.videos` (after the 2026-11-14 RLS optimization):
+- One SELECT policy allows `anon` and `authenticated` to read published videos, and additionally allows the configured administrator UUID to read unpublished videos.
+- Admin INSERT, UPDATE and DELETE policies remain restricted to the same configured administrator UUID.
+- The four service tables retain RLS enabled and no end-user policies; access is intended for server-side `service_role` only. On 2026-11-14, all privileges were explicitly revoked from `anon` and `authenticated` on both Dropbox OAuth tables, then only the required `service_role` operations were re-granted.
 
 ## Observed database functions
 
@@ -121,22 +124,22 @@ The first two are callable by `anon` and `authenticated` according to Supabase S
 - Installed extensions observed: `pg_cron`, `pg_net`, `pgcrypto`.
 - Supabase Advisor reports `pg_net` installed in the `public` schema.
 
-## Security Advisor findings observed 2026-11-14
+## Security Advisor findings observed 2026-11-14 (after RLS optimization)
 
-- RLS enabled with no policies on four tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`. This can be deliberate for service-only tables; verify grants and service access before changing.
+- RLS enabled with no policies on four service-only tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`. The Dropbox tables were explicitly locked down: `anon` and `authenticated` now have no table privileges (including TRUNCATE, REFERENCES, TRIGGER, and MAINTAIN); `service_role` has only SELECT/INSERT/UPDATE on credentials and SELECT/INSERT/DELETE on states.
 - `pg_net` extension in `public`.
-- Public execution of SECURITY DEFINER counter functions `register_video_download` and `register_video_view`.
+- Public execution of SECURITY DEFINER counter functions `register_video_download` and `register_video_view` remains. Their bodies only increment counters on published video rows, but callers can still forge/inflate metrics; hardening requires a deliberate public-counter design.
 - Leaked-password protection disabled in Supabase Auth.
+- The RLS `auth.uid()` per-row performance findings and duplicate permissive SELECT policy finding were cleared by migrations `20261114194743` and `20261114194756`.
 
 Advisor findings are review items, not proof of exploitable access. Validate effective grants, function bodies, and actual call paths before remediation.
 
 ## Safe next steps
 
-1. Resolve the Mux migration filename/ledger version mismatch without changing production history.
-2. Compare the restored migration files with the current live schema and grants; document any drift.
-3. Establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay these historical DDL files.
-4. Separately review service-only table grants, public counter abuse controls, and Auth leaked-password protection.
+1. Keep migration filenames aligned with the live migration registry; the Mux mismatch is now corrected in Git without changing production history.
+2. Continue to review public counter abuse controls and Auth leaked-password protection.
+3. Establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay historical DDL files.
 
 ## Capture limitations
 
-This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. No database writes or schema changes were performed for this snapshot or the migration recovery.
+This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. Historical migration recovery did not change production schema or data. Three explicitly documented security/performance migrations were applied and verified on 2026-11-14.
