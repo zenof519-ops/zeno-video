@@ -15,6 +15,7 @@ const read = (file) => readFileSync(join(root, file), 'utf8');
 const home = read('index.html');
 const astroConfig = readFileSync('astro.config.mjs', 'utf8');
 const hostingUsageFunction = readFileSync('supabase/functions/hosting-usage/index.ts', 'utf8');
+const muxWebhookFunction = readFileSync('supabase/functions/mux-webhook/index.ts', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js'];
@@ -29,6 +30,7 @@ const checks = [
   ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
   ['Administration : suivi des quotas hébergeurs présent', admin.includes('hosting-usage-panel') && admin.includes('refresh-hosting-usage')],
   ['Suivi hébergeurs : compteurs de lecture et téléchargement rattachés au bon service', hostingUsageFunction.includes('metrics: { ...metrics, zeno }') && hostingUsageFunction.includes('metrics: { zeno }')],
+  ['Mux : webhook MP4 utilise l’identifiant de l’asset parent, pas celui de la rendition', muxWebhookFunction.includes('data.asset_id ||') && muxWebhookFunction.includes('(event.object?.type === "asset" ? event.object.id : "")') && muxWebhookFunction.includes('Parent asset ID missing from static rendition webhook.')],
   ['Administration : script de suivi des hébergeurs présent', read('admin.js').includes('function loadHostingUsage')],
   ['Administration : valeurs nulles affichées comme indisponibles', read('admin.js').includes('value === null || value === undefined')],
   ['Administration : fichiers de stockage non mesurés signalés', read('admin.js').includes('Fichiers dont la taille est inconnue')],
