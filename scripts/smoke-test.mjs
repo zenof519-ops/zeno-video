@@ -26,7 +26,7 @@ const checks = [
   ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=12"') && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
-  ['Administration : script conservé', /<script src="admin\\.js\\?v=\\d+" defer><\\/script>/.test(admin)],
+  ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
   ['Administration : suivi des quotas hébergeurs présent', admin.includes('hosting-usage-panel') && admin.includes('refresh-hosting-usage')],
   ['Suivi hébergeurs : compteurs de lecture et téléchargement rattachés au bon service', hostingUsageFunction.includes('metrics: { ...metrics, zeno }') && hostingUsageFunction.includes('metrics: { zeno }')],
   ['Administration : script de suivi des hébergeurs présent', read('admin.js').includes('function loadHostingUsage')],
@@ -62,7 +62,7 @@ const mirrorsMatch = mirroredFiles.every((file) =>
 checks.push(['Dépôt : copies racine et public synchronisées', mirrorsMatch]);
 
 // Les clés publiques Supabase sont attendues côté navigateur ; les secrets serveur ne le sont jamais.
-const publicBundle = browserScripts.map(read).join('\\n');
+const publicBundle = browserScripts.map(read).join('\n');
 const forbiddenSecrets = [
   'SUPABASE_SERVICE_ROLE_KEY',
   'CLOUDINARY_API_SECRET',
