@@ -64,6 +64,22 @@ const hostingUsageUpdated = document.getElementById("hosting-usage-updated");
 const refreshHostingUsageButton = document.getElementById("refresh-hosting-usage");
 const connectDropboxButton = document.getElementById("connect-dropbox");
 
+const dropboxOAuthJustConnected = new URLSearchParams(window.location.search).get("dropbox") === "connected";
+
+function setDropboxButtonConnected(connected) {
+  if (!connectDropboxButton) return;
+  connectDropboxButton.textContent = connected ? "Dropbox connecté" : "Connecter Dropbox";
+  connectDropboxButton.disabled = Boolean(connected);
+  connectDropboxButton.setAttribute("aria-label", connected ? "Dropbox connecté" : "Connecter Dropbox");
+}
+
+if (dropboxOAuthJustConnected) {
+  setDropboxButtonConnected(true);
+  const callbackUrl = new URL(window.location.href);
+  callbackUrl.searchParams.delete("dropbox");
+  window.history.replaceState(window.history.state, "", callbackUrl);
+}
+
 function formatUsageBytes(value) {
   if (value === null || value === undefined || value === "") return "Non disponible";
   const bytes = Number(value);
@@ -145,8 +161,14 @@ function renderHostingUsage(snapshots) {
     const title = document.createElement("h3");
     title.textContent = labels[snapshot.provider] || snapshot.provider;
     const status = document.createElement("span");
-    status.className = "hosting-usage-status " + (snapshot.status || "error");
-    status.textContent = statusLabels[snapshot.status] || "État inconnu";
+    const dropboxQuotaAvailable = snapshot.provider === "dropbox" && metrics.accountQuotaAvailable === true;
+    if (snapshot.provider === "dropbox") {
+      setDropboxButtonConnected(dropboxOAuthJustConnected || dropboxQuotaAvailable);
+    }
+    status.className = "hosting-usage-status " + (dropboxQuotaAvailable ? "ok" : (snapshot.status || "error"));
+    status.textContent = dropboxQuotaAvailable
+      ? "Connecté — quota disponible"
+      : (statusLabels[snapshot.status] || "État inconnu");
     heading.append(title, status);
     card.appendChild(heading);
 
@@ -756,7 +778,7 @@ async function openDashboard(user) {
   loginSection.classList.add("admin-hidden");
   dashboard.classList.remove("admin-hidden");
   await loadAdminVideos();
-  await loadHostingUsage(false);
+  await loadHostingUsage(dropboxOAuthJustConnected);
   await checkPermanentDeleteConfig();
   await checkDeepStorageAvailability(true);
 }
