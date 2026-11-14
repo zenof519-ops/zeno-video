@@ -59,7 +59,7 @@ Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405, origin);
 
   const apiKey = req.headers.get("apikey") || "";
-  if (!apiKey.startsWith("sb_publishable_") && apiKey.length < 40) {
+  if (!apiKey.startsWith("sb_publishable_") && !apiKey.startsWith("eyJ")) {
     return json({ error: "Public API key required" }, 401, origin);
   }
 
