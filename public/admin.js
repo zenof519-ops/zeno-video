@@ -213,10 +213,26 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
       addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
     } else if (snapshot.provider === "onedrive") {
-      addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
-      addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
-      addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
-      addHostingMetric(card, "Quota global du compte", "Connexion OAuth nécessaire pour obtenir une valeur exacte");
+      const linked = Number(metrics.linkedVideos || 0);
+      const measured = Number(metrics.measuredFiles || 0);
+      const unknown = Number(metrics.unknownFiles || 0);
+      const measuredSizeLabel = linked === 0
+        ? "Aucun fichier Zeno"
+        : measured === 0
+          ? "Taille inconnue — OneDrive ne l'expose pas sur le lien public"
+          : formatUsageBytes(metrics.zenoFilesSizeBytes) + " (fichiers mesurés)";
+      addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(measured, 0) + " / " + formatUsageNumber(linked, 0));
+      addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", measuredSizeLabel);
+      addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(unknown, 0));
+      if (metrics.trendAvailable && metrics.measuredFilesSizeDeltaBytes !== null) {
+        const delta = Number(metrics.measuredFilesSizeDeltaBytes);
+        const sign = delta > 0 ? "+" : delta < 0 ? "−" : "";
+        const previousDate = metrics.previousMeasuredAt ? new Date(metrics.previousMeasuredAt).toLocaleString("fr-FR") : "";
+        addHostingMetric(card, "Évolution depuis le relevé précédent", sign + formatUsageBytes(Math.abs(delta)) + (previousDate ? " (relevé du " + previousDate + ")" : ""));
+      } else {
+        addHostingMetric(card, "Évolution du stockage Zeno", measured > 0 ? "Première mesure exploitable — évolution disponible au prochain relevé" : "En attente d'une première taille vérifiable");
+      }
+      addHostingMetric(card, "Quota global du compte", "Non disponible sans autorisation Microsoft");
     } else if (snapshot.provider === "vioo") {
       addHostingMetric(card, "Quota et stockage fournisseur", "Non accessibles automatiquement pour le moment");
     }
