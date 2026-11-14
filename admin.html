@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=38" defer></script>
+  <script src="admin.js?v=39" defer></script>
 </head>
 <body>
   <header>
@@ -51,7 +51,10 @@
       <section class="admin-panel hosting-usage-panel" id="hosting-usage-panel">
         <div class="section-title">
           <h2>Surveillance des hébergeurs</h2>
-          <button type="button" id="refresh-hosting-usage" class="alt">Actualiser les mesures</button>
+          <div class="hosting-usage-actions">
+            <button type="button" id="connect-dropbox" class="alt">Connecter Dropbox</button>
+            <button type="button" id="refresh-hosting-usage" class="alt">Actualiser les mesures</button>
+          </div>
         </div>
         <p class="cover-help">Les statistiques des API sont actualisées automatiquement toutes les 6 heures. Les lectures et téléchargements indiqués ici correspondent aux actions enregistrées par Zeno Video. Les quotas non accessibles par API sont signalés comme tels.</p>
         <div id="hosting-usage-cards" class="hosting-usage-grid">
