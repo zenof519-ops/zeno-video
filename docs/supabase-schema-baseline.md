@@ -6,9 +6,8 @@
 
 - Supabase project ref: `pvzucwayxudnnmskkodk`
 - Repository: `zenof519-ops/zeno-video`
-- Branch used for this document: `docs/supabase-schema-baseline`
-- Main commit inspected: `122093d18b52b4faef92b3869691d4b140bc9b98`
-- Database schema is the observed live state; Git history is the source for migration scripts that are actually committed.
+- Database schema is the observed live state; committed migration files are the repository's historical migration artifacts.
+- Five previously missing migration SQL bodies were recovered verbatim from `supabase_migrations.schema_migrations.statements` on 2026-11-14 and restored as files in Git. The query was read-only.
 
 ## Applied migration history (live Supabase)
 
@@ -26,39 +25,30 @@ The database reports these 9 applied migrations, in order:
 | 20261114082703 | dropbox_oauth_storage_monitor |
 | 20261114083707 | grant_dropbox_oauth_service_role_privileges |
 
-## Migration files present in `main`
+## Migration files present before recovery
 
-Observed files:
+The four files originally present in `main` were:
 
 - `supabase/migrations/20261111074251_add_deepstorage_provider.sql`
 - `supabase/migrations/20261113090000_add_mux_video_host.sql`
 - `supabase/migrations/20261113225936_add_thumbnail_asset_tracking.sql`
 - `supabase/migrations/20261113233134_hosting_usage_monitor.sql`
 
-### Reconciliation gaps
+## Five restored migration files
 
-1. Five applied migration names have no corresponding SQL file in the inspected `main` tree:
-   - `add_video_provider_support`
-   - `add_onedrive_download_url`
-   - `grant_mux_service_role_video_write`
-   - `dropbox_oauth_storage_monitor`
-   - `grant_dropbox_oauth_service_role_privileges`
-2. The committed Mux migration filename uses version `20261113090000`, while the live migration history records `20261113210007` for `add_mux_video_host`.
-3. Git history for `supabase/migrations/` shows four committed migration-file additions; the five absent SQL bodies were not recovered from the inspected repository history.
+The following original SQL bodies were read from the applied migration registry and restored without modification:
 
-**Do not fabricate the missing SQL or alter `supabase_migrations.schema_migrations` to make the lists match.** Recover the original SQL from trusted backups, developer machines, deployment artifacts, or the exact commits/PRs that applied them before reconstructing executable history.
+- `20261110103131_add_video_provider_support.sql`
+- `20261110202339_add_onedrive_download_url.sql`
+- `20261113211935_grant_mux_service_role_video_write.sql`
+- `20261114082703_dropbox_oauth_storage_monitor.sql`
+- `20261114083707_grant_dropbox_oauth_service_role_privileges.sql`
 
+The source query selected only `version`, `name`, and `statements` for these five migration records. It did not read OAuth credential values. No migration was replayed and no production schema, data, or permissions were changed during recovery.
 
-### Additional recovery search (2026-11-14)
+## Remaining reconciliation issue
 
-The historical PR records were also inspected:
-
-- PR #3 contains the original patch for `add_mux_video_host`. Its SQL body matches the committed file `20261113090000_add_mux_video_host.sql`; this migration's body is therefore recoverable, but its filename version still differs from the applied ledger version `20261113210007`.
-- PR #12 contains the original `add_thumbnail_asset_tracking` migration, matching the file already present in the repository.
-- PR #13 contains the original `hosting_usage_monitor` migration, matching the file already present in the repository.
-- The PR history and repository code search did not expose the SQL bodies for the five ledger entries listed above. Dropbox search for their migration names and related Zeno/Supabase migration terms returned no matching files.
-
-This narrows the evidence: the Mux migration body itself is not lost; the unresolved issue is its version/name mismatch plus the five separately applied migration entries whose SQL files are absent. The original SQL for those five entries remains unrecovered. Do not reconstruct them from current table state or function behavior and label them as originals.
+The committed Mux migration filename uses version `20261113090000`, while the live migration history records `20261113210007` for `add_mux_video_host`. Its SQL body was already recoverable from PR #3 and matches the committed file; only the version/name alignment remains unexplained. Preserve both records until the cause is established. Do not rename it or edit the production migration ledger as part of this recovery.
 
 ## Observed live tables
 
@@ -142,12 +132,11 @@ Advisor findings are review items, not proof of exploitable access. Validate eff
 
 ## Safe next steps
 
-1. Recover the original SQL for the five applied migration entries whose files are absent from Git, from trusted sources.
-2. Determine why the Mux migration version differs between the live ledger and committed filename; preserve both records until the cause is established.
-3. Compare recovered SQL with the live schema and grants; document any drift.
-4. Only then establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay historical DDL.
-5. Separately review service-only table grants, public counter abuse controls, and Auth leaked-password protection.
+1. Resolve the Mux migration filename/ledger version mismatch without changing production history.
+2. Compare the restored migration files with the current live schema and grants; document any drift.
+3. Establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay these historical DDL files.
+4. Separately review service-only table grants, public counter abuse controls, and Auth leaked-password protection.
 
 ## Capture limitations
 
-This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. No database writes or schema changes were performed for this snapshot.
+This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. No database writes or schema changes were performed for this snapshot or the migration recovery.
