@@ -48,6 +48,18 @@ Observed files:
 
 **Do not fabricate the missing SQL or alter `supabase_migrations.schema_migrations` to make the lists match.** Recover the original SQL from trusted backups, developer machines, deployment artifacts, or the exact commits/PRs that applied them before reconstructing executable history.
 
+
+### Additional recovery search (2026-11-14)
+
+The historical PR records were also inspected:
+
+- PR #3 contains the original patch for `add_mux_video_host`. Its SQL body matches the committed file `20261113090000_add_mux_video_host.sql`; this migration's body is therefore recoverable, but its filename version still differs from the applied ledger version `20261113210007`.
+- PR #12 contains the original `add_thumbnail_asset_tracking` migration, matching the file already present in the repository.
+- PR #13 contains the original `hosting_usage_monitor` migration, matching the file already present in the repository.
+- The PR history and repository code search did not expose the SQL bodies for the five ledger entries listed above. Dropbox search for their migration names and related Zeno/Supabase migration terms returned no matching files.
+
+This narrows the evidence: the Mux migration body itself is not lost; the unresolved issue is its version/name mismatch plus the five separately applied migration entries whose SQL files are absent. The original SQL for those five entries remains unrecovered. Do not reconstruct them from current table state or function behavior and label them as originals.
+
 ## Observed live tables
 
 All five observed tables have RLS enabled.
@@ -130,7 +142,7 @@ Advisor findings are review items, not proof of exploitable access. Validate eff
 
 ## Safe next steps
 
-1. Recover the original SQL for the five missing applied migrations from trusted sources.
+1. Recover the original SQL for the five applied migration entries whose files are absent from Git, from trusted sources.
 2. Determine why the Mux migration version differs between the live ledger and committed filename; preserve both records until the cause is established.
 3. Compare recovered SQL with the live schema and grants; document any drift.
 4. Only then establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay historical DDL.
