@@ -256,7 +256,9 @@ async function externalStorageMetrics(provider: "dropbox" | "onedrive", videos: 
     unknownFiles: rows.length - known.length,
     zenoFilesSizeBytes: known.reduce((sum, size) => sum + size, 0),
     accountQuotaAvailable: false,
-    note: "La taille des fichiers accessibles par leurs liens est mesurée. Le quota global restant du compte nécessite une autorisation OAuth de lecture du compte."
+    note: rows.length === 0
+      ? "Aucun fichier Zeno n’est actuellement enregistré chez ce fournisseur. Le quota global du compte nécessite une autorisation OAuth."
+      : "Taille mesurée pour " + known.length + " fichier(s) sur " + rows.length + " ; " + (rows.length - known.length) + " fichier(s) restent inconnus depuis le lien public. Le quota global du compte nécessite une autorisation OAuth."
   };
 }
 
