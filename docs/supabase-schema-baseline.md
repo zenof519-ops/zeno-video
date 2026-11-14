@@ -11,7 +11,7 @@
 
 ## Applied migration history (live Supabase)
 
-The database reports these 12 applied migrations, in order:
+The database reports these 14 applied migrations, in order:
 
 | Version | Name |
 |---|---|
@@ -27,6 +27,8 @@ The database reports these 12 applied migrations, in order:
 | 20261114194743 | optimize_video_rls_policies |
 | 20261114194756 | merge_video_select_rls_policy |
 | 20261114194916 | lock_down_dropbox_oauth_table_privileges |
+| 20261114201000 | rate_limit_public_video_counters |
+| 20261114201200 | restrict_video_counter_limiter_access |
 
 ## Migration files present before recovery
 
@@ -55,7 +57,7 @@ The original Mux migration SQL was compared with the exact statement stored in t
 
 ## Observed live tables
 
-All five observed tables have RLS enabled.
+All six observed tables have RLS enabled.
 
 ### `public.videos`
 
@@ -100,6 +102,7 @@ Observed indexes:
 - `public.dropbox_oauth_states`: `state_hash text`, `expires_at timestamptz`. RLS enabled.
 - `public.hosting_usage_snapshots`: `id uuid`, `provider text`, `status text`, `metrics jsonb`, `error text`, `collected_at timestamptz`. RLS enabled.
 - `private.hosting_usage_cron_tokens`: `id integer`, `token_hash bytea`, `updated_at timestamptz`. RLS enabled.
+- `public.video_counter_rate_limits`: one HMAC-IP digest and event counter per event type and fixed one-minute window. RLS enabled; no browser or direct service-role table privileges.
 
 Sensitive column values (OAuth refresh tokens, token hashes) were deliberately not queried or recorded.
 
@@ -112,11 +115,12 @@ On `public.videos` (after the 2026-11-14 RLS optimization):
 
 ## Observed database functions
 
-- `public.register_video_download(p_video_id uuid)` — SECURITY DEFINER.
-- `public.register_video_view(p_video_id uuid)` — SECURITY DEFINER.
+- `public.register_video_download(p_video_id uuid)` — SECURITY DEFINER; browser execution revoked, retained for `service_role` compatibility only.
+- `public.register_video_view(p_video_id uuid)` — SECURITY DEFINER; browser execution revoked, retained for `service_role` compatibility only.
+- `public.register_video_event(p_video_id uuid, p_event_type text, p_ip_hash text)` — SECURITY DEFINER; executable only by `service_role`, called by the `video-counter` Edge Function.
 - `public.verify_hosting_usage_cron_token(p_token text)` — SECURITY DEFINER.
 
-The first two are callable by `anon` and `authenticated` according to Supabase Security Advisor. This may be intentional for anonymous public counters, but it is an abuse/forgery risk that needs a separate design review. Do not revoke or change them until the public counter flow and its authorization requirements have been inspected.
+The browser no longer calls the legacy counter RPCs. The `video-counter` Edge Function accepts only the Zeno site origin, requires a Supabase public API key format, derives a server-side HMAC-SHA256 digest from the client IP (raw IP is not stored), and enforces fixed one-minute limits of 120 views and 30 downloads per IP. The rate-limit table is RLS-enabled and has no direct grants to browser roles or `service_role`; only the SECURITY DEFINER database function can access it.
 
 ## Scheduled monitoring and extensions
 
@@ -126,9 +130,9 @@ The first two are callable by `anon` and `authenticated` according to Supabase S
 
 ## Security Advisor findings observed 2026-11-14 (after RLS optimization)
 
-- RLS enabled with no policies on four service-only tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`. The Dropbox tables were explicitly locked down: `anon` and `authenticated` now have no table privileges (including TRUNCATE, REFERENCES, TRIGGER, and MAINTAIN); `service_role` has only SELECT/INSERT/UPDATE on credentials and SELECT/INSERT/DELETE on states.
+- RLS enabled with no policies on five server-only tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`, and `public.video_counter_rate_limits`. This is intentional: browser roles have no privileges on them. The Dropbox tables are restricted to the minimum `service_role` operations; the counter limiter has no direct `service_role` table grants because access occurs inside its SECURITY DEFINER function.
 - `pg_net` extension in `public`.
-- Public execution of SECURITY DEFINER counter functions `register_video_download` and `register_video_view` remains. Their bodies only increment counters on published video rows, but callers can still forge/inflate metrics; hardening requires a deliberate public-counter design.
+- Public execution of the legacy SECURITY DEFINER counter functions `register_video_download` and `register_video_view` has been revoked from `PUBLIC`, `anon`, and `authenticated`. The replacement rate-limited flow is deployed through the `video-counter` Edge Function and service-only RPC. A transactional smoke test accepted 120 of 121 view events for one test IP and rejected the 121st; the transaction was rolled back, so no video statistics were changed.
 - Leaked-password protection disabled in Supabase Auth.
 - The RLS `auth.uid()` per-row performance findings and duplicate permissive SELECT policy finding were cleared by migrations `20261114194743` and `20261114194756`.
 
@@ -136,10 +140,10 @@ Advisor findings are review items, not proof of exploitable access. Validate eff
 
 ## Safe next steps
 
-1. Keep migration filenames aligned with the live migration registry; the Mux mismatch is now corrected in Git without changing production history.
-2. Continue to review public counter abuse controls and Auth leaked-password protection.
+1. Review enabling Supabase Auth leaked-password protection (available on Pro and higher) when the project plan permits.
+2. Continue monitoring the `video-counter` rate-limit table and the public counters for abnormal traffic.
 3. Establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay historical DDL files.
 
 ## Capture limitations
 
-This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. Historical migration recovery did not change production schema or data. Three explicitly documented security/performance migrations were applied and verified on 2026-11-14.
+This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. Historical migration recovery did not change production schema or data. Five explicitly documented security/performance migrations were applied and verified on 2026-11-14.

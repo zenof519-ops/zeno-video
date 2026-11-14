@@ -15,7 +15,7 @@ async function registerViewOnce() {
 
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/register_video_view`,
+      `${SUPABASE_URL}/functions/v1/video-counter`,
       {
         method: "POST",
         headers: {
@@ -23,7 +23,7 @@ async function registerViewOnce() {
           Authorization: `Bearer ${SUPABASE_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ p_video_id: id })
+        body: JSON.stringify({ videoId: id, event: "view" })
       }
     );
 
@@ -348,7 +348,7 @@ downloadButton.addEventListener("click", async (event) => {
   window.open(destination, "_blank", "noopener,noreferrer");
   try {
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/rpc/register_video_download`,
+      `${SUPABASE_URL}/functions/v1/video-counter`,
       {
         method: "POST",
         headers: {
@@ -356,7 +356,7 @@ downloadButton.addEventListener("click", async (event) => {
           Authorization: `Bearer ${SUPABASE_KEY}`,
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ p_video_id: id })
+        body: JSON.stringify({ videoId: id, event: "download" })
       }
     );
     if (!response.ok) {
