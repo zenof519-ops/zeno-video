@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=41" defer></script>
+  <script src="admin.js?v=42" defer></script>
 </head>
 <body>
   <header>
@@ -36,6 +36,23 @@
         <h2>Tableau de bord</h2>
         <button id="logout-button" class="alt">Déconnexion</button>
       </div>
+      <section class="admin-panel weekly-maintenance-panel admin-hidden" id="weekly-maintenance-panel" aria-live="polite">
+        <div class="section-title">
+          <h2>Maintenance hebdomadaire</h2>
+          <span class="hosting-usage-status partial" id="weekly-maintenance-badge">À effectuer</span>
+        </div>
+        <p>Le contrôle du samedi est arrivé. Actualise les indicateurs ci-dessous, vérifie les éventuels avertissements, puis valide la maintenance. Ce rappel est réservé à l’administrateur.</p>
+        <ul>
+          <li>Actualiser les statistiques et les quotas des hébergeurs.</li>
+          <li>Vérifier l’accès aux vidéos et les statuts de suppression.</li>
+          <li>Examiner les éventuels problèmes avant toute mise à jour.</li>
+        </ul>
+        <div class="admin-actions">
+          <button type="button" id="run-weekly-maintenance-checks">Actualiser les contrôles</button>
+          <button type="button" id="complete-weekly-maintenance" class="alt">Marquer la maintenance comme effectuée</button>
+        </div>
+        <p id="weekly-maintenance-message" class="admin-message" aria-live="polite"></p>
+      </section>
       <section class="admin-panel stats-panel">
         <h2>Statistiques globales</h2>
         <div class="stats-grid">

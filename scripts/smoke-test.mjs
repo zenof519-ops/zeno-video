@@ -30,6 +30,8 @@ const checks = [
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
+  ['Maintenance : rappel hebdomadaire présent dans le tableau administrateur', admin.includes('weekly-maintenance-panel') && admin.includes('complete-weekly-maintenance')],
+  ['Maintenance : logique de rappel du samedi présente', read('admin.js').includes('function updateWeeklyMaintenanceReminder') && read('admin.js').includes('mostRecentSaturdayKey')],
   ['Administration : suivi des quotas hébergeurs présent', admin.includes('hosting-usage-panel') && admin.includes('refresh-hosting-usage')],
   ['Suivi hébergeurs : compteurs de lecture et téléchargement rattachés au bon service', hostingUsageFunction.includes('metrics: { ...metrics, zeno }') && hostingUsageFunction.includes('metrics: { zeno }')],
   ['Mux : webhook MP4 utilise l’identifiant de l’asset parent, pas celui de la rendition', muxWebhookFunction.includes('data.asset_id ||') && muxWebhookFunction.includes('(event.object?.type === "asset" ? event.object.id : "")') && muxWebhookFunction.includes('Parent asset ID missing from static rendition webhook.')],

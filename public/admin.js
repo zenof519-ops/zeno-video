@@ -59,6 +59,70 @@ function showMessage(element, message) {
   element.textContent = message;
 }
 
+const weeklyMaintenancePanel = document.getElementById("weekly-maintenance-panel");
+const weeklyMaintenanceMessage = document.getElementById("weekly-maintenance-message");
+const weeklyMaintenanceStorageKey = "zeno-video-maintenance-last-completed";
+
+function localDateKey(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function mostRecentSaturdayKey(date = new Date()) {
+  const daysSinceSaturday = (date.getDay() + 1) % 7;
+  const saturday = new Date(date.getFullYear(), date.getMonth(), date.getDate() - daysSinceSaturday);
+  return localDateKey(saturday);
+}
+
+function updateWeeklyMaintenanceReminder() {
+  if (!weeklyMaintenancePanel) return;
+  let lastCompleted = null;
+  try {
+    lastCompleted = localStorage.getItem(weeklyMaintenanceStorageKey);
+  } catch (error) {
+    console.warn("Zeno Video: stockage local du rappel indisponible.", error);
+  }
+  const today = new Date();
+  const dueSaturday = mostRecentSaturdayKey(today);
+  const due = lastCompleted ? lastCompleted < dueSaturday : today.getDay() === 6;
+  weeklyMaintenancePanel.classList.toggle("admin-hidden", !due);
+  if (due && weeklyMaintenanceMessage) {
+    weeklyMaintenanceMessage.textContent = "Vérification hebdomadaire à effectuer. Dernier contrôle : " +
+      (lastCompleted || "aucun contrôle enregistré sur cet appareil") + ".";
+  }
+}
+
+document.getElementById("run-weekly-maintenance-checks")?.addEventListener("click", async (event) => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  if (weeklyMaintenanceMessage) weeklyMaintenanceMessage.textContent = "Actualisation des contrôles en cours…";
+  try {
+    await Promise.allSettled([
+      loadAdminVideos(),
+      loadHostingUsage(true),
+      checkPermanentDeleteConfig(),
+      checkDeepStorageAvailability(true)
+    ]);
+    if (weeklyMaintenanceMessage) {
+      weeklyMaintenanceMessage.textContent = "Actualisation terminée. Consulte les statuts des hébergeurs, de la suppression définitive et de DeepStorage avant de valider.";
+    }
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.getElementById("complete-weekly-maintenance")?.addEventListener("click", () => {
+  try {
+    localStorage.setItem(weeklyMaintenanceStorageKey, localDateKey());
+    weeklyMaintenancePanel?.classList.add("admin-hidden");
+    if (weeklyMaintenanceMessage) weeklyMaintenanceMessage.textContent = "Maintenance validée sur cet appareil. Le prochain rappel apparaîtra samedi prochain.";
+  } catch (error) {
+    if (weeklyMaintenanceMessage) weeklyMaintenanceMessage.textContent = "Impossible d’enregistrer la validation sur cet appareil. Vérifie les autorisations de stockage du navigateur.";
+  }
+});
+
 const hostingUsageCards = document.getElementById("hosting-usage-cards");
 const hostingUsageUpdated = document.getElementById("hosting-usage-updated");
 const refreshHostingUsageButton = document.getElementById("refresh-hosting-usage");
@@ -793,6 +857,7 @@ async function openDashboard(user) {
 
   loginSection.classList.add("admin-hidden");
   dashboard.classList.remove("admin-hidden");
+  updateWeeklyMaintenanceReminder();
   await loadAdminVideos();
   await loadHostingUsage(dropboxOAuthJustConnected);
   await checkPermanentDeleteConfig();
