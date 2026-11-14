@@ -64,6 +64,7 @@ const hostingUsageUpdated = document.getElementById("hosting-usage-updated");
 const refreshHostingUsageButton = document.getElementById("refresh-hosting-usage");
 
 function formatUsageBytes(value) {
+  if (value === null || value === undefined || value === "") return "Non disponible";
   const bytes = Number(value);
   if (!Number.isFinite(bytes) || bytes < 0) return "Non disponible";
   if (bytes < 1024) return bytes.toLocaleString("fr-FR") + " o";
@@ -78,6 +79,7 @@ function formatUsageBytes(value) {
 }
 
 function formatUsageNumber(value, digits = 1) {
+  if (value === null || value === undefined || value === "") return "Non disponible";
   const number = Number(value);
   return Number.isFinite(number)
     ? number.toLocaleString("fr-FR", { maximumFractionDigits: digits })
@@ -180,6 +182,7 @@ function renderHostingUsage(snapshots) {
     } else if (snapshot.provider === "dropbox" || snapshot.provider === "onedrive") {
       addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
       addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
+      addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
       addHostingMetric(card, "Quota global du compte", "Connexion OAuth nécessaire pour obtenir une valeur exacte");
     } else if (snapshot.provider === "vioo") {
       addHostingMetric(card, "Quota et stockage fournisseur", "Non accessibles automatiquement pour le moment");
