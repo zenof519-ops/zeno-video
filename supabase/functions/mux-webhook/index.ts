@@ -116,8 +116,24 @@ Deno.serve(async (req: Request) => {
       if (error) return Response.json({ error: error.message }, { status: 500 });
     }
   } else if (event.type === "video.asset.static_rendition.ready") {
-    const assetId = String(data.id || data.asset_id || data.asset?.id || (event.object?.type === "asset" ? event.object.id : ""));
-    if (assetId && muxTokenId && muxTokenSecret) {
+    // For this event, data.id identifies the static rendition, not its parent asset.
+    // Prefer the explicit parent asset ID or the webhook's asset object ID.
+    const assetId = String(
+      data.asset_id ||
+      data.asset?.id ||
+      (event.object?.type === "asset" ? event.object.id : "")
+    );
+    if (!assetId) {
+      console.error("Mux static rendition webhook is missing its parent asset ID", {
+        objectType: event.object?.type,
+        dataKeys: Object.keys(data)
+      });
+      return Response.json({ error: "Parent asset ID missing from static rendition webhook." }, { status: 500 });
+    }
+    if (!muxTokenId || !muxTokenSecret) {
+      return Response.json({ error: "Mux API credentials are not configured." }, { status: 503 });
+    }
+    {
       const assetResponse = await fetch("https://api.mux.com/video/v1/assets/" + encodeURIComponent(assetId), {
         headers: { "Authorization": "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
       });
