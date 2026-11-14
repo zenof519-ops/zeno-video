@@ -62,6 +62,7 @@ function showMessage(element, message) {
 const hostingUsageCards = document.getElementById("hosting-usage-cards");
 const hostingUsageUpdated = document.getElementById("hosting-usage-updated");
 const refreshHostingUsageButton = document.getElementById("refresh-hosting-usage");
+const connectDropboxButton = document.getElementById("connect-dropbox");
 
 function formatUsageBytes(value) {
   if (value === null || value === undefined || value === "") return "Non disponible";
@@ -182,7 +183,14 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Offre détectée", metrics.plan || "Non vérifiée");
       addHostingMetric(card, "Droit de lecture API", metrics.apiAvailable ? (metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API") : "Non vérifiable");
       addHostingMetric(card, "Limites / quotas retournés", JSON.stringify(metrics.accountLimits || {}).slice(0, 320) || "Aucune donnée de quota reconnue");
-    } else if (snapshot.provider === "dropbox" || snapshot.provider === "onedrive") {
+    } else if (snapshot.provider === "dropbox") {
+      addHostingMetric(card, "Espace Dropbox utilisé", formatUsageBytes(metrics.accountUsedBytes));
+      addHostingMetric(card, "Quota Dropbox total", formatUsageBytes(metrics.accountAllocatedBytes));
+      addHostingMetric(card, "Espace Dropbox restant", formatUsageBytes(metrics.accountRemainingBytes));
+      addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
+      addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
+      addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
+    } else if (snapshot.provider === "onedrive") {
       addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
       addHostingMetric(card, "Espace occupé par les fichiers Zeno mesurés", formatUsageBytes(metrics.zenoFilesSizeBytes));
       addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
@@ -229,6 +237,20 @@ async function loadHostingUsage(refresh = false) {
 }
 
 refreshHostingUsageButton?.addEventListener("click", () => loadHostingUsage(true));
+
+connectDropboxButton?.addEventListener("click", async () => {
+  connectDropboxButton.disabled = true;
+  showMessage(hostingUsageUpdated, "Préparation de la connexion Dropbox…");
+  try {
+    const { data, error } = await db.functions.invoke("dropbox-oauth", { body: {} });
+    if (error) throw error;
+    if (!data?.authorization_url) throw new Error(data?.error || "Lien d’autorisation Dropbox indisponible.");
+    window.location.assign(data.authorization_url);
+  } catch (error) {
+    showMessage(hostingUsageUpdated, "Connexion Dropbox impossible : " + (error.message || "erreur inconnue."));
+    connectDropboxButton.disabled = false;
+  }
+});
 
 
 async function resetVideoStatistics(videoId, videoTitle) {
