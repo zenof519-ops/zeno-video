@@ -5,6 +5,10 @@ on:
     branches: [astro-integration, main]
   pull_request:
     branches: [main]
+  # Samedi à 07:00 au Bénin (06:00 UTC).
+  schedule:
+    - cron: "0 6 * * 6"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,6 +35,18 @@ jobs:
         run: npm run build
       - name: Smoke-test generated pages and assets
         run: npm run test:smoke
+      - name: Audit des dépendances de production (sans mise à jour automatique)
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
+      - name: Vérifier le site public en ligne
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        run: |
+          set -e
+          for path in "/zeno-video/" "/zeno-video/admin.html" "/zeno-video/admin.js?v=42" "/zeno-video/style.css"; do
+            echo "Vérification de $path"
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --output /dev/null "https://zenof519-ops.github.io$path"
+          done
       - name: Upload GitHub Pages artifact
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
