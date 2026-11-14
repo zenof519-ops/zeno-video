@@ -13,6 +13,7 @@ if (missing.length) {
 const read = (file) => readFileSync(join(root, file), 'utf8');
 const home = read('index.html');
 const astroConfig = readFileSync('astro.config.mjs', 'utf8');
+const hostingUsageFunction = readFileSync('supabase/functions/hosting-usage/index.ts', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const checks = [
@@ -25,6 +26,7 @@ const checks = [
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', admin.includes('admin.js?v=38')],
   ['Administration : suivi des quotas hébergeurs présent', admin.includes('hosting-usage-panel') && admin.includes('refresh-hosting-usage')],
+  ['Suivi hébergeurs : compteurs de lecture et téléchargement rattachés au bon service', hostingUsageFunction.includes('metrics: { ...metrics, zeno }') && hostingUsageFunction.includes('metrics: { zeno }')],
   ['Administration : script de suivi des hébergeurs présent', read('admin.js').includes('function loadHostingUsage')],
   ['Administration : valeurs nulles affichées comme indisponibles', read('admin.js').includes('value === null || value === undefined')],
   ['Administration : fichiers de stockage non mesurés signalés', read('admin.js').includes('Fichiers dont la taille est inconnue')],

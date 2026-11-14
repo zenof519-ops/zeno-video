@@ -302,12 +302,12 @@ async function collectProvider(provider: string, videos: any[], zeno: Record<str
     };
 
     const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" || provider === "deepstorage" ? "partial" : "ok";
-    return { provider, status, metrics: { ...metrics, zeno: zeno[provider] } };
+    return { provider, status, metrics: { ...metrics, zeno } };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
     const status = (provider === "imagekit" && /403|forbidden|permission|unauthorized/i.test(message)) ||
       (provider === "deepstorage" && /clé API.*absente/i.test(message)) ? "needs_permission" : "error";
-    return { provider, status, metrics: { zeno: zeno[provider] }, error: message };
+    return { provider, status, metrics: { zeno }, error: message };
   }
 }
 
