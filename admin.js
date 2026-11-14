@@ -176,8 +176,11 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Bande passante sur 30 jours", formatUsageBytes(metrics.bandwidthBytesLast30Days) + " / 20 Go (repère gratuit)");
       addHostingMetric(card, "Bande passante restante estimée", formatUsageBytes(metrics.bandwidthRemainingReferenceBytes));
     } else if (snapshot.provider === "deepstorage") {
-      addHostingMetric(card, "Offre détectée", metrics.plan || "Non communiquée par l'API");
-      addHostingMetric(card, "Droit de lecture API", metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API");
+      addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles, 0) + " / " + formatUsageNumber(metrics.linkedVideos, 0));
+      addHostingMetric(card, "Stockage Zeno mesuré", formatUsageBytes(metrics.zenoFilesSizeBytes));
+      addHostingMetric(card, "Fichiers dont la taille est inconnue", formatUsageNumber(metrics.unknownFiles, 0));
+      addHostingMetric(card, "Offre détectée", metrics.plan || "Non vérifiée");
+      addHostingMetric(card, "Droit de lecture API", metrics.apiAvailable ? (metrics.readScopeAvailable ? "Disponible" : "À ajouter à la clé API") : "Non vérifiable");
       addHostingMetric(card, "Limites / quotas retournés", JSON.stringify(metrics.accountLimits || {}).slice(0, 320) || "Aucune donnée de quota reconnue");
     } else if (snapshot.provider === "dropbox" || snapshot.provider === "onedrive") {
       addHostingMetric(card, "Fichiers Zeno mesurés", formatUsageNumber(metrics.measuredFiles || 0, 0) + " / " + formatUsageNumber(metrics.linkedVideos || 0, 0));
