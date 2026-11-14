@@ -24,7 +24,7 @@ const checks = [
   ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=12"') && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
-  ['Administration : script conservé', admin.includes('admin.js?v=38')],
+  ['Administration : script conservé', /<script src="admin\\.js\\?v=\\d+" defer><\\/script>/.test(admin)],
   ['Administration : suivi des quotas hébergeurs présent', admin.includes('hosting-usage-panel') && admin.includes('refresh-hosting-usage')],
   ['Suivi hébergeurs : compteurs de lecture et téléchargement rattachés au bon service', hostingUsageFunction.includes('metrics: { ...metrics, zeno }') && hostingUsageFunction.includes('metrics: { zeno }')],
   ['Administration : script de suivi des hébergeurs présent', read('admin.js').includes('function loadHostingUsage')],
