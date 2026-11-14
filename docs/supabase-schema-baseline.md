@@ -11,7 +11,7 @@
 
 ## Applied migration history (live Supabase)
 
-The database reports these 11 applied migrations, in order:
+The database reports these 12 applied migrations, in order:
 
 | Version | Name |
 |---|---|
@@ -26,6 +26,7 @@ The database reports these 11 applied migrations, in order:
 | 20261114083707 | grant_dropbox_oauth_service_role_privileges |
 | 20261114194743 | optimize_video_rls_policies |
 | 20261114194756 | merge_video_select_rls_policy |
+| 20261114194916 | lock_down_dropbox_oauth_table_privileges |
 
 ## Migration files present before recovery
 
@@ -107,7 +108,7 @@ Sensitive column values (OAuth refresh tokens, token hashes) were deliberately n
 On `public.videos` (after the 2026-11-14 RLS optimization):
 - One SELECT policy allows `anon` and `authenticated` to read published videos, and additionally allows the configured administrator UUID to read unpublished videos.
 - Admin INSERT, UPDATE and DELETE policies remain restricted to the same configured administrator UUID.
-- The four service tables retain RLS enabled and no end-user policies; access is intended for server-side `service_role` only.
+- The four service tables retain RLS enabled and no end-user policies; access is intended for server-side `service_role` only. On 2026-11-14, all privileges were explicitly revoked from `anon` and `authenticated` on both Dropbox OAuth tables, then only the required `service_role` operations were re-granted.
 
 ## Observed database functions
 
@@ -125,7 +126,7 @@ The first two are callable by `anon` and `authenticated` according to Supabase S
 
 ## Security Advisor findings observed 2026-11-14 (after RLS optimization)
 
-- RLS enabled with no policies on four tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`. This can be deliberate for service-only tables; verify grants and service access before changing.
+- RLS enabled with no policies on four service-only tables: `private.hosting_usage_cron_tokens`, `public.dropbox_oauth_credentials`, `public.dropbox_oauth_states`, `public.hosting_usage_snapshots`. The Dropbox tables were explicitly locked down: `anon` and `authenticated` now have no table privileges (including TRUNCATE, REFERENCES, TRIGGER, and MAINTAIN); `service_role` has only SELECT/INSERT/UPDATE on credentials and SELECT/INSERT/DELETE on states.
 - `pg_net` extension in `public`.
 - Public execution of SECURITY DEFINER counter functions `register_video_download` and `register_video_view` remains. Their bodies only increment counters on published video rows, but callers can still forge/inflate metrics; hardening requires a deliberate public-counter design.
 - Leaked-password protection disabled in Supabase Auth.
@@ -136,9 +137,9 @@ Advisor findings are review items, not proof of exploitable access. Validate eff
 ## Safe next steps
 
 1. Keep migration filenames aligned with the live migration registry; the Mux mismatch is now corrected in Git without changing production history.
-2. Continue to review service-only table grants, public counter abuse controls, and Auth leaked-password protection.
+2. Continue to review public counter abuse controls and Auth leaked-password protection.
 3. Establish a clean forward migration workflow. Do not reset production, delete migration ledger rows, or replay historical DDL files.
 
 ## Capture limitations
 
-This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. Historical migration recovery did not change production schema or data. The two explicitly documented RLS optimization migrations were applied and verified on 2026-11-14.
+This is a structural inventory, not a full schema dump. It does not include function bodies, every grant, every table constraint, every sequence, every view, or Edge Function secrets. No secret values were read. Historical migration recovery did not change production schema or data. Three explicitly documented security/performance migrations were applied and verified on 2026-11-14.
