@@ -7,11 +7,21 @@ const wrap = document.getElementById("player-wrap");
 const downloadButton = document.getElementById("download-video");
 
 let viewRegistered = false;
+let activeProvider = "unknown";
+
+function captureAnalytics(eventName, properties = {}) {
+  try {
+    window.posthog?.capture?.(eventName, { ...properties, provider: activeProvider });
+  } catch {
+    // Analytics must never interrupt video playback or downloads.
+  }
+}
 
 async function registerViewOnce() {
   if (viewRegistered) return;
 
   viewRegistered = true;
+  captureAnalytics("video_launch_requested");
 
   try {
     const response = await fetch(
@@ -254,6 +264,7 @@ async function loadVideo() {
       video.description || "";
 
     const provider = video.provider || (video.cloudinary_public_id ? "cloudinary" : "vioo");
+    activeProvider = provider;
 
     if (provider === "cloudinary" && video.cloudinary_public_id) {
       const publicId = video.cloudinary_public_id.split("/").map(encodeURIComponent).join("/");
@@ -344,6 +355,7 @@ loadVideo();
 downloadButton.addEventListener("click", async (event) => {
   if (downloadButton.hidden || !id) return;
   event.preventDefault();
+  captureAnalytics("video_download_requested");
   const destination = downloadButton.href;
   window.open(destination, "_blank", "noopener,noreferrer");
   try {
