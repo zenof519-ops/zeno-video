@@ -53,7 +53,7 @@ jobs:
 
           writeFileSync(
             'public/posthog-config.js',
-            `window.ZENO_POSTHOG_CONFIG = ${JSON.stringify(config)};\\n`
+            `window.ZENO_POSTHOG_CONFIG = ${JSON.stringify(config)};\n`
           );
           console.log(config ? 'PostHog configuration prepared.' : 'PostHog variables are not set; analytics stays disabled for this build.');
           NODE
