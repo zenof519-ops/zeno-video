@@ -37,25 +37,31 @@ jobs:
           ZENO_POSTHOG_HOST: ${{ vars.ZENO_POSTHOG_HOST }}
         run: |
           node --input-type=module <<'NODE'
-          import { writeFileSync } from 'node:fs';
+          import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 
           const token = process.env.ZENO_POSTHOG_PROJECT_TOKEN?.trim() || '';
           const host = process.env.ZENO_POSTHOG_HOST?.trim() || '';
 
-          let config = null;
           if (token && host) {
             const parsedHost = new URL(host);
             if (parsedHost.protocol !== 'https:') {
               throw new Error('PostHog host must use HTTPS.');
             }
-            config = { token, host: parsedHost.origin };
+            const config = { token, host: parsedHost.origin };
+            writeFileSync(
+              'public/posthog-config.js',
+              `window.ZENO_POSTHOG_CONFIG = ${JSON.stringify(config)};\\n`
+            );
+            console.log('PostHog configuration prepared from GitHub Actions variables.');
+          } else if (existsSync('public/posthog-config.js')) {
+            const existing = readFileSync('public/posthog-config.js', 'utf8');
+            if (!existing.includes('window.ZENO_POSTHOG_CONFIG')) {
+              throw new Error('Existing PostHog config file is invalid; refusing to overwrite it.');
+            }
+            console.log('GitHub Actions variables are absent; preserving the checked-in PostHog configuration.');
+          } else {
+            throw new Error('PostHog variables are missing and no checked-in configuration exists.');
           }
-
-          writeFileSync(
-            'public/posthog-config.js',
-            `window.ZENO_POSTHOG_CONFIG = ${JSON.stringify(config)};\n`
-          );
-          console.log(config ? 'PostHog configuration prepared.' : 'PostHog variables are not set; analytics stays disabled for this build.');
           NODE
       - name: Build Astro site
         run: npm run build
