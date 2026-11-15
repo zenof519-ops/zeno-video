@@ -83,6 +83,30 @@ async function loadAnnouncement() {
     const source = String(item.video_url || "").trim();
     if (!source) throw new Error("La source vidéo de cette annonce est manquante.");
     const cover = item.cover_url || "";
+    if (provider === "mux" && (source.startsWith("mux-pending:") || source === "mux-error")) {
+      const preview = document.createElement("div");
+      preview.style.position = "relative";
+      preview.style.aspectRatio = "16 / 9";
+      preview.style.background = "#000";
+      preview.style.borderRadius = "12px";
+      preview.style.overflow = "hidden";
+      if (cover) {
+        const image = document.createElement("img");
+        image.src = cover;
+        image.alt = "Couverture de " + item.title;
+        image.style.width = "100%";
+        image.style.height = "100%";
+        image.style.objectFit = "contain";
+        preview.append(image);
+      }
+      const status = document.createElement("p");
+      status.textContent = source === "mux-error"
+        ? "L’envoi ou le traitement Mux a échoué. L’administrateur doit vérifier cette annonce."
+        : "Vidéo en cours de traitement chez Mux. Le lecteur apparaîtra automatiquement dès qu’elle sera prête.";
+      status.className = "cover-help";
+      media.replaceChildren(preview, status);
+      return;
+    }
     const launch = document.createElement("button");
     launch.type = "button";
     launch.className = "btn";
