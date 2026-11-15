@@ -826,7 +826,6 @@ coverFileInput.addEventListener("change", () => {
 removeCoverButton.addEventListener("click", () => {
   coverFileInput.value = "";
   currentThumbnailUrl = null;
-  announcementSelect.value = "";
   clearCoverPreview();
 });
 
@@ -904,6 +903,7 @@ function resetVideoForm() {
   editingVideo = null;
   videoFormat = "mp4";
   currentThumbnailUrl = null;
+  announcementSelect.value = "";
   clearCoverPreview();
 
   document.getElementById("form-title").textContent = "Ajouter une vidéo";
