@@ -1141,7 +1141,8 @@ async function loadAdminVideos() {
       }
       actions.append(muxDownloadButton);
     }
-    if ((video.provider || "cloudinary") === "cloudinary") {
+    if (["cloudinary", "mux"].includes(video.provider || "cloudinary") &&
+        ((video.provider || "cloudinary") !== "mux" || Boolean(video.mux_asset_id))) {
       actions.append(permanentDeleteButton);
     }
     card.append(title, description, views, downloads, status, providerLabel, actions);
@@ -2101,7 +2102,7 @@ async function checkPermanentDeleteConfig() {
       return;
     }
 
-    status.textContent = "✓ Nettoyage des couvertures prêt : connexions Cloudinary et ImageKit vérifiées. Aucun fichier n'a été supprimé.";
+    status.textContent = "✓ Suppression définitive prête : connexions Cloudinary, ImageKit et Mux vérifiées. Aucun fichier n'a été supprimé.";
     status.className = "admin-message success";
   } catch (error) {
     status.textContent = "⚠ Vérification impossible : " + (error?.message || "erreur de communication avec Supabase.");
@@ -2110,18 +2111,24 @@ async function checkPermanentDeleteConfig() {
 }
 
 async function permanentlyDeleteVideo(video) {
-  if ((video.provider || "cloudinary") !== "cloudinary") {
-    showMessage(videoMessage, "La suppression définitive automatique n'est disponible que pour Cloudinary.");
+  const provider = video.provider || "cloudinary";
+  if (!["cloudinary", "mux"].includes(provider)) {
+    showMessage(videoMessage, "La suppression définitive automatique est disponible uniquement pour Cloudinary et Mux.");
+    return;
+  }
+  if (provider === "mux" && !video.mux_asset_id) {
+    showMessage(videoMessage, "Mux n'a pas encore fourni l'identifiant de l'asset. Attends la fin du traitement avant la suppression définitive.");
     return;
   }
 
+  const providerName = provider === "mux" ? "Mux" : "Cloudinary";
   const confirmed = confirm(
-    "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
-    " » et sa couverture seront supprimées de Cloudinary/ImageKit ET de Supabase. Cette action est irréversible.\n\nContinuer ?"
+    "SUPPRESSION DÉFINITIVE\\n\\nLa vidéo « " + video.title +
+    " » sera supprimée de " + providerName + " ET de Supabase. Sa couverture hébergée sera supprimée aussi, sauf si elle est encore utilisée par une annonce ou une autre vidéo. Cette action est irréversible.\\n\\nContinuer ?"
   );
   if (!confirmed) return;
 
-  showMessage(videoMessage, "Suppression définitive de Cloudinary et Supabase en cours...");
+  showMessage(videoMessage, "Suppression définitive de " + providerName + " et Supabase en cours...");
   const buttons = videoList.querySelectorAll("button");
   buttons.forEach(button => button.disabled = true);
 
@@ -2143,8 +2150,9 @@ async function permanentlyDeleteVideo(video) {
 
     if (!data?.success) throw new Error(data?.error || "La suppression n'a pas été confirmée.");
 
-    showMessage(videoMessage, data.message || "Vidéo et couverture supprimées définitivement de leurs hébergeurs et de Supabase.");
+    showMessage(videoMessage, data.message || "Vidéo supprimée définitivement de " + providerName + " et de Supabase.");
     await loadAdminVideos();
+    await loadAdminAnnouncements();
   } catch (error) {
     showMessage(videoMessage, "Erreur : " + error.message);
     buttons.forEach(button => button.disabled = false);
