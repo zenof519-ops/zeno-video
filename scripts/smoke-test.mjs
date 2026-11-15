@@ -26,7 +26,7 @@ const checks = [
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
   ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
   ['Accueil : CSS relié au bon chemin GitHub Pages', home.includes('href="/zeno-video/style.css?v=11"')],
-  ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=13"') && home.includes('src="/zeno-video/videos.js"')],
+  ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=14"') && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
