@@ -15,6 +15,7 @@ const mediaType = document.getElementById("media-type");
 const videoFields = document.getElementById("video-fields");
 const providerSelect = document.getElementById("video-provider");
 const coverInput = document.getElementById("cover-file");
+const coverProviderSelect = document.getElementById("cover-provider");
 const coverPreview = document.getElementById("cover-preview");
 const cloudinaryFile = document.getElementById("cloudinary-file");
 const cloudinarySource = document.getElementById("cloudinary-source");
@@ -69,6 +70,11 @@ coverInput.addEventListener("change",()=>{
   if(!["image/jpeg","image/png","image/webp"].includes(file.type)){
     coverInput.value="";
     show(message,"Choisis une image PNG, JPG ou WebP.");
+    return;
+  }
+  if(coverProviderSelect.value==="imagekit"&&file.size>25*1024*1024){
+    coverInput.value="";
+    show(message,"ImageKit Free accepte les images jusqu’à 25 Mo. Choisis une image plus légère ou Cloudinary.");
     return;
   }
   coverObjectUrl=URL.createObjectURL(file);
@@ -141,6 +147,38 @@ async function uploadCover(file){
   if(!response.ok||!result.secure_url)throw new Error(result.error?.message||"Échec de l’envoi de la couverture sur Cloudinary.");
   return result;
 }
+
+async function uploadToImageKit(file){
+  const {data:auth,error:authError}=await db.functions.invoke("imagekit-upload-auth",{body:{}});
+  if(authError){
+    let details=authError.message||"Impossible d’obtenir l’autorisation ImageKit.";
+    try{if(authError.context&&typeof authError.context.json==="function"){const payload=await authError.context.json();details=payload.error||payload.message||details;}}catch{}
+    throw new Error(details);
+  }
+  if(!auth?.token||!auth?.signature||!auth?.expire||!auth?.publicKey)throw new Error("Supabase n’a pas fourni les paramètres sécurisés d’envoi ImageKit.");
+  const data=new FormData();
+  data.append("file",file,file.name);data.append("fileName",file.name);data.append("publicKey",auth.publicKey);
+  data.append("token",auth.token);data.append("expire",String(auth.expire));data.append("signature",auth.signature);
+  data.append("folder","/zeno-covers");data.append("useUniqueFileName","true");data.append("isPrivateFile","false");
+  return await new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();xhr.open("POST","https://upload.imagekit.io/api/v1/files/upload");xhr.timeout=300000;
+    xhr.upload.addEventListener("progress",event=>{
+      const percent=event.lengthComputable?Math.round(event.loaded/event.total*100):null;
+      show(message,percent===null?"Envoi de l’image vers ImageKit…":"Envoi de l’image vers ImageKit : "+percent+"%");
+    });
+    xhr.addEventListener("load",()=>{
+      let uploaded;try{uploaded=JSON.parse(xhr.responseText||"{}");}catch{reject(new Error("Réponse illisible d’ImageKit (HTTP "+xhr.status+")."));return;}
+      if(xhr.status<200||xhr.status>=300){reject(new Error(uploaded.message||uploaded.help||"ImageKit a refusé l’image (HTTP "+xhr.status+")."));return;}
+      if(!uploaded.url||!uploaded.fileId){reject(new Error("ImageKit n’a pas renvoyé l’URL publique attendue."));return;}
+      resolve(uploaded);
+    });
+    xhr.addEventListener("error",()=>reject(new Error("Connexion interrompue pendant l’envoi vers ImageKit.")));
+    xhr.addEventListener("timeout",()=>reject(new Error("L’envoi ImageKit a dépassé 5 minutes.")));
+    xhr.addEventListener("abort",()=>reject(new Error("Envoi ImageKit annulé.")));
+    xhr.send(data);
+  });
+}
+
 function showDeepStorageStatus(){
   deepStorageStatusElement.textContent=deepStorageStatus.message;
   deepStorageStatusElement.className="admin-message "+(deepStorageStatus.available?"success":deepStorageStatus.checked?"error":"status-pending");
@@ -614,6 +652,7 @@ async function loadAnnouncements(){
       document.getElementById("description").value=item.description||"";
       document.getElementById("scheduled").value=item.scheduled_for?new Date(item.scheduled_for).toISOString().slice(0,16):"";
       mediaType.value=item.media_type||"photo";providerSelect.value=item.video_provider||"cloudinary";
+      coverProviderSelect.value=currentCover&&currentCover.includes("ik.imagekit.io")?"imagekit":"cloudinary";
       cloudinarySource.value=item.video_provider==="cloudinary"?item.video_url||"":"";
       viooSource.value=item.video_provider==="vioo"?item.video_url||"":"";
       dropboxSource.value=item.video_provider==="dropbox"?item.video_url||"":"";
@@ -635,7 +674,7 @@ async function loadAnnouncements(){
   }
 }
 
-async function saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,file}){
+async function saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,coverProvider,file}){
   if(!file)throw new Error("Choisis le fichier vidéo à envoyer sur Mux.");
   if(file.size>1024*1024*1024)throw new Error("La taille maximale autorisée pour un envoi Mux est de 1 Go.");
   const pendingToken="mux-pending:"+(crypto.randomUUID?crypto.randomUUID():Date.now());
@@ -649,8 +688,9 @@ async function saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUp
     show(message,"Préparation de l’envoi sécurisé vers Mux…");
     const {data:uploadInfo,error:uploadError}=await db.functions.invoke("mux-create-upload",{
       body:{title,description,filename:file.name,content_type:file.type||"application/octet-stream",size:file.size,
-        thumbnail_url:coverUrl,thumbnail_provider:"cloudinary",thumbnail_cloudinary_public_id:coverUpload?.public_id||null,
-        thumbnail_imagekit_file_id:null,announcement_id:created.id}
+        thumbnail_url:coverUrl,thumbnail_provider:coverProvider,
+        thumbnail_cloudinary_public_id:coverProvider==="cloudinary"?coverUpload?.public_id||null:null,
+        thumbnail_imagekit_file_id:coverProvider==="imagekit"?coverUpload?.fileId||null:null,announcement_id:created.id}
     });
     if(uploadError){
       let details=uploadError.message||"Impossible de préparer l’envoi Mux.";
@@ -688,10 +728,18 @@ form.addEventListener("submit",async event=>{
 
   saveButton.disabled=true;providerSelect.disabled=true;
   try{
+    const coverProvider=coverProviderSelect.value;
     let coverUrl=currentCover,coverUpload=null;
-    if(coverFile){show(message,"Envoi de la couverture sur Cloudinary…");coverUpload=await uploadCover(coverFile);coverUrl=coverUpload.secure_url;}
+    if(coverFile){
+      if(coverProvider==="imagekit"){
+        if(coverFile.size>25*1024*1024)throw new Error("ImageKit Free accepte les images jusqu’à 25 Mo. Choisis une image plus légère ou Cloudinary.");
+        show(message,"Envoi de la couverture vers ImageKit…");coverUpload=await uploadToImageKit(coverFile);coverUrl=coverUpload.url;
+      }else{
+        show(message,"Envoi de la couverture vers Cloudinary…");coverUpload=await uploadCover(coverFile);coverUrl=coverUpload.secure_url;
+      }
+    }
     if(type==="video"&&provider==="mux"&&!editingId){
-      await saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,file:muxSelectedFile});
+      await saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,coverProvider,file:muxSelectedFile});
       resetForm();await loadAnnouncements();return;
     }
     let videoUrl=null;
