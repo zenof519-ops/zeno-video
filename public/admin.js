@@ -1820,8 +1820,8 @@ videoForm.addEventListener("submit", async (event) => {
         showMessage(videoMessage, "Préparation de l'envoi sécurisé vers Mux...");
         const { data: uploadInfo, error: uploadError } = await db.functions.invoke("mux-create-upload", {
           body: {
-            title,
-            description,
+            title: selectedAnnouncement?.title || title,
+            description: selectedAnnouncement?.description || description,
             filename: selectedFile.name,
             content_type: selectedFile.type || "application/octet-stream",
             size: selectedFile.size,
