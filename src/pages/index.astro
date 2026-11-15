@@ -10,6 +10,8 @@ const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
     <meta name="description" content="Retrouve les vidéos disponibles sur Zeno Video et partage leur lecteur en un seul lien." />
     <title>Zeno Video</title>
     <link rel="stylesheet" href={`${base}style.css?v=11`} />
+    <script is:inline src={`${base}posthog-config.js`} defer></script>
+    <script is:inline src={`${base}posthog.js?v=1`} defer></script>
   </head>
   <body>
     <header>
