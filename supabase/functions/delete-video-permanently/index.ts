@@ -287,6 +287,26 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Suppression interrompue : cette miniature est encore utilisée par une annonce ou une autre vidéo. Modifie d'abord cette référence pour éviter de casser son affichage." }, 409, origin);
   }
 
+  let resolvedImageKitFileId = video.thumbnail_imagekit_file_id as string | null;
+  let resolvedCloudinaryCoverPublicId = (video.thumbnail_cloudinary_public_id as string | null) || null;
+  if (thumbnailUrl && !coverIsShared && coverProvider === "imagekit") {
+    if (!imageKitPrivateKey) return json({ error: "IMAGEKIT_PRIVATE_KEY est absent : la suppression est interrompue avant de toucher à la vidéo.", video: "conservée" }, 503, origin);
+    try {
+      if (!resolvedImageKitFileId) resolvedImageKitFileId = await resolveImageKitFileId(thumbnailUrl, imageKitPrivateKey);
+    } catch (error) {
+      return json({ error: "Impossible d'identifier la couverture ImageKit. La vidéo n'a pas été supprimée.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
+    }
+  }
+  if (thumbnailUrl && !coverIsShared && coverProvider === "cloudinary") {
+    if (!cloudinaryApiKey || !cloudinaryApiSecret) return json({ error: "Secrets Cloudinary absents : la suppression est interrompue avant de toucher à la vidéo." }, 503, origin);
+    try {
+      if (!resolvedCloudinaryCoverPublicId) resolvedCloudinaryCoverPublicId = cloudinaryImagePublicId(thumbnailUrl);
+    } catch {
+      resolvedCloudinaryCoverPublicId = null;
+    }
+    if (!resolvedCloudinaryCoverPublicId) return json({ error: "Impossible d'identifier précisément la couverture Cloudinary. La vidéo n'a pas été supprimée." }, 422, origin);
+  }
+
   let videoResult = "fichier vidéo conservé chez l'hébergeur";
   if (deleteVideoAsset && videoProvider === "mux") {
     try {
@@ -321,8 +341,7 @@ Deno.serve(async (req: Request) => {
     coverResult = "couverture conservée car elle est encore utilisée par une autre vidéo ou une annonce";
   } else if (thumbnailUrl && coverProvider === "imagekit") {
     if (!imageKitPrivateKey) return json({ error: "IMAGEKIT_PRIVATE_KEY est absent : la couverture n'a pas été supprimée. La fiche vidéo reste dans Supabase.", video: videoResult }, 503, origin);
-    let fileId = video.thumbnail_imagekit_file_id as string | null;
-    if (!fileId) fileId = await resolveImageKitFileId(thumbnailUrl, imageKitPrivateKey);
+    const fileId = resolvedImageKitFileId;
     if (fileId) {
       try { coverResult = await deleteImageKitFile(fileId, thumbnailUrl, imageKitPrivateKey); }
       catch (error) {
@@ -335,7 +354,7 @@ Deno.serve(async (req: Request) => {
     if (!cloudinaryApiKey || !cloudinaryApiSecret) {
       return json({ error: "Secrets Cloudinary absents : la couverture n'a pas été supprimée et la fiche vidéo reste dans Supabase.", video: videoResult }, 503, origin);
     }
-    const publicId = (video.thumbnail_cloudinary_public_id as string | null) || cloudinaryImagePublicId(thumbnailUrl);
+    const publicId = resolvedCloudinaryCoverPublicId as string;
     if (!publicId) return json({ error: "Impossible d'identifier précisément la couverture Cloudinary. La fiche vidéo reste dans Supabase.", video: videoResult }, 422, origin);
     try { coverResult = await deleteCloudinaryAsset(publicId, "image", cloudinaryApiKey, cloudinaryApiSecret); }
     catch (error) {
