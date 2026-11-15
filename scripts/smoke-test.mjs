@@ -44,6 +44,7 @@ const checks = [
   ['Administration : association et publication manuelle des annonces', read('admin.js').includes('async function loadAdminAnnouncements') && read('admin.js').includes('announcement_id: selectedAnnouncementId') && read('admin.js').includes('is_published: !selectedAnnouncementId')],
   ['Accueil : annonces à venir et cartes liées', read('library.js').includes('/rest/v1/video_announcements') && read('library.js').includes('announcement_id') && read('library.js').includes('À VENIR')],
   ['Lecteur : URL d’annonce conservée après publication', read('watch.js').includes('const announcementId') && read('watch.js').includes('announcement_id=eq.') && read('watch.js').includes('is_published=eq.true')],
+  ['Lecteur : titre, description et couverture de l’annonce conservés après publication', read('watch.js').includes('linkedAnnouncement.title') && read('watch.js').includes('video.thumbnail_url = linkedAnnouncement.cover_url')],
   ['Mux : upload lié à une annonce sans publication automatique', readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('announcement_id: announcementId') && readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('is_published: false') && muxWebhookFunction.includes('publishQuery') && muxWebhookFunction.includes('.is("announcement_id", null)')],
 
   ['PostHog : configuration publique présente dans le build', existsSync(join(root, 'posthog-config.js'))],
