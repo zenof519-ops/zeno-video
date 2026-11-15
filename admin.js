@@ -16,6 +16,15 @@ const videoForm = document.getElementById("video-form");
 const videoMessage = document.getElementById("video-message");
 const videoList = document.getElementById("admin-video-list");
 const adminCount = document.getElementById("admin-count");
+const announcementForm = document.getElementById("announcement-form");
+const announcementMessage = document.getElementById("announcement-message");
+const announcementList = document.getElementById("admin-announcement-list");
+const announcementCount = document.getElementById("announcement-count");
+const announcementCoverInput = document.getElementById("announcement-cover-file");
+const announcementCoverProvider = document.getElementById("announcement-cover-provider");
+const announcementCoverPreview = document.getElementById("announcement-cover-preview");
+const announcementSelect = document.getElementById("video-announcement-id");
+let announcementsCache = [];
 const videoFileInput = document.getElementById("video-file");
 const coverFileInput = document.getElementById("cover-file");
 const coverProviderSelect = document.getElementById("cover-provider");
@@ -820,12 +829,81 @@ removeCoverButton.addEventListener("click", () => {
   clearCoverPreview();
 });
 
+
+async function loadAdminAnnouncements() {
+  const [{ data: announcements, error }, { data: linkedVideos, error: linkedError }] = await Promise.all([
+    db.from("video_announcements").select("*").order("created_at", { ascending: false }),
+    db.from("videos").select("id,announcement_id,is_published,provider,mux_status").not("announcement_id", "is", null)
+  ]);
+  if (error || linkedError) { announcementMessage.textContent = "Chargement des annonces impossible : " + (error || linkedError).message; return; }
+  announcementsCache = announcements || [];
+  announcementCount.textContent = announcementsCache.length + " annonce(s)";
+  announcementList.replaceChildren(); announcementSelect.replaceChildren();
+  const none = document.createElement("option"); none.value = ""; none.textContent = "Aucune annonce — vidéo indépendante"; announcementSelect.append(none);
+  for (const item of announcementsCache) {
+    const linked = (linkedVideos || []).find(video => video.announcement_id === item.id);
+    const option = document.createElement("option"); option.value = item.id;
+    option.textContent = item.title + (linked ? " — déjà associée" : " — disponible"); option.disabled = Boolean(linked); announcementSelect.append(option);
+    const card = document.createElement("article"); card.className = "admin-video";
+    const title = document.createElement("h3"); title.textContent = item.title;
+    const status = document.createElement("p"); status.textContent = linked ? (linked.is_published ? "Vidéo publiée" : linked.provider === "mux" && linked.mux_status !== "ready" ? "Vidéo en préparation" : "Vidéo associée — en attente de publication") : "À venir";
+    const date = document.createElement("p"); date.textContent = item.scheduled_for ? "Sortie prévue : " + new Date(item.scheduled_for).toLocaleString("fr-FR") : "Date non définie";
+    const actions = document.createElement("div"); actions.className = "admin-actions";
+    const visibility = document.createElement("button"); visibility.className = "alt"; visibility.textContent = item.is_visible ? "Masquer" : "Afficher";
+    visibility.addEventListener("click", async () => { const { error: e } = await db.from("video_announcements").update({ is_visible: !item.is_visible }).eq("id", item.id); if (e) announcementMessage.textContent = e.message; await loadAdminAnnouncements(); });
+    const remove = document.createElement("button"); remove.className = "danger"; remove.textContent = "Supprimer"; remove.disabled = Boolean(linked);
+    remove.title = linked ? "Dissocie d'abord la vidéo." : "";
+    remove.addEventListener("click", async () => { if (!confirm("Supprimer l'annonce « " + item.title + " » ?")) return; const { error: e } = await db.from("video_announcements").delete().eq("id", item.id); if (e) announcementMessage.textContent = e.message; await loadAdminAnnouncements(); });
+    actions.append(visibility, remove); card.append(title, status, date, actions); announcementList.append(card);
+  }
+  if (!announcementsCache.length) announcementList.textContent = "Aucune annonce pour le moment.";
+}
+
+announcementCoverInput.addEventListener("change", () => {
+  const file = announcementCoverInput.files[0];
+  if (!file) { announcementCoverPreview.classList.add("admin-hidden"); return; }
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { announcementMessage.textContent = "Choisis une image PNG, JPG ou WebP."; announcementCoverInput.value = ""; return; }
+  announcementCoverPreview.src = URL.createObjectURL(file); announcementCoverPreview.classList.remove("admin-hidden");
+});
+
+announcementForm.addEventListener("submit", async event => {
+  event.preventDefault();
+  const title = document.getElementById("announcement-title").value.trim();
+  const description = document.getElementById("announcement-description").value.trim();
+  const dateValue = document.getElementById("announcement-scheduled").value;
+  const file = announcementCoverInput.files[0];
+  if (!title || !file) { announcementMessage.textContent = "Ajoute un titre et une couverture."; return; }
+  const button = document.getElementById("announcement-save"); button.disabled = true;
+  try {
+    announcementMessage.textContent = announcementCoverProvider.value === "imagekit" ? "Envoi de la couverture vers ImageKit…" : "Envoi de la couverture vers Cloudinary…";
+    const uploaded = announcementCoverProvider.value === "imagekit" ? await uploadToImageKit(file) : await uploadToCloudinary(file, "image");
+    const coverUrl = uploaded.url || uploaded.secure_url;
+    if (!coverUrl) throw new Error("Aucune URL de couverture reçue.");
+    const { error } = await db.from("video_announcements").insert({ title, description, cover_url: coverUrl, scheduled_for: dateValue ? new Date(dateValue).toISOString() : null, is_visible: true });
+    if (error) throw error;
+    announcementForm.reset(); announcementCoverPreview.removeAttribute("src"); announcementCoverPreview.classList.add("admin-hidden");
+    announcementMessage.textContent = "Annonce créée avec succès."; await loadAdminAnnouncements();
+  } catch (error) { announcementMessage.textContent = "Erreur : " + (error.message || String(error)); }
+  finally { button.disabled = false; }
+});
+
+announcementSelect.addEventListener("change", () => {
+  const item = announcementsCache.find(announcement => announcement.id === announcementSelect.value);
+  if (!item) return;
+  document.getElementById("video-name").value = item.title;
+  document.getElementById("video-description").value = item.description || "";
+  currentThumbnailUrl = item.cover_url || null;
+  if (currentThumbnailUrl) displayCoverPreview(currentThumbnailUrl, "Couverture de l'annonce");
+  else clearCoverPreview();
+});
+
 function resetVideoForm() {
   videoForm.reset();
   editingId = null;
   editingVideo = null;
   videoFormat = "mp4";
   currentThumbnailUrl = null;
+  announcementSelect.value = "";
   clearCoverPreview();
 
   document.getElementById("form-title").textContent = "Ajouter une vidéo";
@@ -859,6 +937,7 @@ async function openDashboard(user) {
   dashboard.classList.remove("admin-hidden");
   updateWeeklyMaintenanceReminder();
   await loadAdminVideos();
+  await loadAdminAnnouncements();
   await loadHostingUsage(dropboxOAuthJustConnected);
   await checkPermanentDeleteConfig();
   await checkDeepStorageAvailability(true);
@@ -1040,6 +1119,7 @@ async function loadAdminVideos() {
 function editVideo(video) {
   editingId = video.id;
   editingVideo = video;
+  announcementSelect.value = video.announcement_id || "";
   videoFormat = video.format || "mp4";
   currentThumbnailUrl = video.thumbnail_url || null;
   providerSelect.value = video.provider || "cloudinary";
@@ -1542,6 +1622,9 @@ videoForm.addEventListener("submit", async (event) => {
     : provider === "deepstorage" ? deepStorageFileInput.files[0]
     : provider === "mux" ? muxFileInput.files[0] : null;
   const selectedCover = coverFileInput.files[0];
+  const selectedAnnouncementId = announcementSelect.value || null;
+  const selectedAnnouncement = selectedAnnouncementId ? announcementsCache.find(item => item.id === selectedAnnouncementId) : null;
+  if (selectedAnnouncement) currentThumbnailUrl = selectedAnnouncement.cover_url || currentThumbnailUrl;
   let publicId = provider === "cloudinary" ? cloudinaryIdInput.value.trim() : null;
   let thumbnail = provider === "vioo"
     ? (viooThumbnailInput.value.trim() || currentThumbnailUrl)
@@ -1717,7 +1800,7 @@ videoForm.addEventListener("submit", async (event) => {
           throw new Error("La taille maximale autorisée pour un envoi Mux depuis ce formulaire est de 1 Go.");
         }
 
-        if (selectedCover) {
+        if (selectedCover && !selectedAnnouncementId) {
           coverAlreadyUploaded = true;
           try {
             showMessage(videoMessage, coverProviderSelect.value === "imagekit" ? "Envoi de la miniature vers ImageKit..." : "Envoi de la miniature vers Cloudinary...");
@@ -1737,15 +1820,16 @@ videoForm.addEventListener("submit", async (event) => {
         showMessage(videoMessage, "Préparation de l'envoi sécurisé vers Mux...");
         const { data: uploadInfo, error: uploadError } = await db.functions.invoke("mux-create-upload", {
           body: {
-            title,
-            description,
+            title: selectedAnnouncement?.title || title,
+            description: selectedAnnouncement?.description || description,
             filename: selectedFile.name,
             content_type: selectedFile.type || "application/octet-stream",
             size: selectedFile.size,
             thumbnail_url: thumbnail || null,
             thumbnail_provider: thumbnailProvider,
             thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
-            thumbnail_imagekit_file_id: thumbnailImageKitFileId
+            thumbnail_imagekit_file_id: thumbnailImageKitFileId,
+            announcement_id: selectedAnnouncementId
           }
         });
 
@@ -1784,7 +1868,7 @@ videoForm.addEventListener("submit", async (event) => {
       throw new Error("Hébergeur vidéo non pris en charge.");
     }
 
-    if (selectedCover && !coverAlreadyUploaded) {
+    if (selectedCover && !selectedAnnouncementId && !coverAlreadyUploaded) {
       try {
         showMessage(videoMessage, coverProviderSelect.value === "imagekit" ? "Envoi de la miniature vers ImageKit..." : "Conversion de la miniature en PNG...");
         const uploadedCover = coverProviderSelect.value === "imagekit"
@@ -1806,14 +1890,16 @@ videoForm.addEventListener("submit", async (event) => {
       showMessage(videoMessage, "✓ Vidéo envoyée à Mux. Traitement en cours..." + coverWarning);
       resetVideoForm();
       await loadAdminVideos();
+      await loadAdminAnnouncements();
       return;
     }
 
     showMessage(videoMessage, "Enregistrement de la vidéo dans la bibliothèque...");
     const videoData = {
-      title,
-      description,
+      title: selectedAnnouncement?.title || title,
+      description: selectedAnnouncement?.description || description,
       provider,
+      announcement_id: selectedAnnouncementId,
       cloudinary_public_id: publicId,
       playback_url: playbackUrl,
       download_url: downloadUrl,
@@ -1833,7 +1919,7 @@ videoForm.addEventListener("submit", async (event) => {
     if (editingId) {
       result = await db.from("videos").update(videoData).eq("id", editingId);
     } else {
-      result = await db.from("videos").insert({ ...videoData, is_published: true });
+      result = await db.from("videos").insert({ ...videoData, is_published: !selectedAnnouncementId });
     }
 
     if (result.error && !editingId && result.error.message.includes("Failed to fetch")) {
@@ -1891,6 +1977,10 @@ cancelEditButton.addEventListener("click", () => {
 });
 
 async function togglePublication(video) {
+  if (!video.is_published && video.provider === "mux" && video.mux_status !== "ready") {
+    showMessage(videoMessage, "La vidéo doit être prête sur Mux avant publication.");
+    return;
+  }
   const { error } = await db.from("videos")
     .update({ is_published: !video.is_published })
     .eq("id", video.id);
@@ -1900,6 +1990,7 @@ async function togglePublication(video) {
     return;
   }
   await loadAdminVideos();
+  await loadAdminAnnouncements();
 }
 
 async function deleteVideo(video) {
