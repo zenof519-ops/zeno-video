@@ -159,11 +159,10 @@ Deno.serve(async (req: Request) => {
   const cloudinaryApiKey = Deno.env.get("CLOUDINARY_API_KEY");
   const cloudinaryApiSecret = Deno.env.get("CLOUDINARY_API_SECRET");
   const imageKitPrivateKey = Deno.env.get("IMAGEKIT_PRIVATE_KEY");
+  const muxTokenId = Deno.env.get("MUX_TOKEN_ID");
+  const muxTokenSecret = Deno.env.get("MUX_TOKEN_SECRET");
 
   if (!supabaseUrl || !publishableKey) return json({ error: "Configuration Supabase manquante." }, 500, origin);
-  if (!cloudinaryApiKey || !cloudinaryApiSecret) {
-    return json({ error: "Secrets Cloudinary absents : vérifie CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET." }, 503, origin);
-  }
 
   const supabase = createClient(supabaseUrl, publishableKey, {
     global: { headers: { Authorization: authorization } },
@@ -180,16 +179,21 @@ Deno.serve(async (req: Request) => {
   if (body.checkOnly === true) {
     let cloudinaryOk = false;
     let imageKitOk = false;
-    let cloudinaryDetails = "";
-    let imageKitDetails = "";
-    try {
-      const check = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/resources/video/upload?max_results=1`,
-        { headers: { Authorization: "Basic " + btoa(cloudinaryApiKey + ":" + cloudinaryApiSecret) } }
-      );
-      cloudinaryOk = check.ok;
-      if (!check.ok) cloudinaryDetails = (await check.json().catch(() => ({}))).error?.message || `HTTP ${check.status}`;
-    } catch (error) { cloudinaryDetails = error instanceof Error ? error.message : String(error); }
+    let muxOk = false;
+    const details: string[] = [];
+
+    if (cloudinaryApiKey && cloudinaryApiSecret) {
+      try {
+        const check = await fetch(
+          `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/resources/video/upload?max_results=1`,
+          { headers: { Authorization: "Basic " + btoa(cloudinaryApiKey + ":" + cloudinaryApiSecret) } }
+        );
+        cloudinaryOk = check.ok;
+        if (!check.ok) details.push("Cloudinary : " + ((await check.json().catch(() => ({}))).error?.message || `HTTP ${check.status}`));
+      } catch (error) { details.push("Cloudinary : " + (error instanceof Error ? error.message : String(error))); }
+    } else {
+      details.push("Secrets Cloudinary absents.");
+    }
 
     if (imageKitPrivateKey) {
       try {
@@ -197,19 +201,35 @@ Deno.serve(async (req: Request) => {
           headers: { Authorization: "Basic " + btoa(imageKitPrivateKey + ":") }
         });
         imageKitOk = check.ok;
-        if (!check.ok) imageKitDetails = (await check.json().catch(() => ({}))).message || `HTTP ${check.status}`;
-      } catch (error) { imageKitDetails = error instanceof Error ? error.message : String(error); }
+        if (!check.ok) details.push("ImageKit : " + ((await check.json().catch(() => ({}))).message || `HTTP ${check.status}`));
+      } catch (error) { details.push("ImageKit : " + (error instanceof Error ? error.message : String(error))); }
     } else {
-      imageKitDetails = "IMAGEKIT_PRIVATE_KEY absent.";
+      details.push("IMAGEKIT_PRIVATE_KEY absent.");
     }
 
-    const configured = cloudinaryOk && imageKitOk;
+    if (muxTokenId && muxTokenSecret) {
+      try {
+        const check = await fetch("https://api.mux.com/video/v1/assets?limit=1", {
+          headers: { Authorization: "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
+        });
+        muxOk = check.ok;
+        if (!check.ok) {
+          const payload = await check.json().catch(() => ({}));
+          details.push("Mux : " + (payload?.error?.messages?.[0] || payload?.error?.message || `HTTP ${check.status}`));
+        }
+      } catch (error) { details.push("Mux : " + (error instanceof Error ? error.message : String(error))); }
+    } else {
+      details.push("Secrets MUX_TOKEN_ID / MUX_TOKEN_SECRET absents.");
+    }
+
+    const configured = cloudinaryOk && imageKitOk && muxOk;
     return json({
       configured,
       cloudinary: cloudinaryOk,
       imagekit: imageKitOk,
-      error: configured ? null : "La connexion à Cloudinary et/ou ImageKit n'est pas prête.",
-      details: [cloudinaryDetails, imageKitDetails].filter(Boolean).join(" · ")
+      mux: muxOk,
+      error: configured ? null : "Une ou plusieurs connexions d'hébergement ne sont pas prêtes.",
+      details: details.join(" · ")
     }, configured ? 200 : 503, origin);
   }
 
@@ -221,17 +241,24 @@ Deno.serve(async (req: Request) => {
 
   const { data: video, error: selectError } = await supabase
     .from("videos")
-    .select("id,title,provider,cloudinary_public_id,thumbnail_url,thumbnail_provider,thumbnail_cloudinary_public_id,thumbnail_imagekit_file_id")
+    .select("id,title,provider,cloudinary_public_id,mux_asset_id,thumbnail_url,thumbnail_provider,thumbnail_cloudinary_public_id,thumbnail_imagekit_file_id,announcement_id")
     .eq("id", videoId)
     .maybeSingle();
 
   if (selectError) return json({ error: "Impossible de lire la vidéo : " + selectError.message }, 500, origin);
   if (!video) return json({ error: "Cette vidéo n'existe plus dans la bibliothèque." }, 404, origin);
-  if (deleteVideoAsset && (video.provider || "cloudinary") !== "cloudinary") {
-    return json({ error: "La suppression du fichier vidéo lui-même est actuellement réservée aux vidéos Cloudinary." }, 400, origin);
+  const videoProvider = (video.provider || "cloudinary") as string;
+  if (deleteVideoAsset && !["cloudinary", "mux"].includes(videoProvider)) {
+    return json({ error: "La suppression définitive du fichier source n'est disponible que pour Cloudinary et Mux." }, 400, origin);
   }
-  if (deleteVideoAsset && !video.cloudinary_public_id) {
+  if (deleteVideoAsset && videoProvider === "cloudinary" && !video.cloudinary_public_id) {
     return json({ error: "Aucun identifiant vidéo Cloudinary n'est associé à cette fiche." }, 400, origin);
+  }
+  if (deleteVideoAsset && videoProvider === "mux" && !video.mux_asset_id) {
+    return json({ error: "Aucun identifiant d'asset Mux n'est associé à cette vidéo. Le fichier n'est peut-être pas encore prêt sur Mux." }, 409, origin);
+  }
+  if (deleteVideoAsset && videoProvider === "mux" && (!muxTokenId || !muxTokenSecret)) {
+    return json({ error: "Secrets Mux absents : vérifie MUX_TOKEN_ID et MUX_TOKEN_SECRET dans les secrets Edge Functions." }, 503, origin);
   }
 
   let coverResult = "aucune couverture";
@@ -239,43 +266,106 @@ Deno.serve(async (req: Request) => {
   let coverProvider = video.thumbnail_provider as string | null;
   if (!coverProvider && thumbnailUrl) {
     if (thumbnailUrl.includes("ik.imagekit.io")) coverProvider = "imagekit";
-    else if (thumbnailUrl.includes("/image/upload/")) coverProvider = "cloudinary";
-    else if (thumbnailUrl.includes("/video/upload/")) coverProvider = "cloudinary_video";
+    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/image/upload/")) coverProvider = "cloudinary";
+    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/video/upload/")) coverProvider = "cloudinary_video";
+    else if (thumbnailUrl.includes("image.mux.com")) coverProvider = "mux";
   }
 
-  if (thumbnailUrl && coverProvider === "imagekit") {
-    if (!imageKitPrivateKey) return json({ error: "IMAGEKIT_PRIVATE_KEY est absent : la couverture n'a pas été supprimée et la vidéo reste dans Supabase." }, 503, origin);
-    let fileId = video.thumbnail_imagekit_file_id as string | null;
-    if (!fileId) fileId = await resolveImageKitFileId(thumbnailUrl, imageKitPrivateKey);
-    if (fileId) {
-      try { coverResult = await deleteImageKitFile(fileId, thumbnailUrl, imageKitPrivateKey); }
-      catch (error) {
-        return json({ error: "ImageKit a refusé la suppression de la couverture. La vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
-      }
-    } else {
-      coverResult = "not found";
+  let coverIsShared = false;
+  if (thumbnailUrl) {
+    const [{ data: otherVideos, error: otherVideosError }, { data: announcements, error: announcementsError }] = await Promise.all([
+      supabase.from("videos").select("id").eq("thumbnail_url", thumbnailUrl).neq("id", videoId).limit(1),
+      supabase.from("video_announcements").select("id").eq("cover_url", thumbnailUrl).limit(1)
+    ]);
+    if (otherVideosError || announcementsError) {
+      return json({ error: "Impossible de vérifier si la couverture est encore utilisée. Aucun fichier de couverture n'a été supprimé.", details: otherVideosError?.message || announcementsError?.message }, 500, origin);
     }
-  } else if (thumbnailUrl && coverProvider === "cloudinary") {
-    const publicId = (video.thumbnail_cloudinary_public_id as string | null) || cloudinaryImagePublicId(thumbnailUrl);
-    if (!publicId) return json({ error: "Impossible d'identifier précisément la couverture Cloudinary. La vidéo reste dans Supabase." }, 422, origin);
-    try { coverResult = await deleteCloudinaryAsset(publicId, "image", cloudinaryApiKey, cloudinaryApiSecret); }
-    catch (error) {
-      return json({ error: "Cloudinary a refusé la suppression de la couverture. La vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
+    coverIsShared = Boolean(otherVideos?.length || announcements?.length);
+  }
+
+  if (deleteVideoAsset && coverIsShared && (coverProvider === "mux" || coverProvider === "cloudinary_video")) {
+    return json({ error: "Suppression interrompue : cette miniature est encore utilisée par une annonce ou une autre vidéo. Modifie d'abord cette référence pour éviter de casser son affichage." }, 409, origin);
+  }
+
+  let resolvedImageKitFileId = video.thumbnail_imagekit_file_id as string | null;
+  let resolvedCloudinaryCoverPublicId = (video.thumbnail_cloudinary_public_id as string | null) || null;
+  if (thumbnailUrl && !coverIsShared && coverProvider === "imagekit") {
+    if (!imageKitPrivateKey) return json({ error: "IMAGEKIT_PRIVATE_KEY est absent : la suppression est interrompue avant de toucher à la vidéo.", video: "conservée" }, 503, origin);
+    try {
+      if (!resolvedImageKitFileId) resolvedImageKitFileId = await resolveImageKitFileId(thumbnailUrl, imageKitPrivateKey);
+    } catch (error) {
+      return json({ error: "Impossible d'identifier la couverture ImageKit. La vidéo n'a pas été supprimée.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
     }
-  } else if (thumbnailUrl && coverProvider === "cloudinary_video") {
-    coverResult = deleteVideoAsset
-      ? "supprimée avec la vidéo source"
-      : "miniature générée par la vidéo source : elle reste sur Cloudinary tant que la vidéo est conservée";
-  } else if (thumbnailUrl) {
-    coverResult = "URL externe non gérée : référence retirée de Supabase uniquement";
+  }
+  if (thumbnailUrl && !coverIsShared && coverProvider === "cloudinary") {
+    if (!cloudinaryApiKey || !cloudinaryApiSecret) return json({ error: "Secrets Cloudinary absents : la suppression est interrompue avant de toucher à la vidéo." }, 503, origin);
+    try {
+      if (!resolvedCloudinaryCoverPublicId) resolvedCloudinaryCoverPublicId = cloudinaryImagePublicId(thumbnailUrl);
+    } catch {
+      resolvedCloudinaryCoverPublicId = null;
+    }
+    if (!resolvedCloudinaryCoverPublicId) return json({ error: "Impossible d'identifier précisément la couverture Cloudinary. La vidéo n'a pas été supprimée." }, 422, origin);
   }
 
   let videoResult = "fichier vidéo conservé chez l'hébergeur";
-  if (deleteVideoAsset) {
-    try { videoResult = await deleteCloudinaryAsset(video.cloudinary_public_id, "video", cloudinaryApiKey, cloudinaryApiSecret); }
-    catch (error) {
-      return json({ error: "La couverture a été traitée, mais Cloudinary a refusé la suppression de la vidéo. La fiche reste dans Supabase.", details: error instanceof Error ? error.message : String(error), cover: coverResult }, 502, origin);
+  if (deleteVideoAsset && videoProvider === "mux") {
+    try {
+      const response = await fetch("https://api.mux.com/video/v1/assets/" + encodeURIComponent(String(video.mux_asset_id)), {
+        method: "DELETE",
+        headers: { Authorization: "Basic " + btoa(muxTokenId + ":" + muxTokenSecret) }
+      });
+      if (response.status !== 204 && response.status !== 404) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload?.error?.messages?.[0] || payload?.error?.message || `Mux HTTP ${response.status}`);
+      }
+      videoResult = response.status === 404 ? "asset déjà absent de Mux" : "asset supprimé de Mux";
+    } catch (error) {
+      return json({ error: "Mux a refusé la suppression de la vidéo. La fiche et sa couverture sont conservées.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
     }
+  } else if (deleteVideoAsset && videoProvider === "cloudinary") {
+    if (!cloudinaryApiKey || !cloudinaryApiSecret) {
+      return json({ error: "Secrets Cloudinary absents : vérifie CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET." }, 503, origin);
+    }
+    try {
+      videoResult = await deleteCloudinaryAsset(video.cloudinary_public_id, "video", cloudinaryApiKey, cloudinaryApiSecret);
+    } catch (error) {
+      return json({ error: "Cloudinary a refusé la suppression de la vidéo. La fiche et sa couverture sont conservées.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
+    }
+  }
+
+  if (thumbnailUrl && coverProvider === "mux") {
+    coverResult = deleteVideoAsset && videoProvider === "mux"
+      ? "miniature Mux supprimée avec l'asset"
+      : "miniature Mux conservée avec l'asset vidéo";
+  } else if (thumbnailUrl && coverIsShared) {
+    coverResult = "couverture conservée car elle est encore utilisée par une autre vidéo ou une annonce";
+  } else if (thumbnailUrl && coverProvider === "imagekit") {
+    if (!imageKitPrivateKey) return json({ error: "IMAGEKIT_PRIVATE_KEY est absent : la couverture n'a pas été supprimée. La fiche vidéo reste dans Supabase.", video: videoResult }, 503, origin);
+    const fileId = resolvedImageKitFileId;
+    if (fileId) {
+      try { coverResult = await deleteImageKitFile(fileId, thumbnailUrl, imageKitPrivateKey); }
+      catch (error) {
+        return json({ error: "ImageKit a refusé la suppression de la couverture. La fiche vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error), video: videoResult }, 502, origin);
+      }
+    } else {
+      coverResult = "couverture ImageKit déjà absente";
+    }
+  } else if (thumbnailUrl && coverProvider === "cloudinary") {
+    if (!cloudinaryApiKey || !cloudinaryApiSecret) {
+      return json({ error: "Secrets Cloudinary absents : la couverture n'a pas été supprimée et la fiche vidéo reste dans Supabase.", video: videoResult }, 503, origin);
+    }
+    const publicId = resolvedCloudinaryCoverPublicId as string;
+    if (!publicId) return json({ error: "Impossible d'identifier précisément la couverture Cloudinary. La fiche vidéo reste dans Supabase.", video: videoResult }, 422, origin);
+    try { coverResult = await deleteCloudinaryAsset(publicId, "image", cloudinaryApiKey, cloudinaryApiSecret); }
+    catch (error) {
+      return json({ error: "Cloudinary a refusé la suppression de la couverture. La fiche vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error), video: videoResult }, 502, origin);
+    }
+  } else if (thumbnailUrl && coverProvider === "cloudinary_video") {
+    coverResult = deleteVideoAsset && videoProvider === "cloudinary"
+      ? "miniature supprimée avec la vidéo source"
+      : "miniature générée par la vidéo source : elle reste chez l'hébergeur tant que la vidéo est conservée";
+  } else if (thumbnailUrl) {
+    coverResult = "URL externe non gérée : référence retirée de Supabase uniquement";
   }
 
   const { data: deletedRows, error: deleteError } = await supabase
@@ -293,11 +383,11 @@ Deno.serve(async (req: Request) => {
   }
 
   const message = deleteVideoAsset
-    ? "Vidéo et couverture supprimées de leurs hébergeurs et de Supabase."
+    ? `Vidéo supprimée de ${videoProvider === "mux" ? "Mux" : "Cloudinary"} et de Supabase. ${coverResult}.`
     : coverResult.startsWith("miniature générée")
-      ? "Vidéo retirée de Supabase. La miniature automatique reste liée au fichier vidéo conservé sur Cloudinary."
+      ? "Vidéo retirée de Supabase. La miniature automatique reste liée au fichier vidéo conservé chez son hébergeur."
       : coverResult.startsWith("URL externe")
         ? "Vidéo retirée de Supabase. La référence de couverture externe a été retirée, mais le fichier externe n'a pas été touché."
-        : "Vidéo retirée de Supabase ; sa couverture hébergée a été supprimée.";
+        : "Vidéo retirée de Supabase ; " + coverResult + ".";
   return json({ success: true, title: video.title, cover: coverResult, video: videoResult, message }, 200, origin);
 });

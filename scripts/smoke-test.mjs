@@ -63,6 +63,9 @@ const checks = [
   ['Lecteur : couverture affichée avant lancement', read('watch.js').includes('function showCoverPreview')],
   ['Lecteur : aperçu préalable Cloudinary', read('watch.js').includes('function showCloudinaryPlayer')],
   ['Administration : suppression de couverture sécurisée', read('admin.js').includes('deleteVideoAsset: false') && read('admin.js').includes('thumbnail_imagekit_file_id')],
+  ['Administration : bouton de suppression définitive proposé pour Cloudinary et Mux', read('admin.js').includes('["cloudinary", "mux"].includes(video.provider || "cloudinary")') && read('admin.js').includes('video.mux_asset_id')],
+  ['Suppression Mux : l’API Mux supprime l’asset côté serveur', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('https://api.mux.com/video/v1/assets/') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('MUX_TOKEN_SECRET')],
+  ['Suppression : couverture partagée protégée', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('from("video_announcements").select("id").eq("cover_url", thumbnailUrl)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('coverIsShared')],
   ['Lecteur : miniature native pour les vidéos directes', read('watch.js').includes('media.poster = video.thumbnail_url')]
 ];
 
