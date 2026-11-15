@@ -40,6 +40,12 @@ const checks = [
   ['Administration : fichiers de stockage non mesurés signalés', read('admin.js').includes('Fichiers dont la taille est inconnue')],
   ['Administration : stockage DeepStorage estimé depuis les liens', read('admin.js').includes('Stockage Zeno mesuré') && read('admin.js').includes('Fichiers Zeno mesurés')],
   ['Administration : choix ImageKit pour les miniatures', admin.includes('id="cover-provider"') && admin.includes('value="imagekit"')],
+  ['Administration : annonces avec couvertures Cloudinary et ImageKit', admin.includes('id="announcement-form"') && admin.includes('id="announcement-cover-provider"') && admin.includes('value="cloudinary"') && admin.includes('value="imagekit"')],
+  ['Administration : association et publication manuelle des annonces', read('admin.js').includes('async function loadAdminAnnouncements') && read('admin.js').includes('announcement_id: selectedAnnouncementId') && read('admin.js').includes('is_published: !selectedAnnouncementId')],
+  ['Accueil : annonces à venir et cartes liées', read('library.js').includes('/rest/v1/video_announcements') && read('library.js').includes('announcement_id') && read('library.js').includes('À VENIR')],
+  ['Lecteur : URL d’annonce conservée après publication', read('watch.js').includes('const announcementId') && read('watch.js').includes('announcement_id=eq.') && read('watch.js').includes('is_published=eq.true')],
+  ['Mux : upload lié à une annonce sans publication automatique', readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('announcement_id: announcementId') && readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('is_published: false') && !muxWebhookFunction.includes('is_published: true')],
+
   ['PostHog : configuration publique présente dans le build', existsSync(join(root, 'posthog-config.js'))],
   ['PostHog : SDK chargé depuis le domaine CDN officiel', read('posthog.js').includes('replace(".i.posthog.com", "-assets.i.posthog.com")')],
   ['PostHog : SDK chargé sur la page d’accueil', home.includes('posthog-config.js') && home.includes('posthog.js?v=2')],
