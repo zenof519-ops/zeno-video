@@ -91,8 +91,8 @@ Deno.serve(async (req: Request) => {
       mux_asset_id: data.id,
       mux_playback_id: playbackId,
       mux_status: "ready",
-      playback_url: "https://stream.mux.com/" + playbackId + ".m3u8",
-      is_published: true
+      playback_url: "https://stream.mux.com/" + playbackId + ".m3u8"
+      // The admin must explicitly publish after the asset is ready.
     });
     query = videoId ? query.eq("id", videoId) : query.eq("mux_asset_id", data.id);
     const { error } = await query;
