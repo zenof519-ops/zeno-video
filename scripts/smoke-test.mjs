@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const root = 'dist';
-const required = ['index.html','admin.html','watch.html','style.css','library.js','videos.js','admin.js','watch.js','posthog.js','posthog-config.js'];
+const required = ['index.html','admin.html','watch.html','announcement-admin.html','announcement-admin.js','announcement.html','announcement-viewer.js','style.css','library.js','videos.js','admin.js','watch.js','posthog.js','posthog-config.js'];
 const missing = required.filter((file) => !existsSync(join(root, file)));
 if (missing.length) {
   const files = existsSync(root) ? readdirSync(root, { recursive: true }).map(String) : [];
@@ -20,7 +20,9 @@ const videoCounterFunction = readFileSync('supabase/functions/video-counter/inde
 const videoCounterMigration = readFileSync('supabase/migrations/20261114201000_rate_limit_public_video_counters.sql', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
-const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js', 'posthog.js'];
+const announcementAdmin = read('announcement-admin.html');
+const announcementViewer = read('announcement.html');
+const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js', 'announcement-admin.js', 'announcement-viewer.js', 'posthog.js'];
 const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
@@ -47,6 +49,15 @@ const checks = [
   ['Lecteur : titre, description et couverture de l’annonce conservés après publication', read('watch.js').includes('linkedAnnouncement.title') && read('watch.js').includes('video.thumbnail_url = linkedAnnouncement.cover_url')],
   ['Mux : upload lié à une annonce sans publication automatique', readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('announcement_id: announcementId') && readFileSync('supabase/functions/mux-create-upload/index.ts', 'utf8').includes('is_published: false') && muxWebhookFunction.includes('publishQuery') && muxWebhookFunction.includes('.is("announcement_id", null)')],
 
+  ['Annonces : page de gestion générée', announcementAdmin.includes('id="announcement-form"') && announcementAdmin.includes('id="media-type"')],
+  ['Annonces : photo et vidéo ont des sélecteurs de fichiers distincts', announcementAdmin.includes('id="cover-file" type="file" accept="image/jpeg,image/png,image/webp"') && announcementAdmin.includes('id="cloudinary-file" type="file" accept="video/mp4,video/quicktime,video/webm"')],
+  ['Annonces : six hébergeurs proposés avec leurs panneaux dédiés', ['cloudinary','mux','vioo','dropbox','onedrive','deepstorage'].every(provider => announcementAdmin.includes('id="' + provider + '-fields"'))],
+  ['Annonces : téléversements Cloudinary, Mux et DeepStorage réutilisés', read('announcement-admin.js').includes('uploadToCloudinary') && read('announcement-admin.js').includes('uploadToMux') && read('announcement-admin.js').includes('uploadToDeepStorage')],
+  ['Annonces : outils OneDrive, Dropbox et Vioo conservés', read('announcement-admin.js').includes('normalizeOneDriveEmbedUrl') && read('announcement-admin.js').includes('normalizeDropboxUrl') && read('announcement-admin.js').includes('normalizeViooEmbedUrl')],
+  ['Annonces Mux : création d’un envoi associé à l’annonce', read('announcement-admin.js').includes('mux-create-upload') && read('announcement-admin.js').includes('announcement_id:created.id') && read('announcement-admin.js').includes('mux-pending:')],
+  ['Annonces Mux : webhook synchronise le lecteur et la publication publique', muxWebhookFunction.includes('syncAnnouncementMuxState') && muxWebhookFunction.includes('video_url: videoUrl') && muxWebhookFunction.includes('is_published: true')],
+  ['Annonce publique : état de traitement Mux affiché', read('announcement-viewer.js').includes('mux-pending:') && read('announcement-viewer.js').includes('mux-error')],
+  ['Annonce publique : lecteur mis à jour dans le build', announcementViewer.includes('announcement-viewer.js?v=2')],
   ['PostHog : configuration publique présente dans le build', existsSync(join(root, 'posthog-config.js'))],
   ['PostHog : SDK chargé depuis le domaine CDN officiel', read('posthog.js').includes('replace(".i.posthog.com", "-assets.i.posthog.com")')],
   ['PostHog : SDK chargé sur la page d’accueil', home.includes('posthog-config.js') && home.includes('posthog.js?v=2')],
@@ -81,7 +92,7 @@ for (const file of browserScripts) {
 }
 
 // Les fichiers racine et public sont des copies miroir maintenues ensemble.
-const mirroredFiles = ['admin.html', 'admin.js', 'watch.html', 'watch.js', 'library.js', 'style.css', 'videos.js'];
+const mirroredFiles = ['admin.html', 'admin.js', 'watch.html', 'watch.js', 'library.js', 'style.css', 'videos.js', 'announcement-admin.html', 'announcement-admin.js', 'announcement.html', 'announcement-viewer.js'];
 const mirrorsMatch = mirroredFiles.every((file) =>
   readFileSync(file, 'utf8') === readFileSync(join('public', file), 'utf8')
 );
