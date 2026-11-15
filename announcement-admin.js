@@ -153,13 +153,13 @@ form.addEventListener("submit", async event => {
   const dateValue = document.getElementById("scheduled").value;
   const type = mediaType.value;
   const provider = document.getElementById("video-provider").value;
-  const source = type === "video" ? normalizeSource(provider, document.getElementById("video-url").value) : null;
   const file = coverInput.files[0];
   if (!title) { show(message, "Ajoute un titre."); return; }
   if (!file && !currentCover) { show(message, "Ajoute une couverture à cette annonce."); return; }
   const button = document.getElementById("save-button");
   button.disabled = true;
   try {
+    const source = type === "video" ? normalizeSource(provider, document.getElementById("video-url").value) : null;
     let coverUrl = currentCover;
     if (file) {
       show(message, "Envoi de la couverture sur Cloudinary…");
