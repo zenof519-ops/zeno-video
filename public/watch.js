@@ -11,7 +11,12 @@ let activeProvider = "unknown";
 
 function captureAnalytics(eventName, properties = {}) {
   try {
-    window.posthog?.capture?.(eventName, { ...properties, provider: activeProvider });
+    // Send immediately with sendBeacon so the event is not lost during navigation.
+    window.posthog?.capture?.(
+      eventName,
+      { ...properties, provider: activeProvider },
+      { transport: "sendBeacon", send_instantly: true }
+    );
   } catch {
     // Analytics must never interrupt video playback or downloads.
   }
@@ -355,7 +360,7 @@ loadVideo();
 downloadButton.addEventListener("click", async (event) => {
   if (downloadButton.hidden || !id) return;
   event.preventDefault();
-  captureAnalytics("video_download_requested");
+  captureAnalytics("video_download_requested", { video_id: id });
   const destination = downloadButton.href;
   window.open(destination, "_blank", "noopener,noreferrer");
   try {
