@@ -80,7 +80,7 @@ Deno.serve(async (req: Request) => {
     if (!linkedVideo?.announcement_id) return;
 
     const { data: announcement, error: announcementError } = await db.from("video_announcements")
-      .select("id,media_type")
+      .select("id,media_type,is_visible")
       .eq("id", linkedVideo.announcement_id)
       .maybeSingle();
     if (announcementError) throw new Error(announcementError.message);
@@ -91,7 +91,6 @@ Deno.serve(async (req: Request) => {
       video_url: videoUrl,
       updated_at: new Date().toISOString()
     };
-    if (ready) announcementUpdate.is_visible = true;
     const { error: updateAnnouncementError } = await db.from("video_announcements")
       .update(announcementUpdate)
       .eq("id", announcement.id);
@@ -99,7 +98,7 @@ Deno.serve(async (req: Request) => {
 
     if (ready) {
       const { error: publishError } = await db.from("videos")
-        .update({ is_published: true })
+        .update({ is_published: announcement.is_visible === true })
         .eq("id", videoId);
       if (publishError) throw new Error(publishError.message);
     }
