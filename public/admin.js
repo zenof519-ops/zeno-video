@@ -1890,7 +1890,9 @@ videoForm.addEventListener("submit", async (event) => {
 
         muxUploadStarted = true;
         playbackUrl = "";
-        showMessage(videoMessage, "✓ Fichier envoyé à Mux. Traitement vidéo en cours : elle apparaîtra dans la bibliothèque après validation de Mux.");
+        showMessage(videoMessage, selectedAnnouncementId
+          ? "✓ Fichier envoyé à Mux. Traitement en cours : l'annonce restera « À VENIR » jusqu'à ton clic sur « Publier »."
+          : "✓ Fichier envoyé à Mux. Traitement en cours : la vidéo indépendante sera publiée quand Mux la déclarera prête.");
       } else if (editingVideo?.provider === "mux") {
         playbackUrl = editingVideo.playback_url;
         thumbnail = editingVideo.thumbnail_url || thumbnail;
@@ -1920,7 +1922,9 @@ videoForm.addEventListener("submit", async (event) => {
     }
 
     if (muxUploadStarted) {
-      showMessage(videoMessage, "✓ Vidéo envoyée à Mux. Traitement en cours..." + coverWarning);
+      showMessage(videoMessage, selectedAnnouncementId
+        ? "✓ Vidéo envoyée à Mux. L'annonce restera « À VENIR » jusqu'à ton clic sur « Publier »." + coverWarning
+        : "✓ Vidéo envoyée à Mux. Elle sera publiée après traitement." + coverWarning);
       resetVideoForm();
       await loadAdminVideos();
       await loadAdminAnnouncements();
