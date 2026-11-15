@@ -8,24 +8,13 @@ const empty = document.getElementById("empty-message");
 
 async function registerDownload(videoId) {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/video-counter`,
-      {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ videoId, event: "download" })
-      }
-    );
-    if (!response.ok) {
-      console.error("Comptage du téléchargement impossible :", await response.text());
-    }
-  } catch (error) {
-    console.error("Comptage du téléchargement impossible :", error);
-  }
+    const response = await fetch(`${SUPABASE_URL}/functions/v1/video-counter`, {
+      method: "POST",
+      headers: { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId, event: "download" })
+    });
+    if (!response.ok) console.error("Comptage du téléchargement impossible :", await response.text());
+  } catch (error) { console.error("Comptage du téléchargement impossible :", error); }
 }
 
 async function loadVideos() {
@@ -33,7 +22,7 @@ async function loadVideos() {
     const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
     const [videoResponse, announcementResponse] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id&is_published=eq.true&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for&is_visible=eq.true&order=created_at.desc`, { headers })
+      fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers })
     ]);
     if (!videoResponse.ok) throw new Error("Supabase (" + videoResponse.status + ") : " + await videoResponse.text());
     if (!announcementResponse.ok) throw new Error("Chargement des annonces impossible (" + announcementResponse.status + ").");
@@ -96,9 +85,10 @@ async function loadVideos() {
 
     const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
     for (const announcement of announcements) {
-      const video = byAnnouncement.get(announcement.id);
-      const url = "watch.html?v=10&a=" + encodeURIComponent(announcement.id);
-      makeCard(announcement.title, announcement.description, announcement.cover_url, url, video ? "DISPONIBLE" : "À VENIR", video || null);
+      const linked = byAnnouncement.get(announcement.id);
+      const url = "announcement.html?id=" + encodeURIComponent(announcement.id);
+      const label = announcement.media_type === "video" ? "APERÇU VIDÉO" : (linked ? "DISPONIBLE" : "À VENIR");
+      makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
     }
     for (const video of regularVideos) {
       const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
