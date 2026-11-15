@@ -261,6 +261,32 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Secrets Mux absents : vérifie MUX_TOKEN_ID et MUX_TOKEN_SECRET dans les secrets Edge Functions." }, 503, origin);
   }
 
+  let coverResult = "aucune couverture";
+  const thumbnailUrl = video.thumbnail_url as string | null;
+  let coverProvider = video.thumbnail_provider as string | null;
+  if (!coverProvider && thumbnailUrl) {
+    if (thumbnailUrl.includes("ik.imagekit.io")) coverProvider = "imagekit";
+    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/image/upload/")) coverProvider = "cloudinary";
+    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/video/upload/")) coverProvider = "cloudinary_video";
+    else if (thumbnailUrl.includes("image.mux.com")) coverProvider = "mux";
+  }
+
+  let coverIsShared = false;
+  if (thumbnailUrl) {
+    const [{ data: otherVideos, error: otherVideosError }, { data: announcements, error: announcementsError }] = await Promise.all([
+      supabase.from("videos").select("id").eq("thumbnail_url", thumbnailUrl).neq("id", videoId).limit(1),
+      supabase.from("video_announcements").select("id").eq("cover_url", thumbnailUrl).limit(1)
+    ]);
+    if (otherVideosError || announcementsError) {
+      return json({ error: "Impossible de vérifier si la couverture est encore utilisée. Aucun fichier de couverture n'a été supprimé.", details: otherVideosError?.message || announcementsError?.message }, 500, origin);
+    }
+    coverIsShared = Boolean(otherVideos?.length || announcements?.length);
+  }
+
+  if (deleteVideoAsset && coverIsShared && (coverProvider === "mux" || coverProvider === "cloudinary_video")) {
+    return json({ error: "Suppression interrompue : cette miniature est encore utilisée par une annonce ou une autre vidéo. Modifie d'abord cette référence pour éviter de casser son affichage." }, 409, origin);
+  }
+
   let videoResult = "fichier vidéo conservé chez l'hébergeur";
   if (deleteVideoAsset && videoProvider === "mux") {
     try {
@@ -285,28 +311,6 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
       return json({ error: "Cloudinary a refusé la suppression de la vidéo. La fiche et sa couverture sont conservées.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
     }
-  }
-
-  let coverResult = "aucune couverture";
-  const thumbnailUrl = video.thumbnail_url as string | null;
-  let coverProvider = video.thumbnail_provider as string | null;
-  if (!coverProvider && thumbnailUrl) {
-    if (thumbnailUrl.includes("ik.imagekit.io")) coverProvider = "imagekit";
-    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/image/upload/")) coverProvider = "cloudinary";
-    else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/video/upload/")) coverProvider = "cloudinary_video";
-    else if (thumbnailUrl.includes("image.mux.com")) coverProvider = "mux";
-  }
-
-  let coverIsShared = false;
-  if (thumbnailUrl && coverProvider !== "cloudinary_video" && coverProvider !== "mux") {
-    const [{ data: otherVideos, error: otherVideosError }, { data: announcements, error: announcementsError }] = await Promise.all([
-      supabase.from("videos").select("id").eq("thumbnail_url", thumbnailUrl).neq("id", videoId).limit(1),
-      supabase.from("video_announcements").select("id").eq("cover_url", thumbnailUrl).limit(1)
-    ]);
-    if (otherVideosError || announcementsError) {
-      return json({ error: "Impossible de vérifier si la couverture est encore utilisée. Aucun fichier de couverture n'a été supprimé.", details: otherVideosError?.message || announcementsError?.message }, 500, origin);
-    }
-    coverIsShared = Boolean(otherVideos?.length || announcements?.length);
   }
 
   if (thumbnailUrl && coverProvider === "mux") {
