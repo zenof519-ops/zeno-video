@@ -30,135 +30,79 @@ async function registerDownload(videoId) {
 
 async function loadVideos() {
   try {
-    const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider&is_published=eq.true&order=created_at.desc`,
-      {
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`
-        }
-      }
-    );
+    const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+    const [videoResponse, announcementResponse] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id&is_published=eq.true&order=created_at.desc`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for&is_visible=eq.true&order=created_at.desc`, { headers })
+    ]);
+    if (!videoResponse.ok) throw new Error("Supabase (" + videoResponse.status + ") : " + await videoResponse.text());
+    if (!announcementResponse.ok) throw new Error("Chargement des annonces impossible (" + announcementResponse.status + ").");
+    const videos = await videoResponse.json();
+    const announcements = await announcementResponse.json();
+    const announcementIds = new Set(announcements.map(item => item.id));
+    const linkedVideos = videos.filter(video => video.announcement_id && announcementIds.has(video.announcement_id));
+    const regularVideos = videos.filter(video => !video.announcement_id || !announcementIds.has(video.announcement_id));
+    const total = announcements.length + regularVideos.length;
+    count.textContent = total + (total > 1 ? " éléments" : " élément");
+    empty.hidden = total !== 0;
+    grid.replaceChildren();
 
-    if (!response.ok) {
-      const details = await response.text();
-      throw new Error("Supabase (" + response.status + ") : " + details);
-    }
-
-    const videos = await response.json();
-
-    count.textContent = videos.length + " vidéo(s)";
-    empty.hidden = videos.length !== 0;
-    grid.innerHTML = "";
-
-    for (const v of videos) {
-      const url = "watch.html?v=9&id=" + encodeURIComponent(v.id);
-      const provider = String(v.provider || "cloudinary").toLowerCase();
-      const card = document.createElement("article");
-      card.className = "card";
-
-      const a = document.createElement("a");
-      a.className = "thumb";
-      a.href = url;
-      a.textContent = "▶";
-
-      if (v.thumbnail_url) {
-        a.style.backgroundImage = `url("${v.thumbnail_url}")`;
-        a.style.backgroundSize = "cover";
-        a.style.backgroundPosition = "center";
-      }
-
-      const h = document.createElement("h3");
-      h.textContent = v.title;
-
-      const p = document.createElement("p");
-      p.textContent = v.description || "";
-
-      const watch = document.createElement("a");
-      watch.className = "btn";
-      watch.href = url;
-      watch.textContent = "Regarder";
-
+    function makeDownload(video) {
       const download = document.createElement("a");
       download.className = "btn alt";
       download.textContent = "Télécharger";
-      download.hidden = true;
-
-      if (provider === "cloudinary" && v.cloudinary_public_id) {
-        const publicId = v.cloudinary_public_id
-          .split("/")
-          .map(encodeURIComponent)
-          .join("/");
-
-        download.href =
-          `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
-        download.hidden = false;
-      } else if (provider === "onedrive" && v.download_url) {
-        try {
-          const downloadUrl = new URL(v.download_url);
-          downloadUrl.searchParams.set("download", "1");
-          download.href = downloadUrl.toString();
-          download.hidden = false;
-        } catch (error) {
-          console.error("Lien de téléchargement OneDrive invalide :", error);
-        }
-      } else if (provider === "deepstorage" && (v.download_url || v.playback_url)) {
-        download.href = v.download_url || v.playback_url;
-        download.hidden = false;
-      } else if (provider === "dropbox" && v.playback_url) {
-        try {
-          const downloadUrl = new URL(v.playback_url);
-          downloadUrl.searchParams.delete("raw");
-          downloadUrl.searchParams.set("dl", "1");
-          download.href = downloadUrl.toString();
-          download.hidden = false;
-        } catch (error) {
-          console.error("Lien Dropbox invalide :", error);
-        }
-      } else if (provider === "mux" && v.download_url) {
-        try {
-          // Mux fournit une URL MP4 directe lorsque la rendition statique est prête.
-          // L'URL contient déjà le paramètre de téléchargement forcé généré côté serveur.
-          const downloadUrl = new URL(v.download_url);
-          download.href = downloadUrl.toString();
-          download.hidden = false;
-        } catch (error) {
-          console.error("Lien de téléchargement Mux invalide :", error);
-        }
+      const provider = String(video.provider || "cloudinary").toLowerCase();
+      if (provider === "cloudinary" && video.cloudinary_public_id) {
+        const publicId = video.cloudinary_public_id.split("/").map(encodeURIComponent).join("/");
+        download.href = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/fl_attachment/${publicId}`;
+      } else if (provider === "onedrive" && video.download_url) {
+        const u = new URL(video.download_url); u.searchParams.set("download", "1"); download.href = u.toString();
+      } else if (provider === "deepstorage" && (video.download_url || video.playback_url)) {
+        download.href = video.download_url || video.playback_url;
+      } else if (provider === "dropbox" && video.playback_url) {
+        const u = new URL(video.playback_url); u.searchParams.delete("raw"); u.searchParams.set("dl", "1"); download.href = u.toString();
+      } else if (provider === "mux" && video.download_url) {
+        download.href = new URL(video.download_url).toString();
       }
-
-      const canDownload = !download.hidden;
-      if (canDownload) {
-        download.removeAttribute("hidden");
-        download.style.display = "inline-flex";
-        download.addEventListener("click", async (event) => {
+      if (download.href) {
+        download.addEventListener("click", async event => {
           event.preventDefault();
-          const destination = download.href;
-          window.open(destination, "_blank", "noopener,noreferrer");
-          await registerDownload(v.id);
+          window.open(download.href, "_blank", "noopener,noreferrer");
+          await registerDownload(video.id);
         });
+        return download;
       }
+      return null;
+    }
 
-      const copy = document.createElement("button");
-      copy.className = "btn alt";
-      copy.textContent = "Copier le lien";
-
+    function makeCard(title, description, imageUrl, url, label, video = null) {
+      const card = document.createElement("article"); card.className = "card";
+      const thumb = document.createElement("a"); thumb.className = "thumb"; thumb.href = url; thumb.textContent = label === "À VENIR" ? "◷" : "▶";
+      if (imageUrl) { thumb.style.backgroundImage = `url("${imageUrl}")`; thumb.style.backgroundSize = "cover"; thumb.style.backgroundPosition = "center"; }
+      const badge = document.createElement("p"); badge.className = "eyebrow"; badge.textContent = label;
+      const h = document.createElement("h3"); h.textContent = title;
+      const p = document.createElement("p"); p.textContent = description || "";
+      const action = document.createElement("a"); action.className = "btn"; action.href = url; action.textContent = label === "À VENIR" ? "Voir l'annonce" : "Regarder";
+      const copy = document.createElement("button"); copy.className = "btn alt"; copy.textContent = "Copier le lien";
       copy.onclick = async () => {
         const link = new URL(url, location.href).href;
-        try {
-          await navigator.clipboard.writeText(link);
-          copy.textContent = "Lien copié !";
-        } catch {
-          prompt("Copie ce lien :", link);
-        }
+        try { await navigator.clipboard.writeText(link); copy.textContent = "Lien copié !"; }
+        catch { prompt("Copie ce lien :", link); }
       };
+      card.append(thumb, badge, h, p, action);
+      if (video) { const download = makeDownload(video); if (download) card.append(download); }
+      card.append(copy); grid.append(card);
+    }
 
-      card.append(a, h, p, watch);
-      if (canDownload) {
-        card.append(download);
-      }
-      card.append(copy);
-      grid.append(card);
+    const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
+    for (const announcement of announcements) {
+      const video = byAnnouncement.get(announcement.id);
+      const url = "watch.html?v=10&a=" + encodeURIComponent(announcement.id);
+      makeCard(announcement.title, announcement.description, announcement.cover_url, url, video ? "DISPONIBLE" : "À VENIR", video || null);
+    }
+    for (const video of regularVideos) {
+      const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
+      makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
     }
   } catch (error) {
     count.textContent = "Erreur de chargement";
@@ -166,5 +110,4 @@ async function loadVideos() {
     empty.textContent = error.message;
   }
 }
-
 loadVideos();

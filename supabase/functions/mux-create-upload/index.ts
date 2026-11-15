@@ -93,6 +93,7 @@ Deno.serve(async (req: Request) => {
   const thumbnailProvider = payload.thumbnail_provider ? String(payload.thumbnail_provider) : null;
   const thumbnailCloudinaryPublicId = payload.thumbnail_cloudinary_public_id ? String(payload.thumbnail_cloudinary_public_id) : null;
   const thumbnailImageKitFileId = payload.thumbnail_imagekit_file_id ? String(payload.thumbnail_imagekit_file_id) : null;
+  const announcementId = payload.announcement_id ? String(payload.announcement_id) : null;
 
   if (!title || title.length > 200 || description.length > 5000) {
     return json({ error: "Le titre est obligatoire (200 caractères maximum) et la description ne doit pas dépasser 5 000 caractères." }, 400, origin);
@@ -160,7 +161,8 @@ Deno.serve(async (req: Request) => {
     mux_upload_id: muxPayload.data.id,
     mux_asset_id: null,
     mux_playback_id: null,
-    mux_status: "waiting"
+    mux_status: "waiting",
+    announcement_id: announcementId
   });
 
   if (insertError) {

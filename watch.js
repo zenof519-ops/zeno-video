@@ -2,7 +2,9 @@ const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 const CLOUD_NAME = "wnonuvx4";
 
-const id = new URLSearchParams(location.search).get("id");
+let id = new URLSearchParams(location.search).get("id");
+const announcementId = new URLSearchParams(location.search).get("a");
+let linkedAnnouncement = null;
 const wrap = document.getElementById("player-wrap");
 const downloadButton = document.getElementById("download-video");
 
@@ -234,9 +236,44 @@ function showOneDrivePlayer(video) {
 
 async function loadVideo() {
   try {
-    if (!id) {
-      throw new Error("Vidéo introuvable");
+    if (announcementId) {
+      const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
+      const announcementResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for&id=eq.${encodeURIComponent(announcementId)}&is_visible=eq.true`,
+        { headers }
+      );
+      if (!announcementResponse.ok) throw new Error("Impossible de récupérer cette annonce.");
+      const announcements = await announcementResponse.json();
+      const announcement = announcements[0];
+      linkedAnnouncement = announcement || null;
+      if (!announcement) throw new Error("Annonce introuvable ou masquée.");
+      const linkedResponse = await fetch(
+        `${SUPABASE_URL}/rest/v1/videos?select=id&announcement_id=eq.${encodeURIComponent(announcementId)}&is_published=eq.true&limit=1`,
+        { headers }
+      );
+      if (!linkedResponse.ok) throw new Error("Impossible de vérifier la disponibilité de cette vidéo.");
+      const linked = await linkedResponse.json();
+      if (!linked[0]) {
+        document.title = announcement.title + " — Bientôt sur Zeno Video";
+        document.getElementById("video-title").textContent = announcement.title;
+        document.getElementById("video-description").textContent = announcement.description || "";
+        const cover = document.createElement("img");
+        cover.src = announcement.cover_url;
+        cover.alt = "Couverture de " + announcement.title;
+        cover.style.display = "block"; cover.style.width = "100%"; cover.style.maxWidth = "900px";
+        cover.style.maxHeight = "70vh"; cover.style.objectFit = "contain"; cover.style.margin = "0 auto";
+        const label = document.createElement("p"); label.className = "eyebrow"; label.textContent = "À VENIR";
+        const message = document.createElement("p"); message.className = "intro";
+        message.textContent = announcement.scheduled_for
+          ? "Sortie prévue le " + new Date(announcement.scheduled_for).toLocaleString("fr-FR") + "."
+          : "Cette vidéo sera bientôt disponible sur Zeno Video.";
+        wrap.replaceChildren(cover, label, message);
+        downloadButton.hidden = true;
+        return;
+      }
+      id = linked[0].id;
     }
+    if (!id) throw new Error("Vidéo introuvable");
 
     const response = await fetch(
       `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
@@ -259,6 +296,11 @@ async function loadVideo() {
 
     if (!video) {
       throw new Error("Vidéo introuvable");
+    }
+    if (linkedAnnouncement) {
+      video.title = linkedAnnouncement.title;
+      video.description = linkedAnnouncement.description || "";
+      video.thumbnail_url = linkedAnnouncement.cover_url || video.thumbnail_url;
     }
 
     document.title = video.title + " — Zeno Video";
