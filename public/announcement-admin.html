@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gestion des annonces — Zeno Video</title>
+  <link rel="stylesheet" href="style.css?v=14">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="announcement-admin.js?v=1" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><a href="admin.html">← Administration</a></header>
+  <main class="admin-main">
+    <p class="eyebrow">ESPACE PRIVÉ</p>
+    <h1>Gestion des <em>annonces.</em></h1>
+    <p class="intro">Publie une annonce sous forme de photo ou de courte vidéo avec couverture. Les annonces restent séparées de la bibliothèque vidéo.</p>
+    <section id="login-section" class="admin-panel">
+      <h2>Connexion administrateur</h2>
+      <form id="login-form" class="admin-form">
+        <label>Adresse e-mail<input id="email" type="email" autocomplete="username" required></label>
+        <label>Mot de passe<input id="password" type="password" autocomplete="current-password" required></label>
+        <button type="submit">Se connecter</button>
+      </form>
+      <p id="login-message" class="admin-message" aria-live="polite"></p>
+    </section>
+    <section id="dashboard" class="admin-hidden">
+      <div class="section-title"><h2>Nouvelle annonce</h2><button id="logout-button" class="alt" type="button">Déconnexion</button></div>
+      <section class="admin-panel">
+        <form id="announcement-form" class="admin-form">
+          <label>Titre<input id="title" type="text" maxlength="200" required></label>
+          <label>Description<textarea id="description" maxlength="5000"></textarea></label>
+          <label>Date et heure prévues (facultatif)<input id="scheduled" type="datetime-local"></label>
+          <label>Format de l’annonce
+            <select id="media-type"><option value="photo" selected>Photo seule</option><option value="video">Courte vidéo avec couverture</option></select>
+          </label>
+          <label>Couverture de l’annonce (PNG, JPG ou WebP)
+            <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <img id="cover-preview" class="admin-hidden" alt="Aperçu de la couverture" style="width:100%;max-width:300px;max-height:220px;object-fit:contain;border-radius:12px">
+          <div id="video-fields" class="admin-hidden">
+            <label>Hébergeur de la courte vidéo
+              <select id="video-provider">
+                <option value="cloudinary">Cloudinary</option>
+                <option value="mux">Mux</option>
+                <option value="vioo">Vioo</option>
+                <option value="dropbox">Dropbox</option>
+                <option value="onedrive">OneDrive</option>
+                <option value="deepstorage">DeepStorage</option>
+              </select>
+            </label>
+            <label>URL de lecture ou identifiant vidéo
+              <input id="video-url" type="text" inputmode="url" placeholder="URL HTTPS ou identifiant fourni par l’hébergeur">
+            </label>
+            <p class="cover-help">Téléverse d’abord la courte vidéo chez l’hébergeur choisi, puis colle son URL de lecture ou son identifiant. Pour Mux, utilise le Playback ID ; pour Vioo, l’identifiant ou le lien du lecteur ; pour OneDrive, le vrai lien Embed.</p>
+          </div>
+          <p class="cover-help">La couverture est envoyée sur Cloudinary. Une annonce photo existante reste une annonce photo tant que tu ne changes pas son format.</p>
+          <button id="save-button" type="submit">Publier l’annonce</button>
+          <button id="cancel-button" type="button" class="alt admin-hidden">Annuler la modification</button>
+        </form>
+        <p id="form-message" class="admin-message" aria-live="polite"></p>
+      </section>
+      <section class="admin-panel">
+        <div class="section-title"><h2>Mes annonces</h2><span id="count"></span></div>
+        <div id="announcement-list"></div>
+      </section>
+    </section>
+  </main>
+  <footer>ZENO VIDEO · Administration privée.</footer>
+</body>
+</html>
