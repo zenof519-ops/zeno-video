@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const root = 'dist';
-const required = ['index.html','admin.html','watch.html','style.css','library.js','videos.js','admin.js','watch.js'];
+const required = ['index.html','admin.html','watch.html','style.css','library.js','videos.js','admin.js','watch.js','posthog.js','posthog-config.js'];
 const missing = required.filter((file) => !existsSync(join(root, file)));
 if (missing.length) {
   const files = existsSync(root) ? readdirSync(root, { recursive: true }).map(String) : [];
@@ -20,7 +20,7 @@ const videoCounterFunction = readFileSync('supabase/functions/video-counter/inde
 const videoCounterMigration = readFileSync('supabase/migrations/20261114201000_rate_limit_public_video_counters.sql', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
-const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js'];
+const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js', 'posthog.js'];
 const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
@@ -40,6 +40,11 @@ const checks = [
   ['Administration : fichiers de stockage non mesurés signalés', read('admin.js').includes('Fichiers dont la taille est inconnue')],
   ['Administration : stockage DeepStorage estimé depuis les liens', read('admin.js').includes('Stockage Zeno mesuré') && read('admin.js').includes('Fichiers Zeno mesurés')],
   ['Administration : choix ImageKit pour les miniatures', admin.includes('id="cover-provider"') && admin.includes('value="imagekit"')],
+  ['PostHog : configuration publique présente dans le build', existsSync(join(root, 'posthog-config.js'))],
+  ['PostHog : SDK chargé sur la page d’accueil', home.includes('posthog-config.js') && home.includes('posthog.js?v=1')],
+  ['PostHog : SDK chargé sur le lecteur vidéo', watch.includes('posthog-config.js') && watch.includes('posthog.js?v=1')],
+  ['PostHog : administration privée exclue du suivi', !admin.includes('posthog.js')],
+  ['PostHog : événements vidéo personnalisés présents', read('watch.js').includes('video_launch_requested') && read('watch.js').includes('video_download_requested')],
   ['Lecteur : script conservé et cache actualisé', watch.includes('watch.js?v=18')],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')],
   ['Compteurs : lecteur et galerie utilisent la fonction Edge sécurisée', read('watch.js').includes('/functions/v1/video-counter') && read('library.js').includes('/functions/v1/video-counter')],
