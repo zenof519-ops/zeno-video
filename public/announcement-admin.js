@@ -2,7 +2,8 @@ const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
-const IMAGE_PRESET = "zeno_cover_upload";
+const CLOUDINARY_VIDEO_UPLOAD_PRESET = "zeno_video_upload";
+const CLOUDINARY_IMAGE_UPLOAD_PRESET = "zeno_cover_upload";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
 const loginSection = document.getElementById("login-section");
@@ -12,209 +13,587 @@ const message = document.getElementById("form-message");
 const list = document.getElementById("announcement-list");
 const mediaType = document.getElementById("media-type");
 const videoFields = document.getElementById("video-fields");
+const providerSelect = document.getElementById("video-provider");
 const coverInput = document.getElementById("cover-file");
 const coverPreview = document.getElementById("cover-preview");
+const cloudinaryFile = document.getElementById("cloudinary-file");
+const cloudinarySource = document.getElementById("cloudinary-source");
+const muxFile = document.getElementById("mux-file");
+const muxStatus = document.getElementById("mux-status");
+const viooSource = document.getElementById("vioo-source");
+const dropboxSource = document.getElementById("dropbox-source");
+const oneDriveSource = document.getElementById("onedrive-source");
+const oneDriveHelperMessage = document.getElementById("onedrive-helper-message");
+const oneDriveChatGPTButton = document.getElementById("onedrive-chatgpt-button");
+const deepStorageFile = document.getElementById("deepstorage-file");
+const deepStorageSource = document.getElementById("deepstorage-source");
+const deepStorageStatusElement = document.getElementById("deepstorage-status");
+const saveButton = document.getElementById("save-button");
+
 let announcements = [];
 let editingId = null;
+let editingItem = null;
 let currentCover = null;
+let coverObjectUrl = null;
+let deepStorageStatus = {checked:false,available:false,message:"Vérification de l’accès API DeepStorage…"};
 
-function show(element, text) { element.textContent = text; }
-function updateMediaFields() {
-  videoFields.classList.toggle("admin-hidden", mediaType.value !== "video");
+function show(element,text){if(element)element.textContent=text;}
+function showMessage(element,text){show(element,text);}
+function updateMediaFields(){
+  const isVideo=mediaType.value==="video";
+  videoFields.classList.toggle("admin-hidden",!isVideo);
+  if(isVideo)updateProviderFields();
 }
-mediaType.addEventListener("change", updateMediaFields);
-coverInput.addEventListener("change", () => {
-  const file = coverInput.files[0];
-  if (!file) {
-    if (currentCover) { coverPreview.src = currentCover; coverPreview.classList.remove("admin-hidden"); }
+function updateProviderFields(){
+  const provider=providerSelect.value;
+  for(const name of ["cloudinary","mux","vioo","dropbox","onedrive","deepstorage"]){
+    document.getElementById(name+"-fields").classList.toggle("admin-hidden",provider!==name);
+  }
+  deepStorageFile.disabled=provider!=="deepstorage"||!deepStorageStatus.available;
+  muxFile.disabled=provider!=="mux"||Boolean(editingId);
+  cloudinaryFile.disabled=provider!=="cloudinary";
+  if(provider==="deepstorage")checkDeepStorageAvailability(false);
+}
+mediaType.addEventListener("change",updateMediaFields);
+providerSelect.addEventListener("change",updateProviderFields);
+
+coverInput.addEventListener("change",()=>{
+  const file=coverInput.files[0];
+  if(coverObjectUrl)URL.revokeObjectURL(coverObjectUrl);
+  coverObjectUrl=null;
+  if(!file){
+    if(currentCover){coverPreview.src=currentCover;coverPreview.classList.remove("admin-hidden");}
     else coverPreview.classList.add("admin-hidden");
     return;
   }
-  if (!["image/jpeg","image/png","image/webp"].includes(file.type)) {
-    coverInput.value = "";
-    show(message, "Choisis une image PNG, JPG ou WebP.");
+  if(!["image/jpeg","image/png","image/webp"].includes(file.type)){
+    coverInput.value="";
+    show(message,"Choisis une image PNG, JPG ou WebP.");
     return;
   }
-  coverPreview.src = URL.createObjectURL(file);
+  coverObjectUrl=URL.createObjectURL(file);
+  coverPreview.src=coverObjectUrl;
   coverPreview.classList.remove("admin-hidden");
 });
 
-function normalizeSource(provider, raw) {
-  const value = String(raw || "").trim();
-  if (!value) throw new Error("Ajoute l’URL de lecture ou l’identifiant de la vidéo.");
-  if (provider === "mux") {
-    if (/^https:\/\//i.test(value)) return value;
-    if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("Pour Mux, indique un Playback ID ou une URL HTTPS.");
-    return value;
+function normalizeViooEmbedUrl(value){
+  const raw=String(value||"").trim();
+  if(/^[A-Za-z0-9_-]+$/.test(raw))return "https://vioo.cc/embed/"+raw;
+  const iframeSource=raw.match(/src\s*=\s*["']([^"']+)["']/i);
+  const candidate=iframeSource?iframeSource[1]:raw;
+  let url;
+  try{url=new URL(candidate);}catch{throw new Error("Indique un identifiant Vioo ou une URL de lecteur Vioo valide.");}
+  if(url.protocol!=="https:"||!["vioo.cc","www.vioo.cc"].includes(url.hostname))throw new Error("Le lecteur doit provenir de https://vioo.cc.");
+  const match=url.pathname.match(/^\/embed\/([A-Za-z0-9_-]+)\/?$/);
+  if(!match)throw new Error("Utilise le lien du lecteur Vioo au format https://vioo.cc/embed/IDENTIFIANT.");
+  return "https://vioo.cc/embed/"+match[1];
+}
+function normalizeDropboxUrl(value){
+  let url;
+  try{url=new URL(String(value||"").trim());}catch{throw new Error("Colle un lien de partage Dropbox valide.");}
+  if(url.protocol!=="https:"||!["dropbox.com","www.dropbox.com"].includes(url.hostname))throw new Error("Le lien doit provenir de https://www.dropbox.com.");
+  if(!/^\/(scl\/fi|s)\//.test(url.pathname))throw new Error("Utilise un lien de partage Dropbox vers un fichier, pas un dossier.");
+  url.searchParams.delete("dl");url.searchParams.set("raw","1");
+  return url.toString();
+}
+function normalizeOneDriveEmbedUrl(value){
+  const raw=String(value||"").trim();
+  const iframeSource=raw.match(/src\s*=\s*["']([^"']+)["']/i);
+  const candidate=iframeSource?iframeSource[1]:raw;
+  let url;
+  try{url=new URL(candidate);}catch{throw new Error("Colle un lien de lecteur OneDrive valide.");}
+  const allowed=["1drv.ms","onedrive.live.com","www.onedrive.com"].includes(url.hostname);
+  if(url.protocol!=="https:"||!allowed||!url.pathname.startsWith("/"))throw new Error("Le lien doit provenir de OneDrive.");
+  return url.toString();
+}
+function isOneDriveEmbedUrl(value){
+  try{
+    const url=new URL(String(value||"").trim());
+    if(url.protocol!=="https:")return false;
+    if(["onedrive.live.com","www.onedrive.com"].includes(url.hostname))return url.pathname.toLowerCase().includes("/embed")||url.searchParams.has("embed");
+    if(url.hostname==="1drv.ms")return /^\/v\/c\/[^/]+\/[^/]+\/?$/i.test(url.pathname)&&!url.search&&!url.hash;
+    return false;
+  }catch{return false;}
+}
+function refreshOneDriveHelper(){
+  const value=oneDriveSource.value.trim();
+  const isEmbed=Boolean(value)&&isOneDriveEmbedUrl(value);
+  document.getElementById("onedrive-helper").classList.remove("admin-hidden");
+  oneDriveChatGPTButton.classList.toggle("admin-hidden",isEmbed);
+  if(!value)oneDriveHelperMessage.textContent="Colle ton lien de partage OneDrive ici. Si ce n’est pas encore un lien Embed, le bouton peut t’aider à le convertir.";
+  else if(isEmbed)oneDriveHelperMessage.textContent="✓ Un lien d’intégration OneDrive semble détecté. Tu peux l’enregistrer.";
+  else oneDriveHelperMessage.textContent="⚠ Ce lien semble être un lien de partage classique. Convertis-le en véritable lien Embed avant de publier.";
+}
+oneDriveSource.addEventListener("input",refreshOneDriveHelper);
+oneDriveChatGPTButton.addEventListener("click",async()=>{
+  const sharedUrl=oneDriveSource.value.trim();
+  if(!sharedUrl){oneDriveHelperMessage.textContent="Colle d’abord ton lien OneDrive.";oneDriveSource.focus();return;}
+  const prompt="Aide-moi à convertir ce lien de partage OneDrive en véritable URL d’intégration vidéo (iframe) compatible avec mon site Zeno Video. Vérifie le type de lien et récupère le véritable lien Embed si possible. Ne modifie aucune autorisation. Voici le lien : "+sharedUrl;
+  try{await navigator.clipboard.writeText(prompt);oneDriveHelperMessage.textContent="✓ Demande copiée. Ouverture de ChatGPT : colle le texte dans la conversation.";}
+  catch{oneDriveHelperMessage.textContent="ChatGPT va s’ouvrir. Copie le lien OneDrive et colle-le dans la conversation.";}
+  window.open("https://chatgpt.com/","_blank","noopener,noreferrer");
+});
+
+async function uploadCover(file){
+  const data=new FormData();data.append("file",file);data.append("upload_preset",CLOUDINARY_IMAGE_UPLOAD_PRESET);
+  const response=await fetch("https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/image/upload",{method:"POST",body:data});
+  const result=await response.json().catch(()=>({}));
+  if(!response.ok||!result.secure_url)throw new Error(result.error?.message||"Échec de l’envoi de la couverture sur Cloudinary.");
+  return result;
+}
+function showDeepStorageStatus(){
+  deepStorageStatusElement.textContent=deepStorageStatus.message;
+  deepStorageStatusElement.className="admin-message "+(deepStorageStatus.available?"success":deepStorageStatus.checked?"error":"status-pending");
+}
+async function invokeDeepStorage(payload){
+  const {data,error}=await db.functions.invoke("deepstorage-upload",{body:payload});
+  if(error){
+    let details=error.message||"La fonction DeepStorage a échoué.";
+    try{if(error.context&&typeof error.context.json==="function"){const response=await error.context.json();details=response.error||response.message||details;}}catch{}
+    throw new Error(details);
   }
-  if (provider === "vioo") {
-    if (/^https:\/\//i.test(value)) return value;
-    if (!/^[A-Za-z0-9_-]+$/.test(value)) throw new Error("Identifiant Vioo invalide.");
-    return value;
+  if(data?.error)throw new Error(data.error);
+  return data;
+}
+async function checkDeepStorageAvailability(force=false){
+  if(!force&&deepStorageStatus.checked)return deepStorageStatus.available;
+  deepStorageStatus={checked:false,available:false,message:"Vérification de l’accès API DeepStorage…"};showDeepStorageStatus();
+  try{
+    const data=await invokeDeepStorage({action:"status"});
+    deepStorageStatus=data?.available
+      ?{checked:true,available:true,message:"✓ DeepStorage API disponible ("+(data.plan||"offre payante")+"). Tu peux envoyer une vidéo."}
+      :{checked:true,available:false,message:data?.message||"DeepStorage API indisponible. Choisis un autre hébergeur."};
+  }catch(error){deepStorageStatus={checked:true,available:false,message:(error.message||"Vérification impossible.")+" Choisis un autre hébergeur si l’accès API n’est pas actif."};}
+  showDeepStorageStatus();deepStorageFile.disabled=providerSelect.value!=="deepstorage"||!deepStorageStatus.available;
+  return deepStorageStatus.available;
+}
+async function sendDeepStorageBinary(action,params,blob){
+  const {data:sessionData,error:sessionError}=await db.auth.getSession();
+  const session=sessionData?.session;
+  if(sessionError||!session?.access_token)throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant de relancer l’envoi.");
+  const query=new URLSearchParams({action,...params});
+  const response=await fetch(SUPABASE_URL+"/functions/v1/deepstorage-upload?"+query.toString(),{
+    method:"POST",headers:{Authorization:"Bearer "+session.access_token,apikey:SUPABASE_KEY,"Content-Type":blob.type||"application/octet-stream"},body:blob
+  });
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok){
+    const failure=new Error(data.error||"DeepStorage a refusé le transfert (HTTP "+response.status+").");
+    failure.code=data.code||"deepstorage_error";failure.retryAfter=data.retry_after;throw failure;
   }
-  if (!/^https:\/\//i.test(value) && provider !== "cloudinary") {
-    throw new Error("Cet hébergeur nécessite une URL HTTPS de lecture.");
-  }
-  if (provider === "cloudinary" && !/^https:\/\//i.test(value) && !/^[A-Za-z0-9_\-/]+$/.test(value)) {
-    throw new Error("Indique un identifiant public Cloudinary ou une URL HTTPS.");
-  }
-  return value;
+  return data;
+}
+async function uploadToDeepStorage(file){
+  const started=await invokeDeepStorage({action:"start",filename:file.name,size:file.size,content_type:file.type||"application/octet-stream"});
+  if(started.mode==="one_shot"){show(message,"Envoi de la vidéo vers DeepStorage…");return await sendDeepStorageBinary("single",{filename:file.name},file);}
+  if(!started.session_id||!started.chunk_size)throw new Error("DeepStorage n’a pas fourni les informations nécessaires au transfert reprenable.");
+  const sessionId=started.session_id,chunkSize=Number(started.chunk_size);let offset=Number(started.next_offset||0),chunkNumber=0;
+  try{
+    while(offset<file.size){
+      await waitForOnlineConnection();const end=Math.min(offset+chunkSize,file.size),chunk=file.slice(offset,end);let sent=false,lastError=null;
+      for(let attempt=1;attempt<=5&&!sent;attempt++){
+        try{
+          show(message,"Envoi DeepStorage : "+Math.round(offset/file.size*100)+"% · morceau "+(chunkNumber+1)+" · tentative "+attempt+"/5");
+          const result=await sendDeepStorageBinary("chunk",{session_id:sessionId,offset:String(offset)},chunk);
+          offset=Number(result.next_offset??end);sent=true;chunkNumber++;
+        }catch(error){
+          lastError=error;
+          if(["premium_required","invalid_api_key","upload_scope_missing"].includes(error.code)||/indisponible|Pro|clé API|administrateur/i.test(error.message))throw error;
+          if(error.code==="bad_offset"){const resumed=await invokeDeepStorage({action:"resume",session_id:sessionId});offset=Number(resumed.next_offset||0);sent=true;break;}
+          if(attempt===5)break;
+          await wait(error.retryAfter?Number(error.retryAfter)*1000:Math.min(1000*(2**(attempt-1)),8000));
+        }
+      }
+      if(!sent)throw new Error("Le morceau n’a pas pu être envoyé après plusieurs tentatives. "+(lastError?.message||""));
+    }
+    show(message,"Finalisation du fichier sur DeepStorage…");
+    const finished=await invokeDeepStorage({action:"finish",session_id:sessionId});
+    if(!finished?.link)throw new Error("DeepStorage n’a pas renvoyé le lien de lecture final.");
+    return finished;
+  }catch(error){try{await invokeDeepStorage({action:"abort",session_id:sessionId});}catch{}throw error;}
 }
 
-async function uploadCover(file) {
-  const data = new FormData();
-  data.append("file", file);
-  data.append("upload_preset", IMAGE_PRESET);
-  const response = await fetch("https://api.cloudinary.com/v1_1/" + CLOUD_NAME + "/image/upload", { method:"POST", body:data });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok || !result.secure_url) throw new Error(result.error?.message || "Échec de l’envoi de la couverture sur Cloudinary.");
-  return result.secure_url;
+function wait(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
 }
 
-function resetForm() {
-  form.reset();
-  editingId = null;
-  currentCover = null;
-  coverPreview.removeAttribute("src");
-  coverPreview.classList.add("admin-hidden");
-  document.getElementById("save-button").textContent = "Publier l’annonce";
-  document.getElementById("cancel-button").classList.add("admin-hidden");
-  updateMediaFields();
+function waitForOnlineConnection() {
+  if (navigator.onLine) return Promise.resolve();
+  showMessage(message, "Connexion coupée : le transfert attend le retour du réseau…");
+  return new Promise(resolve => {
+    window.addEventListener("online", resolve, { once: true });
+  });
 }
-document.getElementById("cancel-button").addEventListener("click", resetForm);
 
-async function loadAnnouncements() {
-  const { data, error } = await db.from("video_announcements").select("*").order("created_at", { ascending:false });
-  if (error) { show(message, "Chargement impossible : " + error.message); return; }
-  announcements = data || [];
-  document.getElementById("count").textContent = announcements.length + " annonce(s)";
-  list.replaceChildren();
-  if (!announcements.length) { list.textContent = "Aucune annonce pour le moment."; return; }
+function uploadChunkToCloudinary(file, start, end, uploadId, chunkNumber, chunkCount) {
+  const chunk = file.slice(start, end + 1);
+  const uploadData = new FormData();
+  uploadData.append("file", chunk, file.name);
+  uploadData.append("upload_preset", CLOUDINARY_VIDEO_UPLOAD_PRESET);
 
-  const { data: linked, error: linkedError } = await db.from("videos").select("announcement_id").not("announcement_id","is",null);
-  if (linkedError) { show(message, "Vérification des vidéos associées impossible : " + linkedError.message); return; }
-  const linkedIds = new Set((linked || []).map(row => row.announcement_id));
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/video/upload`);
+    xhr.timeout = 900000;
+    xhr.setRequestHeader("X-Unique-Upload-Id", uploadId);
+    xhr.setRequestHeader("Content-Range", `bytes ${start}-${end}/${file.size}`);
 
-  for (const item of announcements) {
-    const card = document.createElement("article");
-    card.className = "admin-video";
-    const title = document.createElement("h3"); title.textContent = item.title;
-    const detail = document.createElement("p");
-    const kind = item.media_type === "video" ? "Courte vidéo · " + (item.video_provider || "Hébergeur inconnu") : "Photo";
-    detail.textContent = kind + (item.is_visible ? " · Visible" : " · Masquée");
-    const date = document.createElement("p");
-    date.textContent = item.scheduled_for ? "Date prévue : " + new Date(item.scheduled_for).toLocaleString("fr-FR") : "Date non définie";
-    const actions = document.createElement("div"); actions.className = "admin-actions";
-    const edit = document.createElement("button"); edit.textContent = "Modifier";
-    edit.addEventListener("click", () => {
-      editingId = item.id;
-      currentCover = item.cover_url || null;
-      document.getElementById("title").value = item.title || "";
-      document.getElementById("description").value = item.description || "";
-      document.getElementById("scheduled").value = item.scheduled_for ? new Date(item.scheduled_for).toISOString().slice(0,16) : "";
-      mediaType.value = item.media_type || "photo";
-      document.getElementById("video-provider").value = item.video_provider || "cloudinary";
-      document.getElementById("video-url").value = item.video_url || "";
-      coverInput.value = "";
-      if (currentCover) { coverPreview.src = currentCover; coverPreview.classList.remove("admin-hidden"); }
-      else coverPreview.classList.add("admin-hidden");
+    xhr.upload.addEventListener("progress", event => {
+      if (event.lengthComputable) {
+        const totalSent = start + event.loaded;
+        const percent = Math.min(100, Math.round((totalSent / file.size) * 100));
+        showMessage(message, `Envoi Cloudinary par morceaux : ${percent}% · morceau ${chunkNumber}/${chunkCount}`);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      let result;
+      try {
+        result = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new Error("Réponse illisible de Cloudinary (HTTP " + xhr.status + ")."));
+        return;
+      }
+
+      if (xhr.status < 200 || xhr.status >= 300) {
+        const error = new Error(result.error?.message || "Cloudinary a refusé le morceau (HTTP " + xhr.status + ").");
+        error.status = xhr.status;
+        reject(error);
+        return;
+      }
+      resolve(result);
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant le transfert du morceau.")));
+    xhr.addEventListener("timeout", () => reject(new Error("Le transfert de ce morceau a dépassé 15 minutes.")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi du morceau annulé.")));
+    xhr.send(uploadData);
+  });
+}
+
+async function uploadVideoInChunks(file) {
+  const chunkSize = 6 * 1024 * 1024;
+  const chunkCount = Math.ceil(file.size / chunkSize);
+  const uploadId = crypto.randomUUID
+    ? crypto.randomUUID()
+    : "zeno-" + Date.now() + "-" + Math.random().toString(16).slice(2);
+
+  let finalResponse = null;
+
+  for (let index = 0; index < chunkCount; index++) {
+    const start = index * chunkSize;
+    const end = Math.min(start + chunkSize, file.size) - 1;
+    let lastError = null;
+    let uploadedChunk = null;
+
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      try {
+        showMessage(
+          message,
+          `Envoi Cloudinary : morceau ${index + 1}/${chunkCount} · tentative ${attempt}/5`
+        );
+        uploadedChunk = await uploadChunkToCloudinary(
+          file, start, end, uploadId, index + 1, chunkCount
+        );
+        lastError = null;
+        break;
+      } catch (error) {
+        lastError = error;
+        const retryable = !error.status || error.status === 420 || error.status >= 500;
+        if (!retryable || attempt === 5) break;
+        showMessage(
+          message,
+          `Connexion instable : nouvelle tentative du morceau ${index + 1}/${chunkCount}…`
+        );
+        if (!navigator.onLine) {
+          await waitForOnlineConnection();
+        } else {
+          await wait(Math.min(1500 * (2 ** (attempt - 1)), 15000));
+        }
+      }
+    }
+
+    if (lastError) {
+      throw new Error(
+        `Le morceau ${index + 1}/${chunkCount} n'a pas pu être envoyé après 5 tentatives. ` +
+        `Vérifie ta connexion puis relance l'envoi. Détail : ${lastError.message}`
+      );
+    }
+
+    if (index === chunkCount - 1) {
+      finalResponse = uploadedChunk;
+    }
+  }
+
+  if (!finalResponse?.secure_url || !finalResponse?.public_id) {
+    throw new Error("Cloudinary n'a pas confirmé la fin de l'envoi complet. Aucune vidéo ne sera enregistrée dans Supabase.");
+  }
+
+  return finalResponse;
+}
+
+async function uploadToCloudinary(file, resourceType, progressMessage) {
+  if (resourceType === "video" && file.size > 6 * 1024 * 1024) {
+    return await uploadVideoInChunks(file);
+  }
+
+  const uploadData = new FormData();
+  if (resourceType === "image") {
+    const pngBlob = await convertJpegToPng(file);
+    uploadData.append("file", pngBlob, "zeno-cover.png");
+    showMessage(message, "Couverture convertie en PNG. Envoi vers Cloudinary...");
+  } else {
+    uploadData.append("file", file, file.name);
+  }
+  uploadData.append(
+    "upload_preset",
+    resourceType === "image" ? CLOUDINARY_IMAGE_UPLOAD_PRESET : CLOUDINARY_VIDEO_UPLOAD_PRESET
+  );
+
+  return await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const label = resourceType === "video" ? "vidéo" : "couverture PNG";
+    xhr.open("POST", `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`);
+    xhr.timeout = 900000;
+
+    xhr.upload.addEventListener("progress", event => {
+      if (event.lengthComputable) {
+        const percent = Math.round((event.loaded / event.total) * 100);
+        showMessage(message, `Envoi de la ${label} vers Cloudinary : ${percent}%`);
+      } else {
+        showMessage(message, `Envoi de la ${label} vers Cloudinary en cours…`);
+      }
+    });
+
+    xhr.addEventListener("load", () => {
+      let uploaded;
+      try {
+        uploaded = JSON.parse(xhr.responseText || "{}");
+      } catch {
+        reject(new Error("Réponse illisible de Cloudinary (HTTP " + xhr.status + ")."));
+        return;
+      }
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(uploaded.error?.message || "Cloudinary a refusé le fichier (HTTP " + xhr.status + ")."));
+        return;
+      }
+      if (!uploaded.secure_url || !uploaded.public_id) {
+        reject(new Error("Cloudinary n'a pas renvoyé l'URL sécurisée attendue."));
+        return;
+      }
+      resolve(uploaded);
+    });
+
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudinary.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudinary a dépassé 15 minutes.")));
+    xhr.addEventListener("abort", () => reject(new Error("Envoi vers Cloudinary annulé.")));
+    xhr.send(uploadData);
+  });
+}
+
+
+function uploadToMux(file, uploadUrl) {
+  return new Promise((resolve, reject) => {
+    const upChunkLibrary = window.UpChunk;
+    if (!upChunkLibrary?.createUpload) {
+      reject(new Error("Le module d'envoi Mux n'a pas pu se charger. Recharge la page puis réessaie."));
+      return;
+    }
+
+    const upload = upChunkLibrary.createUpload({
+      endpoint: uploadUrl,
+      file,
+      chunkSize: 5120,
+      attempts: 5,
+      dynamicChunkSize: true,
+      minChunkSize: 256,
+      maxChunkSize: 20480
+    });
+
+    upload.on("progress", event => {
+      const percent = Math.round(Number(event.detail) || 0);
+      showMessage(message, "Envoi reprenable vers Mux : " + percent + "%");
+    });
+    upload.on("offline", () => showMessage(message, "Connexion interrompue : Mux met l'envoi en pause et le reprendra automatiquement."));
+    upload.on("online", () => showMessage(message, "Connexion rétablie : reprise de l'envoi vers Mux…"));
+    upload.on("error", event => {
+      reject(new Error(event.detail?.message || "Le transfert vers Mux a échoué après plusieurs tentatives."));
+    });
+    upload.on("success", resolve);
+  });
+}
+
+
+function normalizeCloudinarySource(value){
+  const raw=String(value||"").trim();
+  if(!raw)throw new Error("Choisis un fichier vidéo ou indique son identifiant public Cloudinary.");
+  if(/^https:\/\//i.test(raw)){const url=new URL(raw);if(url.protocol!=="https:"||url.hostname!=="res.cloudinary.com")throw new Error("L’URL doit provenir de Cloudinary.");return raw;}
+  if(!/^[A-Za-z0-9_\/-]+$/.test(raw))throw new Error("Identifiant public Cloudinary invalide.");
+  return raw;
+}
+function normalizeHttpsSource(value,label){
+  let url;try{url=new URL(String(value||"").trim());}catch{throw new Error("Indique une URL HTTPS valide pour "+label+".");}
+  if(url.protocol!=="https:")throw new Error("L’URL de "+label+" doit commencer par https://.");
+  return url.toString();
+}
+
+function resetForm(){
+  form.reset();editingId=null;editingItem=null;currentCover=null;
+  if(coverObjectUrl)URL.revokeObjectURL(coverObjectUrl);coverObjectUrl=null;
+  coverPreview.removeAttribute("src");coverPreview.classList.add("admin-hidden");
+  saveButton.textContent="Publier l’annonce";document.getElementById("cancel-button").classList.add("admin-hidden");
+  muxStatus.textContent="Envoi direct depuis ton téléphone vers Mux, avec reprise automatique si la connexion est interrompue. Limite de ce formulaire : 1 Go.";
+  updateMediaFields();show(message,"");
+}
+document.getElementById("cancel-button").addEventListener("click",resetForm);
+
+async function loadAnnouncements(){
+  const {data,error}=await db.from("video_announcements").select("*").order("created_at",{ascending:false});
+  if(error){show(message,"Chargement impossible : "+error.message);return;}
+  announcements=data||[];document.getElementById("count").textContent=announcements.length+" annonce(s)";list.replaceChildren();
+  if(!announcements.length){list.textContent="Aucune annonce pour le moment.";return;}
+  const {data:linked,error:linkedError}=await db.from("videos").select("announcement_id,mux_status").not("announcement_id","is",null);
+  if(linkedError){show(message,"Vérification des vidéos associées impossible : "+linkedError.message);return;}
+  const linkedRows=linked||[],linkedIds=new Set(linkedRows.map(row=>row.announcement_id));
+  for(const item of announcements){
+    const card=document.createElement("article");card.className="admin-video";
+    const title=document.createElement("h3");title.textContent=item.title;
+    const detail=document.createElement("p"),kind=item.media_type==="video"?"Vidéo · "+(item.video_provider||"Hébergeur inconnu"):"Photo";
+    const linkedVideo=linkedRows.find(row=>row.announcement_id===item.id);
+    const muxState=item.video_provider==="mux"&&linkedVideo?" · "+(linkedVideo.mux_status==="ready"?"Mux prêt":["errored","upload_failed"].includes(linkedVideo.mux_status)?"Erreur Mux":"Traitement Mux en cours"):"";
+    detail.textContent=kind+muxState+(item.is_visible?" · Visible":" · Masquée");
+    const date=document.createElement("p");date.textContent=item.scheduled_for?"Date prévue : "+new Date(item.scheduled_for).toLocaleString("fr-FR"):"Date non définie";
+    const actions=document.createElement("div");actions.className="admin-actions";
+    const edit=document.createElement("button");edit.textContent="Modifier";
+    edit.addEventListener("click",()=>{
+      editingId=item.id;editingItem=item;currentCover=item.cover_url||null;
+      document.getElementById("title").value=item.title||"";
+      document.getElementById("description").value=item.description||"";
+      document.getElementById("scheduled").value=item.scheduled_for?new Date(item.scheduled_for).toISOString().slice(0,16):"";
+      mediaType.value=item.media_type||"photo";providerSelect.value=item.video_provider||"cloudinary";
+      cloudinarySource.value=item.video_provider==="cloudinary"?item.video_url||"":"";
+      viooSource.value=item.video_provider==="vioo"?item.video_url||"":"";
+      dropboxSource.value=item.video_provider==="dropbox"?item.video_url||"":"";
+      oneDriveSource.value=item.video_provider==="onedrive"?item.video_url||"":"";
+      deepStorageSource.value=item.video_provider==="deepstorage"?item.video_url||"":"";
+      coverInput.value="";
+      if(currentCover){coverPreview.src=currentCover;coverPreview.classList.remove("admin-hidden");}else coverPreview.classList.add("admin-hidden");
       updateMediaFields();
-      document.getElementById("save-button").textContent = "Enregistrer les modifications";
-      document.getElementById("cancel-button").classList.remove("admin-hidden");
+      if(item.video_provider==="mux")muxStatus.textContent=item.video_url&&!item.video_url.startsWith("mux-pending")?"Vidéo Mux déjà traitée. Pour la remplacer, crée une nouvelle annonce.":"Cette annonce attend la fin du traitement Mux. Pour remplacer le fichier, crée une nouvelle annonce.";
+      saveButton.textContent="Enregistrer les modifications";document.getElementById("cancel-button").classList.remove("admin-hidden");
       form.scrollIntoView({behavior:"smooth"});
     });
-    const visibility = document.createElement("button"); visibility.className = "alt";
-    visibility.textContent = item.is_visible ? "Masquer" : "Afficher";
-    visibility.addEventListener("click", async () => {
-      const { error: e } = await db.from("video_announcements").update({is_visible:!item.is_visible}).eq("id",item.id);
-      if (e) show(message, e.message);
-      await loadAnnouncements();
-    });
-    const remove = document.createElement("button"); remove.className = "danger"; remove.textContent = "Supprimer";
-    remove.disabled = linkedIds.has(item.id);
-    remove.title = remove.disabled ? "Une vidéo de la bibliothèque est associée à cette annonce." : "";
-    remove.addEventListener("click", async () => {
-      if (linkedIds.has(item.id)) return;
-      if (!confirm("Supprimer l’annonce « " + item.title + " » ?")) return;
-      const { error: e } = await db.from("video_announcements").delete().eq("id",item.id);
-      if (e) show(message, e.message);
-      await loadAnnouncements();
-    });
-    actions.append(edit, visibility, remove);
-    card.append(title, detail, date, actions);
-    list.append(card);
+    const visibility=document.createElement("button");visibility.className="alt";visibility.textContent=item.is_visible?"Masquer":"Afficher";
+    visibility.addEventListener("click",async()=>{const {error:e}=await db.from("video_announcements").update({is_visible:!item.is_visible}).eq("id",item.id);if(e)show(message,e.message);await loadAnnouncements();});
+    const remove=document.createElement("button");remove.className="danger";remove.textContent="Supprimer";remove.disabled=linkedIds.has(item.id);
+    remove.title=remove.disabled?"Une fiche vidéo est associée à cette annonce. Retire-la d’abord depuis le tableau de bord vidéo.":"";
+    remove.addEventListener("click",async()=>{if(linkedIds.has(item.id))return;if(!confirm("Supprimer l’annonce « "+item.title+" » ?"))return;const {error:e}=await db.from("video_announcements").delete().eq("id",item.id);if(e)show(message,e.message);await loadAnnouncements();});
+    actions.append(edit,visibility,remove);card.append(title,detail,date,actions);list.append(card);
   }
 }
 
-form.addEventListener("submit", async event => {
-  event.preventDefault();
-  const title = document.getElementById("title").value.trim();
-  const description = document.getElementById("description").value.trim();
-  const dateValue = document.getElementById("scheduled").value;
-  const type = mediaType.value;
-  const provider = document.getElementById("video-provider").value;
-  const file = coverInput.files[0];
-  if (!title) { show(message, "Ajoute un titre."); return; }
-  if (!file && !currentCover) { show(message, "Ajoute une couverture à cette annonce."); return; }
-  const button = document.getElementById("save-button");
-  button.disabled = true;
-  try {
-    const source = type === "video" ? normalizeSource(provider, document.getElementById("video-url").value) : null;
-    let coverUrl = currentCover;
-    if (file) {
-      show(message, "Envoi de la couverture sur Cloudinary…");
-      coverUrl = await uploadCover(file);
+async function saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,file}){
+  if(!file)throw new Error("Choisis le fichier vidéo à envoyer sur Mux.");
+  if(file.size>1024*1024*1024)throw new Error("La taille maximale autorisée pour un envoi Mux est de 1 Go.");
+  const pendingToken="mux-pending:"+(crypto.randomUUID?crypto.randomUUID():Date.now());
+  const {data:created,error:createError}=await db.from("video_announcements").insert({
+    title,description,cover_url:coverUrl,scheduled_for:dateValue?new Date(dateValue).toISOString():null,
+    media_type:"video",video_provider:"mux",video_url:pendingToken,is_visible:false
+  }).select("id").single();
+  if(createError)throw new Error("Impossible de préparer l’annonce Mux : "+createError.message);
+  let muxVideoId=null;
+  try{
+    show(message,"Préparation de l’envoi sécurisé vers Mux…");
+    const {data:uploadInfo,error:uploadError}=await db.functions.invoke("mux-create-upload",{
+      body:{title,description,filename:file.name,content_type:file.type||"application/octet-stream",size:file.size,
+        thumbnail_url:coverUrl,thumbnail_provider:"cloudinary",thumbnail_cloudinary_public_id:coverUpload?.public_id||null,
+        thumbnail_imagekit_file_id:null,announcement_id:created.id}
+    });
+    if(uploadError){
+      let details=uploadError.message||"Impossible de préparer l’envoi Mux.";
+      try{if(uploadError.context&&typeof uploadError.context.json==="function"){const payload=await uploadError.context.json();details=payload.error||payload.message||details;}}catch{}
+      throw new Error(details);
     }
-    const payload = {
-      title, description, cover_url:coverUrl,
-      scheduled_for:dateValue ? new Date(dateValue).toISOString() : null,
-      media_type:type,
-      video_provider:type === "video" ? provider : null,
-      video_url:source,
-      updated_at:new Date().toISOString()
-    };
-    const result = editingId
-      ? await db.from("video_announcements").update(payload).eq("id",editingId)
-      : await db.from("video_announcements").insert({...payload,is_visible:true});
-    if (result.error) throw result.error;
-    show(message, "Annonce enregistrée. Tu peux maintenant la vérifier sur le site public.");
-    resetForm();
-    await loadAnnouncements();
-  } catch (error) {
-    show(message, "Erreur : " + (error.message || String(error)));
-  } finally {
-    button.disabled = false;
+    if(!uploadInfo?.uploadUrl||!uploadInfo?.videoId)throw new Error("Supabase n’a pas fourni l’URL sécurisée d’envoi Mux.");
+    muxVideoId=uploadInfo.videoId;
+    await uploadToMux(file,uploadInfo.uploadUrl);
+    const {error:visibleError}=await db.from("video_announcements").update({is_visible:true}).eq("id",created.id);
+    if(visibleError)throw new Error("La vidéo a été envoyée, mais l’annonce n’a pas pu être rendue visible : "+visibleError.message);
+    show(message,"✓ Vidéo envoyée à Mux. Le traitement continue automatiquement. L’annonce sera lisible dès que Mux aura terminé.");
+    return created.id;
+  }catch(error){
+    if(muxVideoId)await db.from("videos").update({mux_status:"upload_failed",is_published:false}).eq("id",muxVideoId);
+    await db.from("video_announcements").update({is_visible:false,video_url:"mux-error"}).eq("id",created.id);
+    throw error;
   }
+}
+
+form.addEventListener("submit",async event=>{
+  event.preventDefault();
+  const title=document.getElementById("title").value.trim();
+  const description=document.getElementById("description").value.trim();
+  const dateValue=document.getElementById("scheduled").value;
+  const type=mediaType.value,provider=providerSelect.value,coverFile=coverInput.files[0];
+  if(!title){show(message,"Ajoute un titre.");return;}
+  if(!coverFile&&!currentCover){show(message,"Ajoute une couverture à cette annonce.");return;}
+  const cloudFile=cloudinaryFile.files[0],deepFile=deepStorageFile.files[0],muxSelectedFile=muxFile.files[0];
+  const selectedVideoFile=provider==="cloudinary"?cloudFile:provider==="deepstorage"?deepFile:provider==="mux"?muxSelectedFile:null;
+  if(type==="video"&&selectedVideoFile&&!["video/mp4","video/quicktime","video/webm"].includes(selectedVideoFile.type)){show(message,"Format vidéo non accepté. Choisis un fichier MP4, MOV ou WebM.");return;}
+  if(type==="video"&&provider==="mux"&&!editingId&&!muxSelectedFile){show(message,"Choisis le fichier vidéo à envoyer sur Mux.");return;}
+  if(type==="video"&&provider==="deepstorage"&&!deepStorageStatus.available&&deepFile){show(message,deepStorageStatus.message||"L’API DeepStorage n’est pas disponible.");await checkDeepStorageAvailability(true);return;}
+  if(type==="video"&&provider==="onedrive"&&!isOneDriveEmbedUrl(oneDriveSource.value)){show(message,"Ce lien n’est pas un véritable lien Embed OneDrive. Utilise le bouton pour le convertir.");refreshOneDriveHelper();return;}
+
+  saveButton.disabled=true;providerSelect.disabled=true;
+  try{
+    let coverUrl=currentCover,coverUpload=null;
+    if(coverFile){show(message,"Envoi de la couverture sur Cloudinary…");coverUpload=await uploadCover(coverFile);coverUrl=coverUpload.secure_url;}
+    if(type==="video"&&provider==="mux"&&!editingId){
+      await saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,file:muxSelectedFile});
+      resetForm();await loadAnnouncements();return;
+    }
+    let videoUrl=null;
+    if(type==="video"){
+      if(provider==="cloudinary"){
+        const raw=cloudinarySource.value.trim();
+        if(cloudFile){
+          show(message,"Envoi de la vidéo vers Cloudinary…");
+          let fileToUpload=cloudFile;
+          if(document.getElementById("upload-quality").value==="480p"){show(message,"Préparation de la compression locale en 480p…");fileToUpload=await compressVideoTo480p(cloudFile);}
+          const uploaded=await uploadToCloudinary(fileToUpload,"video");videoUrl=uploaded.secure_url;
+        }else if(raw)videoUrl=normalizeCloudinarySource(raw);
+        else if(editingItem?.video_provider==="cloudinary")videoUrl=editingItem.video_url;
+        else throw new Error("Choisis un fichier vidéo Cloudinary ou indique son identifiant public.");
+      }else if(provider==="deepstorage"){
+        if(deepFile){show(message,"Préparation de l’envoi sécurisé vers DeepStorage…");const uploaded=await uploadToDeepStorage(deepFile);videoUrl=uploaded.link;}
+        else if(deepStorageSource.value.trim())videoUrl=normalizeHttpsSource(deepStorageSource.value,"DeepStorage");
+        else if(editingItem?.video_provider==="deepstorage")videoUrl=editingItem.video_url;
+        else throw new Error("Choisis un fichier à envoyer sur DeepStorage ou indique son URL HTTPS.");
+      }else if(provider==="mux"){
+        if(editingItem?.video_provider==="mux"&&editingItem.video_url)videoUrl=editingItem.video_url;
+        else throw new Error("Pour une nouvelle annonce Mux, choisis le fichier vidéo. Pour remplacer une annonce Mux existante, crée une nouvelle annonce.");
+      }else if(provider==="vioo")videoUrl=normalizeViooEmbedUrl(viooSource.value);
+      else if(provider==="dropbox")videoUrl=normalizeDropboxUrl(dropboxSource.value);
+      else if(provider==="onedrive")videoUrl=normalizeOneDriveEmbedUrl(oneDriveSource.value);
+      else throw new Error("Hébergeur vidéo non pris en charge.");
+    }
+    const payload={title,description,cover_url:coverUrl,scheduled_for:dateValue?new Date(dateValue).toISOString():null,
+      media_type:type,video_provider:type==="video"?provider:null,video_url:type==="video"?videoUrl:null,updated_at:new Date().toISOString()};
+    const result=editingId?await db.from("video_announcements").update(payload).eq("id",editingId):await db.from("video_announcements").insert({...payload,is_visible:true});
+    if(result.error)throw new Error(result.error.message);
+    show(message,"Annonce enregistrée avec succès.");resetForm();await loadAnnouncements();
+  }catch(error){show(message,"Erreur : "+(error.message||String(error)));}
+  finally{saveButton.disabled=false;providerSelect.disabled=false;updateProviderFields();}
 });
 
-async function openDashboard(user) {
-  if (!user || user.id !== ADMIN_ID) {
-    await db.auth.signOut();
-    loginSection.classList.remove("admin-hidden");
-    dashboard.classList.add("admin-hidden");
-    show(document.getElementById("login-message"), "Accès réservé à l’administrateur.");
-    return;
-  }
-  loginSection.classList.add("admin-hidden");
-  dashboard.classList.remove("admin-hidden");
-  await loadAnnouncements();
+async function openDashboard(user){
+  if(!user||user.id!==ADMIN_ID){await db.auth.signOut();loginSection.classList.remove("admin-hidden");dashboard.classList.add("admin-hidden");show(document.getElementById("login-message"),"Accès réservé à l’administrateur.");return;}
+  loginSection.classList.add("admin-hidden");dashboard.classList.remove("admin-hidden");
+  await loadAnnouncements();await checkDeepStorageAvailability(true);
 }
-db.auth.getSession().then(({data}) => {
-  if (data.session) openDashboard(data.session.user);
+db.auth.getSession().then(({data,error})=>{if(error)show(document.getElementById("login-message"),error.message);if(data?.session)openDashboard(data.session.user);});
+document.getElementById("login-form").addEventListener("submit",async event=>{
+  event.preventDefault();show(document.getElementById("login-message"),"Connexion en cours…");
+  const {data,error}=await db.auth.signInWithPassword({email:document.getElementById("email").value,password:document.getElementById("password").value});
+  if(error){show(document.getElementById("login-message"),"Erreur : "+error.message);return;}await openDashboard(data.user);
 });
-document.getElementById("login-form").addEventListener("submit", async event => {
-  event.preventDefault();
-  show(document.getElementById("login-message"), "Connexion en cours…");
-  const {data,error} = await db.auth.signInWithPassword({
-    email:document.getElementById("email").value,
-    password:document.getElementById("password").value
-  });
-  if (error) { show(document.getElementById("login-message"), "Erreur : " + error.message); return; }
-  await openDashboard(data.user);
-});
-document.getElementById("logout-button").addEventListener("click", async () => {
-  await db.auth.signOut();
-  dashboard.classList.add("admin-hidden");
-  loginSection.classList.remove("admin-hidden");
-});
-updateMediaFields();
+document.getElementById("logout-button").addEventListener("click",async()=>{await db.auth.signOut();dashboard.classList.add("admin-hidden");loginSection.classList.remove("admin-hidden");});
+updateMediaFields();refreshOneDriveHelper();
