@@ -423,6 +423,150 @@ function uploadToMux(file, uploadUrl) {
 }
 
 
+async function compressVideoTo480p(file) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!window.MediaRecorder || !HTMLCanvasElement.prototype.captureStream || !AudioContextClass) {
+    throw new Error("La compression 480p n'est pas prise en charge par ce navigateur. Choisis « Qualité originale » pour continuer.");
+  }
+
+  const video = document.createElement("video");
+  const sourceUrl = URL.createObjectURL(file);
+  video.preload = "auto";
+  video.playsInline = true;
+  video.src = sourceUrl;
+  video.style.position = "fixed";
+  video.style.left = "-10000px";
+  video.style.top = "0";
+  video.style.width = "2px";
+  video.style.height = "2px";
+  document.body.appendChild(video);
+
+  let audioContext = null;
+  let canvasStream = null;
+  let recorder = null;
+
+  try {
+    await new Promise((resolve, reject) => {
+      video.addEventListener("loadedmetadata", resolve, { once: true });
+      video.addEventListener("error", () => reject(new Error("Impossible de lire cette vidéo pour la compression.")), { once: true });
+      video.load();
+    });
+
+    const originalWidth = video.videoWidth;
+    const originalHeight = video.videoHeight;
+    if (!originalWidth || !originalHeight) {
+      throw new Error("Les dimensions de la vidéo n'ont pas pu être lues.");
+    }
+
+    const longestSide = Math.max(originalWidth, originalHeight);
+    if (longestSide <= 854) {
+      showMessage(message, "Cette vidéo est déjà en 480p ou moins. Envoi du fichier original…");
+      return file;
+    }
+
+    const ratio = 854 / longestSide;
+    const width = Math.max(2, Math.floor((originalWidth * ratio) / 2) * 2);
+    const height = Math.max(2, Math.floor((originalHeight * ratio) / 2) * 2);
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d", { alpha: false });
+    if (!context) throw new Error("Le traitement vidéo n'est pas disponible sur ce téléphone.");
+
+    audioContext = new AudioContextClass();
+    const audioSource = audioContext.createMediaElementSource(video);
+    const audioDestination = audioContext.createMediaStreamDestination();
+    audioSource.connect(audioDestination);
+    await audioContext.resume();
+
+    canvasStream = canvas.captureStream(24);
+    audioDestination.stream.getAudioTracks().forEach(track => canvasStream.addTrack(track));
+
+    const mimeCandidates = [
+      "video/webm;codecs=vp8,opus",
+      "video/webm;codecs=vp9,opus",
+      "video/webm"
+    ];
+    const mimeType = mimeCandidates.find(type => MediaRecorder.isTypeSupported(type));
+    if (!mimeType) throw new Error("Ce navigateur ne propose pas de format vidéo compatible pour la compression 480p.");
+
+    const chunks = [];
+    recorder = new MediaRecorder(canvasStream, {
+      mimeType,
+      videoBitsPerSecond: 700000,
+      audioBitsPerSecond: 96000
+    });
+
+    const recordingFinished = new Promise((resolve, reject) => {
+      recorder.addEventListener("dataavailable", event => {
+        if (event.data && event.data.size) chunks.push(event.data);
+      });
+      recorder.addEventListener("error", event => reject(event.error || new Error("Erreur pendant la compression vidéo.")), { once: true });
+      recorder.addEventListener("stop", resolve, { once: true });
+    });
+
+    let animationFrame = 0;
+    const drawFrame = () => {
+      if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+        context.drawImage(video, 0, 0, width, height);
+      }
+      if (!video.ended && !video.paused) {
+        animationFrame = requestAnimationFrame(drawFrame);
+      }
+    };
+
+    video.addEventListener("timeupdate", () => {
+      if (video.duration) {
+        const percent = Math.min(100, Math.round((video.currentTime / video.duration) * 100));
+        showMessage(message, `Compression locale en 480p : ${percent}% · ${width}×${height}`);
+      }
+    });
+
+    video.addEventListener("ended", () => {
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+    }, { once: true });
+
+    await video.play();
+    recorder.start(1000);
+    drawFrame();
+    await recordingFinished;
+    cancelAnimationFrame(animationFrame);
+
+    const blob = new Blob(chunks, { type: recorder.mimeType || mimeType });
+    if (!blob.size) throw new Error("La compression n'a produit aucun fichier.");
+    const outputName = file.name.replace(/\.[^.]+$/, "") + "-480p.webm";
+    const compressedFile = new File([blob], outputName, { type: blob.type || "video/webm", lastModified: Date.now() });
+
+    showMessage(
+      message,
+      `Compression terminée : ${formatFileSize(file.size)} → ${formatFileSize(compressedFile.size)}. Préparation de l'envoi…`
+    );
+    return compressedFile;
+  } catch (error) {
+    if (recorder && recorder.state !== "inactive") {
+      try { recorder.stop(); } catch {}
+    }
+    throw error;
+  } finally {
+    if (canvasStream) canvasStream.getTracks().forEach(track => track.stop());
+    if (audioContext) {
+      try { await audioContext.close(); } catch {}
+    }
+    video.pause();
+    video.removeAttribute("src");
+    video.load();
+    video.remove();
+    URL.revokeObjectURL(sourceUrl);
+  }
+}
+
+function formatFileSize(bytes) {
+  if (!Number.isFinite(bytes)) return "taille inconnue";
+  if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + " Ko";
+  return (bytes / (1024 * 1024)).toFixed(1) + " Mo";
+}
+
+
 function normalizeCloudinarySource(value){
   const raw=String(value||"").trim();
   if(!raw)throw new Error("Choisis un fichier vidéo ou indique son identifiant public Cloudinary.");
