@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=15">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="announcement-admin.js?v=2" defer></script>
+  <script src="announcement-admin.js?v=3" defer></script>
 </head>
 <body>
   <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><a href="admin.html">← Administration</a></header>
@@ -34,10 +34,16 @@
           <label>Format de l’annonce
             <select id="media-type"><option value="photo" selected>Photo seule</option><option value="video">Vidéo avec couverture</option></select>
           </label>
-          <label>Couverture de l’annonce (PNG, JPG ou WebP)
+          <label>Image de l’annonce (photo seule ou couverture vidéo)
             <input id="cover-file" type="file" accept="image/jpeg,image/png,image/webp">
           </label>
-          <p class="cover-help">Cette image sera envoyée sur Cloudinary et affichée comme couverture de l’annonce vidéo ou comme photo de l’annonce.</p>
+          <label>Hébergeur de l’image
+            <select id="cover-provider">
+              <option value="cloudinary" selected>Cloudinary</option>
+              <option value="imagekit">ImageKit</option>
+            </select>
+          </label>
+          <p class="cover-help">Choisis indépendamment où héberger cette image. ImageKit Free accepte les images jusqu’à 25 Mo. Ce choix concerne la photo ou la couverture, pas la vidéo.</p>
           <img id="cover-preview" class="admin-hidden" alt="Aperçu de la couverture" style="width:100%;max-width:300px;max-height:220px;object-fit:contain;border-radius:12px">
           <div id="video-fields" class="admin-hidden">
             <div class="admin-panel">
