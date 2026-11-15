@@ -25,6 +25,8 @@ const announcementCoverProvider = document.getElementById("announcement-cover-pr
 const announcementCoverPreview = document.getElementById("announcement-cover-preview");
 const announcementSelect = document.getElementById("video-announcement-id");
 let announcementsCache = [];
+let editingAnnouncementId = null;
+let currentAnnouncementCover = null;
 const videoFileInput = document.getElementById("video-file");
 const coverFileInput = document.getElementById("cover-file");
 const coverProviderSelect = document.getElementById("cover-provider");
@@ -843,18 +845,32 @@ async function loadAdminAnnouncements() {
   for (const item of announcementsCache) {
     const linked = (linkedVideos || []).find(video => video.announcement_id === item.id);
     const option = document.createElement("option"); option.value = item.id;
-    option.textContent = item.title + (linked ? " — déjà associée" : " — disponible"); option.disabled = Boolean(linked); announcementSelect.append(option);
+    option.textContent = item.title + (linked ? " — déjà associée" : " — disponible"); option.disabled = Boolean(linked) && editingVideo?.announcement_id !== item.id; announcementSelect.append(option);
     const card = document.createElement("article"); card.className = "admin-video";
     const title = document.createElement("h3"); title.textContent = item.title;
     const status = document.createElement("p"); status.textContent = linked ? (linked.is_published ? "Vidéo publiée" : linked.provider === "mux" && linked.mux_status !== "ready" ? "Vidéo en préparation" : "Vidéo associée — en attente de publication") : "À venir";
     const date = document.createElement("p"); date.textContent = item.scheduled_for ? "Sortie prévue : " + new Date(item.scheduled_for).toLocaleString("fr-FR") : "Date non définie";
     const actions = document.createElement("div"); actions.className = "admin-actions";
+    const edit = document.createElement("button"); edit.textContent = "Modifier";
+    edit.addEventListener("click", () => {
+      editingAnnouncementId = item.id;
+      currentAnnouncementCover = item.cover_url || null;
+      document.getElementById("announcement-title").value = item.title || "";
+      document.getElementById("announcement-description").value = item.description || "";
+      document.getElementById("announcement-scheduled").value = item.scheduled_for ? new Date(item.scheduled_for).toISOString().slice(0, 16) : "";
+      announcementCoverInput.value = "";
+      if (currentAnnouncementCover) { announcementCoverPreview.src = currentAnnouncementCover; announcementCoverPreview.classList.remove("admin-hidden"); }
+      else announcementCoverPreview.classList.add("admin-hidden");
+      document.getElementById("announcement-save").textContent = "Enregistrer l'annonce";
+      document.getElementById("announcement-cancel").classList.remove("admin-hidden");
+      announcementForm.scrollIntoView({ behavior: "smooth" });
+    });
     const visibility = document.createElement("button"); visibility.className = "alt"; visibility.textContent = item.is_visible ? "Masquer" : "Afficher";
     visibility.addEventListener("click", async () => { const { error: e } = await db.from("video_announcements").update({ is_visible: !item.is_visible }).eq("id", item.id); if (e) announcementMessage.textContent = e.message; await loadAdminAnnouncements(); });
     const remove = document.createElement("button"); remove.className = "danger"; remove.textContent = "Supprimer"; remove.disabled = Boolean(linked);
     remove.title = linked ? "Dissocie d'abord la vidéo." : "";
     remove.addEventListener("click", async () => { if (!confirm("Supprimer l'annonce « " + item.title + " » ?")) return; const { error: e } = await db.from("video_announcements").delete().eq("id", item.id); if (e) announcementMessage.textContent = e.message; await loadAdminAnnouncements(); });
-    actions.append(visibility, remove); card.append(title, status, date, actions); announcementList.append(card);
+    actions.append(edit, visibility, remove); card.append(title, status, date, actions); announcementList.append(card);
   }
   if (!announcementsCache.length) announcementList.textContent = "Aucune annonce pour le moment.";
 }
@@ -872,19 +888,36 @@ announcementForm.addEventListener("submit", async event => {
   const description = document.getElementById("announcement-description").value.trim();
   const dateValue = document.getElementById("announcement-scheduled").value;
   const file = announcementCoverInput.files[0];
-  if (!title || !file) { announcementMessage.textContent = "Ajoute un titre et une couverture."; return; }
+  if (!title || (!file && !currentAnnouncementCover)) { announcementMessage.textContent = "Ajoute un titre et une couverture."; return; }
   const button = document.getElementById("announcement-save"); button.disabled = true;
   try {
-    announcementMessage.textContent = announcementCoverProvider.value === "imagekit" ? "Envoi de la couverture vers ImageKit…" : "Envoi de la couverture vers Cloudinary…";
-    const uploaded = announcementCoverProvider.value === "imagekit" ? await uploadToImageKit(file) : await uploadToCloudinary(file, "image");
-    const coverUrl = uploaded.url || uploaded.secure_url;
-    if (!coverUrl) throw new Error("Aucune URL de couverture reçue.");
-    const { error } = await db.from("video_announcements").insert({ title, description, cover_url: coverUrl, scheduled_for: dateValue ? new Date(dateValue).toISOString() : null, is_visible: true });
-    if (error) throw error;
-    announcementForm.reset(); announcementCoverPreview.removeAttribute("src"); announcementCoverPreview.classList.add("admin-hidden");
-    announcementMessage.textContent = "Annonce créée avec succès."; await loadAdminAnnouncements();
+    let coverUrl = currentAnnouncementCover;
+    if (file) {
+      announcementMessage.textContent = announcementCoverProvider.value === "imagekit" ? "Envoi de la couverture vers ImageKit…" : "Envoi de la couverture vers Cloudinary…";
+      const uploaded = announcementCoverProvider.value === "imagekit" ? await uploadToImageKit(file) : await uploadToCloudinary(file, "image");
+      coverUrl = uploaded.url || uploaded.secure_url;
+      if (!coverUrl) throw new Error("Aucune URL de couverture reçue.");
+    }
+    const payload = { title, description, cover_url: coverUrl, scheduled_for: dateValue ? new Date(dateValue).toISOString() : null, updated_at: new Date().toISOString() };
+    const result = editingAnnouncementId
+      ? await db.from("video_announcements").update(payload).eq("id", editingAnnouncementId)
+      : await db.from("video_announcements").insert({ ...payload, is_visible: true });
+    if (result.error) throw result.error;
+    announcementForm.reset(); editingAnnouncementId = null; currentAnnouncementCover = null;
+    announcementCoverPreview.removeAttribute("src"); announcementCoverPreview.classList.add("admin-hidden");
+    document.getElementById("announcement-save").textContent = "Créer l'annonce";
+    document.getElementById("announcement-cancel").classList.add("admin-hidden");
+    announcementMessage.textContent = "Annonce enregistrée avec succès."; await loadAdminAnnouncements();
   } catch (error) { announcementMessage.textContent = "Erreur : " + (error.message || String(error)); }
   finally { button.disabled = false; }
+});
+
+document.getElementById("announcement-cancel").addEventListener("click", () => {
+  announcementForm.reset(); editingAnnouncementId = null; currentAnnouncementCover = null;
+  announcementCoverPreview.removeAttribute("src"); announcementCoverPreview.classList.add("admin-hidden");
+  document.getElementById("announcement-save").textContent = "Créer l'annonce";
+  document.getElementById("announcement-cancel").classList.add("admin-hidden");
+  announcementMessage.textContent = "";
 });
 
 announcementSelect.addEventListener("change", () => {
