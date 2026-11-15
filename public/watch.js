@@ -357,31 +357,34 @@ async function loadVideo() {
 
 loadVideo();
 
-downloadButton.addEventListener("click", async (event) => {
+// Keep the browser's native link behavior: PostHog records the click,
+// while Chrome opens the download in a separate tab without a scripted popup.
+downloadButton.target = "_blank";
+downloadButton.rel = "noopener noreferrer";
+
+downloadButton.addEventListener("click", () => {
   if (downloadButton.hidden || !id) return;
-  event.preventDefault();
+
+  // PostHog's sendBeacon transport is designed for events sent as navigation begins.
   captureAnalytics("video_download_requested", { video_id: id });
-  const destination = downloadButton.href;
-  window.open(destination, "_blank", "noopener,noreferrer");
-  try {
-    const response = await fetch(
-      `${SUPABASE_URL}/functions/v1/video-counter`,
-      {
-        method: "POST",
-        headers: {
-          apikey: SUPABASE_KEY,
-          Authorization: `Bearer ${SUPABASE_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ videoId: id, event: "download" })
-      }
-    );
+
+  // Preserve the existing Zeno download counter without delaying the browser download.
+  fetch(`${SUPABASE_URL}/functions/v1/video-counter`, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ videoId: id, event: "download" }),
+    keepalive: true
+  }).then((response) => {
     if (!response.ok) {
-      console.error("Comptage du téléchargement impossible :", await response.text());
+      console.error("Comptage du téléchargement impossible :", response.status);
     }
-  } catch (error) {
+  }).catch((error) => {
     console.error("Comptage du téléchargement impossible :", error);
-  }
+  });
 });
 
 document.getElementById("copy-watch-link").onclick =
