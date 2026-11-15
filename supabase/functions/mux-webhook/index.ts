@@ -71,6 +71,40 @@ Deno.serve(async (req: Request) => {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 
+  async function syncAnnouncementMuxState(videoId: string, videoUrl: string, ready: boolean) {
+    const { data: linkedVideo, error: linkedVideoError } = await db.from("videos")
+      .select("announcement_id")
+      .eq("id", videoId)
+      .maybeSingle();
+    if (linkedVideoError) throw new Error(linkedVideoError.message);
+    if (!linkedVideo?.announcement_id) return;
+
+    const { data: announcement, error: announcementError } = await db.from("video_announcements")
+      .select("id,media_type")
+      .eq("id", linkedVideo.announcement_id)
+      .maybeSingle();
+    if (announcementError) throw new Error(announcementError.message);
+    if (announcement?.media_type !== "video") return;
+
+    const announcementUpdate: Record<string, unknown> = {
+      video_provider: "mux",
+      video_url: videoUrl,
+      updated_at: new Date().toISOString()
+    };
+    if (ready) announcementUpdate.is_visible = true;
+    const { error: updateAnnouncementError } = await db.from("video_announcements")
+      .update(announcementUpdate)
+      .eq("id", announcement.id);
+    if (updateAnnouncementError) throw new Error(updateAnnouncementError.message);
+
+    if (ready) {
+      const { error: publishError } = await db.from("videos")
+        .update({ is_published: true })
+        .eq("id", videoId);
+      if (publishError) throw new Error(publishError.message);
+    }
+  }
+
   if (event.type === "video.asset.created") {
     const videoId = String(data.passthrough || "");
     if (videoId) {
@@ -98,6 +132,18 @@ Deno.serve(async (req: Request) => {
     const { error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
+    let linkedVideoQuery = db.from("videos").select("id").maybeSingle();
+    linkedVideoQuery = videoId ? linkedVideoQuery.eq("id", videoId) : linkedVideoQuery.eq("mux_asset_id", data.id);
+    const { data: linkedVideo, error: linkedVideoError } = await linkedVideoQuery;
+    if (linkedVideoError) return Response.json({ error: linkedVideoError.message }, { status: 500 });
+    if (linkedVideo?.id) {
+      try {
+        await syncAnnouncementMuxState(linkedVideo.id, playbackId, true);
+      } catch (syncError) {
+        return Response.json({ error: syncError instanceof Error ? syncError.message : "Announcement sync failed." }, { status: 500 });
+      }
+    }
+
     // Preserve the existing automatic publication for standalone Mux videos.
     // Announcement-linked videos stay unpublished until the admin clicks Publish.
     let publishQuery = db.from("videos").update({ is_published: true });
@@ -123,6 +169,18 @@ Deno.serve(async (req: Request) => {
         })
         .eq("mux_upload_id", uploadId);
       if (error) return Response.json({ error: error.message }, { status: 500 });
+      const { data: failedVideo, error: failedLookupError } = await db.from("videos")
+        .select("id")
+        .eq("mux_upload_id", uploadId)
+        .maybeSingle();
+      if (failedLookupError) return Response.json({ error: failedLookupError.message }, { status: 500 });
+      if (failedVideo?.id) {
+        try {
+          await syncAnnouncementMuxState(failedVideo.id, "mux-error", false);
+        } catch (syncError) {
+          return Response.json({ error: syncError instanceof Error ? syncError.message : "Announcement error sync failed." }, { status: 500 });
+        }
+      }
     }
   } else if (event.type === "video.asset.static_rendition.ready") {
     // For this event, data.id identifies the static rendition, not its parent asset.
@@ -191,6 +249,11 @@ Deno.serve(async (req: Request) => {
         .update({ mux_asset_id: data.id, mux_status: "errored", is_published: false })
         .eq("id", videoId);
       if (error) return Response.json({ error: error.message }, { status: 500 });
+      try {
+        await syncAnnouncementMuxState(videoId, "mux-error", false);
+      } catch (syncError) {
+        return Response.json({ error: syncError instanceof Error ? syncError.message : "Announcement error sync failed." }, { status: 500 });
+      }
     }
   }
 
