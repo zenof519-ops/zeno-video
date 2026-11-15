@@ -85,6 +85,25 @@
         <p class="status-help">Ce contrôle ne supprime aucune vidéo. Il vérifie uniquement que Zeno Video peut communiquer avec Cloudinary et ImageKit.</p>
       </section>
       <section class="admin-panel">
+        <h2>Créer une annonce « À venir »</h2>
+        <form id="announcement-form" class="admin-form">
+          <label>Titre de l'annonce<input type="text" id="announcement-title" maxlength="200" required></label>
+          <label>Description<textarea id="announcement-description" maxlength="5000"></textarea></label>
+          <label>Date et heure prévues (facultatif)<input type="datetime-local" id="announcement-scheduled"></label>
+          <label>Hébergeur de la couverture
+            <select id="announcement-cover-provider"><option value="cloudinary" selected>Cloudinary</option><option value="imagekit">ImageKit</option></select>
+          </label>
+          <label>Image de couverture<input type="file" id="announcement-cover-file" accept="image/jpeg,image/png,image/webp"></label>
+          <p class="cover-help">Tu peux choisir Cloudinary ou ImageKit, comme pour les couvertures des vidéos.</p>
+          <img id="announcement-cover-preview" class="admin-hidden" alt="Aperçu de la couverture" style="width:100%;max-width:260px;border-radius:12px;object-fit:contain">
+          <button type="submit" id="announcement-save">Créer l'annonce</button>
+          <button type="button" id="announcement-cancel" class="alt admin-hidden">Annuler la modification</button>
+        </form>
+        <p id="announcement-message" class="admin-message" aria-live="polite"></p>
+        <div class="section-title"><h3>Mes annonces</h3><span id="announcement-count"></span></div>
+        <div id="admin-announcement-list"></div>
+      </section>
+      <section class="admin-panel">
         <h2 id="form-title">Ajouter une vidéo</h2>
         <form id="video-form" class="admin-form">
           <label>Hébergeur de la vidéo
@@ -103,6 +122,10 @@
           <label>Description
             <textarea id="video-description"></textarea>
           </label>
+          <label>Associer à une annonce existante (facultatif)
+            <select id="video-announcement-id"><option value="">Aucune annonce — vidéo indépendante</option></select>
+          </label>
+          <p class="cover-help">La vidéo reprendra la couverture de l'annonce et restera en attente jusqu'à ton clic sur « Publier ».</p>
           <div id="cloudinary-fields">
           <label>Fichier vidéo (MP4, MOV ou WebM)
             <input type="file" id="video-file" accept="video/mp4,video/quicktime,video/webm">
