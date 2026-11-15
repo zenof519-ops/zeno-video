@@ -1890,6 +1890,7 @@ videoForm.addEventListener("submit", async (event) => {
       showMessage(videoMessage, "✓ Vidéo envoyée à Mux. Traitement en cours..." + coverWarning);
       resetVideoForm();
       await loadAdminVideos();
+      await loadAdminAnnouncements();
       return;
     }
 
@@ -1976,6 +1977,10 @@ cancelEditButton.addEventListener("click", () => {
 });
 
 async function togglePublication(video) {
+  if (!video.is_published && video.provider === "mux" && video.mux_status !== "ready") {
+    showMessage(videoMessage, "La vidéo doit être prête sur Mux avant publication.");
+    return;
+  }
   const { error } = await db.from("videos")
     .update({ is_published: !video.is_published })
     .eq("id", video.id);
@@ -1985,6 +1990,7 @@ async function togglePublication(video) {
     return;
   }
   await loadAdminVideos();
+  await loadAdminAnnouncements();
 }
 
 async function deleteVideo(video) {
