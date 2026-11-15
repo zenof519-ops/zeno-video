@@ -51,6 +51,9 @@ const checks = [
 
   ['Annonces : page de gestion générée', announcementAdmin.includes('id="announcement-form"') && announcementAdmin.includes('id="media-type"')],
   ['Annonces : photo et vidéo ont des sélecteurs de fichiers distincts', announcementAdmin.includes('id="cover-file" type="file" accept="image/jpeg,image/png,image/webp"') && announcementAdmin.includes('id="cloudinary-file" type="file" accept="video/mp4,video/quicktime,video/webm"')],
+  ['Annonces : choix Cloudinary ou ImageKit pour les photos et couvertures', announcementAdmin.includes('id="cover-provider"') && announcementAdmin.includes('value="cloudinary"') && announcementAdmin.includes('value="imagekit"') && read('announcement-admin.js').includes('uploadToImageKit(file)') && read('announcement-admin.js').includes('imagekit-upload-auth') && read('announcement-admin.js').includes('coverProviderSelect.value')],
+  ['Annonces : limite gratuite ImageKit de 25 Mo contrôlée', read('announcement-admin.js').includes('coverFile.size>25*1024*1024')],
+  ['Annonces Mux : fournisseur de couverture transmis à Mux', read('announcement-admin.js').includes('thumbnail_provider:coverProvider') && read('announcement-admin.js').includes('thumbnail_imagekit_file_id:coverProvider==="imagekit"')],
   ['Annonces : six hébergeurs proposés avec leurs panneaux dédiés', ['cloudinary','mux','vioo','dropbox','onedrive','deepstorage'].every(provider => announcementAdmin.includes('id="' + provider + '-fields"'))],
   ['Annonces : téléversements Cloudinary, Mux et DeepStorage réutilisés', read('announcement-admin.js').includes('uploadToCloudinary') && read('announcement-admin.js').includes('uploadToMux') && read('announcement-admin.js').includes('uploadToDeepStorage')],
   ['Annonces vidéo : restent hors de la liste des vidéos ordinaires', read('admin.js').includes('linkedAnnouncement?.media_type !== "video"') && read('admin.js').includes('if (item.media_type === "video") continue;')],
