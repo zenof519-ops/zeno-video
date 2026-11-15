@@ -843,6 +843,7 @@ async function loadAdminAnnouncements() {
   announcementList.replaceChildren(); announcementSelect.replaceChildren();
   const none = document.createElement("option"); none.value = ""; none.textContent = "Aucune annonce — vidéo indépendante"; announcementSelect.append(none);
   for (const item of announcementsCache) {
+    if (item.media_type === "video") continue;
     const linked = (linkedVideos || []).find(video => video.announcement_id === item.id);
     const option = document.createElement("option"); option.value = item.id;
     option.textContent = item.title + (linked ? " — déjà associée" : " — disponible"); option.disabled = Boolean(linked) && editingVideo?.announcement_id !== item.id; announcementSelect.append(option);
@@ -969,8 +970,8 @@ async function openDashboard(user) {
   loginSection.classList.add("admin-hidden");
   dashboard.classList.remove("admin-hidden");
   updateWeeklyMaintenanceReminder();
-  await loadAdminVideos();
   await loadAdminAnnouncements();
+  await loadAdminVideos();
   await loadHostingUsage(dropboxOAuthJustConnected);
   await checkPermanentDeleteConfig();
   await checkDeepStorageAvailability(true);
@@ -1057,22 +1058,28 @@ async function loadAdminVideos() {
     return;
   }
 
-  showMessage(videoMessage, "");
-  adminCount.textContent = videos.length + " vidéo(s)";
+  const libraryVideos = videos.filter(video => {
+    if (!video.announcement_id) return true;
+    const linkedAnnouncement = announcementsCache.find(item => item.id === video.announcement_id);
+    return linkedAnnouncement?.media_type !== "video";
+  });
 
-  const totalViews = videos.reduce((sum, video) => sum + Number(video.views || 0), 0);
-  const totalDownloads = videos.reduce((sum, video) => sum + Number(video.downloads || 0), 0);
-  document.getElementById("stat-total").textContent = videos.length.toLocaleString("fr-FR");
-  document.getElementById("stat-published").textContent = videos.filter(video => video.is_published).length.toLocaleString("fr-FR");
+  showMessage(videoMessage, "");
+  adminCount.textContent = libraryVideos.length + " vidéo(s)";
+
+  const totalViews = libraryVideos.reduce((sum, video) => sum + Number(video.views || 0), 0);
+  const totalDownloads = libraryVideos.reduce((sum, video) => sum + Number(video.downloads || 0), 0);
+  document.getElementById("stat-total").textContent = libraryVideos.length.toLocaleString("fr-FR");
+  document.getElementById("stat-published").textContent = libraryVideos.filter(video => video.is_published).length.toLocaleString("fr-FR");
   document.getElementById("stat-views").textContent = totalViews.toLocaleString("fr-FR");
   document.getElementById("stat-downloads").textContent = totalDownloads.toLocaleString("fr-FR");
 
-  if (videos.length === 0) {
+  if (libraryVideos.length === 0) {
     videoList.textContent = "Aucune vidéo enregistrée.";
     return;
   }
 
-  for (const video of videos) {
+  for (const video of libraryVideos) {
     const card = document.createElement("article");
     card.className = "admin-video";
 
