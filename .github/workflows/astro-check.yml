@@ -31,6 +31,32 @@ jobs:
           node-version: 24
       - name: Install dependencies
         run: npm install
+      - name: Préparer la configuration publique PostHog
+        env:
+          ZENO_POSTHOG_PROJECT_TOKEN: ${{ vars.ZENO_POSTHOG_PROJECT_TOKEN }}
+          ZENO_POSTHOG_HOST: ${{ vars.ZENO_POSTHOG_HOST }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { writeFileSync } from 'node:fs';
+
+          const token = process.env.ZENO_POSTHOG_PROJECT_TOKEN?.trim() || '';
+          const host = process.env.ZENO_POSTHOG_HOST?.trim() || '';
+
+          let config = null;
+          if (token && host) {
+            const parsedHost = new URL(host);
+            if (parsedHost.protocol !== 'https:') {
+              throw new Error('PostHog host must use HTTPS.');
+            }
+            config = { token, host: parsedHost.origin };
+          }
+
+          writeFileSync(
+            'public/posthog-config.js',
+            `window.ZENO_POSTHOG_CONFIG = ${JSON.stringify(config)};\\n`
+          );
+          console.log(config ? 'PostHog configuration prepared.' : 'PostHog variables are not set; analytics stays disabled for this build.');
+          NODE
       - name: Build Astro site
         run: npm run build
       - name: Smoke-test generated pages and assets
