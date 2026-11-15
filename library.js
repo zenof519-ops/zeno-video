@@ -86,7 +86,11 @@ async function loadVideos() {
     const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
     for (const announcement of announcements) {
       const linked = byAnnouncement.get(announcement.id);
-      const url = "announcement.html?id=" + encodeURIComponent(announcement.id);
+      const url = announcement.media_type === "video"
+        ? "announcement.html?id=" + encodeURIComponent(announcement.id)
+        : linked
+          ? "watch.html?v=10&a=" + encodeURIComponent(announcement.id)
+          : "announcement.html?id=" + encodeURIComponent(announcement.id);
       const label = announcement.media_type === "video" ? "APERÇU VIDÉO" : (linked ? "DISPONIBLE" : "À VENIR");
       makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
     }
