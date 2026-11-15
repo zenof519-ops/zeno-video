@@ -98,6 +98,15 @@ Deno.serve(async (req: Request) => {
     const { error } = await query;
     if (error) return Response.json({ error: error.message }, { status: 500 });
 
+    // Preserve the existing automatic publication for standalone Mux videos.
+    // Announcement-linked videos stay unpublished until the admin clicks Publish.
+    let publishQuery = db.from("videos").update({ is_published: true });
+    publishQuery = videoId
+      ? publishQuery.eq("id", videoId).is("announcement_id", null)
+      : publishQuery.eq("mux_asset_id", data.id).is("announcement_id", null);
+    const { error: publishError } = await publishQuery;
+    if (publishError) return Response.json({ error: publishError.message }, { status: 500 });
+
     if (videoId) {
       await db.from("videos")
         .update({ thumbnail_url: "https://image.mux.com/" + playbackId + "/thumbnail.jpg" })
