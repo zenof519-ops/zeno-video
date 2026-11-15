@@ -368,7 +368,7 @@ connectDropboxButton?.addEventListener("click", async () => {
 
 async function resetVideoStatistics(videoId, videoTitle) {
   const confirmed = confirm(
-    "Réinitialiser les statistiques de « " + videoTitle + " » ?\\n\\nSes lectures et téléchargements passeront à zéro. Cette action ne peut pas être annulée."
+    "Réinitialiser les statistiques de « " + videoTitle + " » ?\n\nSes lectures et téléchargements passeront à zéro. Cette action ne peut pas être annulée."
   );
   if (!confirmed) return;
 
@@ -388,7 +388,7 @@ async function resetVideoStatistics(videoId, videoTitle) {
 
 async function resetAllVideoStatistics() {
   const confirmed = confirm(
-    "Réinitialiser les statistiques de TOUTES les vidéos ?\\n\\nTous les compteurs de lectures et de téléchargements passeront à zéro. Cette action ne peut pas être annulée."
+    "Réinitialiser les statistiques de TOUTES les vidéos ?\n\nTous les compteurs de lectures et de téléchargements passeront à zéro. Cette action ne peut pas être annulée."
   );
   if (!confirmed) return;
 
@@ -2123,8 +2123,8 @@ async function permanentlyDeleteVideo(video) {
 
   const providerName = provider === "mux" ? "Mux" : "Cloudinary";
   const confirmed = confirm(
-    "SUPPRESSION DÉFINITIVE\\n\\nLa vidéo « " + video.title +
-    " » sera supprimée de " + providerName + " ET de Supabase. Sa couverture hébergée sera supprimée aussi, sauf si elle est encore utilisée par une annonce ou une autre vidéo. Cette action est irréversible.\\n\\nContinuer ?"
+    "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
+    " » sera supprimée de " + providerName + " ET de Supabase. Sa couverture hébergée sera supprimée aussi, sauf si elle est encore utilisée par une annonce ou une autre vidéo. Cette action est irréversible.\n\nContinuer ?"
   );
   if (!confirmed) return;
 
