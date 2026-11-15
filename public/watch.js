@@ -4,6 +4,7 @@ const CLOUD_NAME = "wnonuvx4";
 
 let id = new URLSearchParams(location.search).get("id");
 const announcementId = new URLSearchParams(location.search).get("a");
+let linkedAnnouncement = null;
 const wrap = document.getElementById("player-wrap");
 const downloadButton = document.getElementById("download-video");
 
@@ -244,6 +245,7 @@ async function loadVideo() {
       if (!announcementResponse.ok) throw new Error("Impossible de récupérer cette annonce.");
       const announcements = await announcementResponse.json();
       const announcement = announcements[0];
+      linkedAnnouncement = announcement || null;
       if (!announcement) throw new Error("Annonce introuvable ou masquée.");
       const linkedResponse = await fetch(
         `${SUPABASE_URL}/rest/v1/videos?select=id&announcement_id=eq.${encodeURIComponent(announcementId)}&is_published=eq.true&limit=1`,
@@ -294,6 +296,11 @@ async function loadVideo() {
 
     if (!video) {
       throw new Error("Vidéo introuvable");
+    }
+    if (linkedAnnouncement) {
+      video.title = linkedAnnouncement.title;
+      video.description = linkedAnnouncement.description || "";
+      video.thumbnail_url = linkedAnnouncement.cover_url || video.thumbnail_url;
     }
 
     document.title = video.title + " — Zeno Video";
