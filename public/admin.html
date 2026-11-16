@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=46" defer></script>
+  <script src="admin.js?v=47" defer></script>
 </head>
 <body>
   <header>
@@ -215,7 +215,11 @@
             <label>Identifiant de la vidéo Bunny Stream
               <input type="text" id="bunny-video-id" placeholder="fbea9276-bb64-4da6-b0fa-fa16bbb7cad4" autocomplete="off">
             </label>
-            <p class="cover-help">La vidéo est déjà hébergée et traitée sur Bunny. Colle uniquement son identifiant : Zeno utilisera automatiquement le lecteur de ta bibliothèque Bunny Video (ID 811150). Aucun téléversement ni clé API n’est nécessaire ici.</p>
+            <label>Lien direct de téléchargement MP4 (facultatif)
+              <input type="url" id="bunny-download-url" placeholder="https://…b-cdn.net/…/play_1080p.mp4" inputmode="url" autocomplete="url">
+            </label>
+            <p class="cover-help">Le lecteur adaptatif et le téléchargement sont deux liens distincts. Colle ici l’URL MP4 directe fournie par Bunny (MP4 Fallback), si elle est disponible. Sans ce lien, le bouton Télécharger restera masqué. Aucun mot de passe ni clé API n’est demandé.</p>
+            <p class="cover-help">Pour cette vidéo déjà envoyée, vérifie dans sa fiche Bunny si des URL MP4 sont affichées. Bunny doit avoir généré le MP4 Fallback avant l’envoi ; sinon, vérifie si le fichier original est conservé.</p>
             <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir Bunny Stream ↗</a>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
