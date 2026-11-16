@@ -439,7 +439,8 @@ async function collectProvider(provider: string, videos: any[], zeno: Record<str
       note: "Zeno suit les lectures et téléchargements initiés depuis son site. Aucun accès API officiel de quota n'est configuré pour Vioo."
     };
 
-    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" || provider === "deepstorage" ||
+    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" ||
+      (provider === "deepstorage" && !metrics.apiAvailable) ||
       (provider === "bunny" && !metrics.apiAvailable) ? "partial" : "ok";
     return { provider, status, metrics: { ...metrics, zeno } };
   } catch (error) {
