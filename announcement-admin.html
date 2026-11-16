@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=15">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="announcement-admin.js?v=3" defer></script>
+  <script src="announcement-admin.js?v=4" defer></script>
 </head>
 <body>
   <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><a href="admin.html">← Administration</a></header>
@@ -56,6 +56,7 @@
                   <option value="dropbox">Dropbox — lien de partage</option>
                   <option value="onedrive">OneDrive — lecteur intégré</option>
                   <option value="deepstorage">DeepStorage — téléversement API</option>
+                  <option value="bunny">Bunny Stream — lecteur adaptatif</option>
                 </select>
               </label>
             </div>
@@ -102,6 +103,13 @@
               <label>URL HTTPS déjà hébergée (facultatif)<input id="deepstorage-source" type="url" inputmode="url" placeholder="https://..."></label>
               <p id="deepstorage-status" class="admin-message status-pending" aria-live="polite">Vérification de l’accès API DeepStorage…</p>
               <p class="cover-help">Si l’API Pro est active, le fichier est envoyé directement depuis ton téléphone avec transfert reprenable. Sinon, choisis un autre hébergeur.</p>
+            </div>
+            <div id="bunny-fields" class="admin-panel admin-hidden">
+              <h3>Bunny Stream</h3>
+              <label>Identifiant de la vidéo Bunny Stream<input id="bunny-source" type="text" placeholder="fbea9276-bb64-4da6-b0fa-fa16bbb7cad4" autocomplete="off"></label>
+              <label>Lien direct de téléchargement MP4 (facultatif)<input id="bunny-download-source" type="url" inputmode="url" placeholder="https://…b-cdn.net/…/play_1080p.mp4"></label>
+              <p class="cover-help">La vidéo doit déjà être téléversée et traitée dans la bibliothèque Bunny de Zeno Video (811150). Le téléchargement reste facultatif : sans URL MP4 directe, aucun bouton Télécharger ne sera affiché.</p>
+              <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir Bunny Stream ↗</a>
             </div>
           </div>
           <button id="save-button" type="submit">Publier l’annonce</button>

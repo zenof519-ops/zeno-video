@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=49" defer></script>
+  <script src="admin.js?v=50" defer></script>
 </head>
 <body>
   <header>
@@ -81,6 +81,15 @@
           <p class="admin-message status-pending">Chargement des statistiques des hébergeurs…</p>
         </div>
         <p id="hosting-usage-updated" class="admin-message" aria-live="polite"></p>
+      </section>
+      <section class="admin-panel" id="bunny-hosting-settings">
+        <div class="section-title"><h2>Paramètres d’hébergement — Bunny Stream</h2></div>
+        <label>Identifiant de la bibliothèque Bunny Stream
+          <input type="text" value="811150" readonly aria-readonly="true">
+        </label>
+        <p class="cover-help">Bibliothèque utilisée par Zeno Video. Les clés API ne doivent jamais être placées dans le code du site : elles restent côté serveur, dans les secrets Supabase.</p>
+        <p id="bunny-hosting-settings-status" class="admin-message status-pending" aria-live="polite">En attente de la première mesure Bunny.</p>
+        <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir les paramètres Bunny Stream ↗</a>
       </section>
       <section class="admin-panel delete-status-panel" aria-live="polite">
         <h2>État de la suppression définitive</h2>

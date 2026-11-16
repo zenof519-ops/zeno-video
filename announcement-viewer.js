@@ -53,7 +53,7 @@ function getMuxId(value) {
 async function loadAnnouncement() {
   if (!id) { showError("Identifiant d’annonce manquant."); return; }
   try {
-    const url = SUPABASE_URL + "/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type,video_provider,video_url&id=eq." + encodeURIComponent(id) + "&is_visible=eq.true";
+    const url = SUPABASE_URL + "/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type,video_provider,video_url,video_download_url&id=eq." + encodeURIComponent(id) + "&is_visible=eq.true";
     const response = await fetch(url,{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+SUPABASE_KEY}});
     if (!response.ok) throw new Error("Impossible de récupérer cette annonce.");
     const rows = await response.json();
@@ -139,6 +139,9 @@ async function loadAnnouncement() {
         const muxId = getMuxId(source);
         if (!/^[A-Za-z0-9_-]+$/.test(muxId)) throw new Error("Playback ID Mux invalide.");
         player = iframePlayer("https://player.mux.com/" + encodeURIComponent(muxId), item.title);
+      } else if (provider === "bunny") {
+        if (!/^https:\/\/player\.mediadelivery\.net\/embed\/811150\/[0-9a-f-]{36}$/i.test(source)) throw new Error("Lien du lecteur Bunny invalide.");
+        player = iframePlayer(source, item.title);
       } else if (provider === "vioo") {
         const viooId = getViooId(source);
         if (/^https:\/\//i.test(source) && source.includes("/embed/")) player = iframePlayer(source,item.title);
@@ -162,6 +165,17 @@ async function loadAnnouncement() {
         throw new Error("Hébergeur vidéo non pris en charge.");
       }
       media.replaceChildren(player);
+      if (item.video_download_url) {
+        const download = document.createElement("a");
+        download.href = item.video_download_url;
+        download.className = "btn alt";
+        download.textContent = "Télécharger la vidéo";
+        download.target = "_blank";
+        download.rel = "noopener noreferrer";
+        download.style.display = "inline-block";
+        download.style.marginTop = "12px";
+        media.append(download);
+      }
     });
   } catch (error) {
     showError(error.message || "Une erreur est survenue.");

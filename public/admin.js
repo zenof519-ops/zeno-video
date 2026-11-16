@@ -204,8 +204,24 @@ function formatCloudinaryBucket(bucket) {
   return parts.join(" / ") || "Données disponibles dans le compte, format non reconnu";
 }
 
+function updateBunnyHostingSettings(snapshot) {
+  const element = document.getElementById("bunny-hosting-settings-status");
+  if (!element) return;
+  if (!snapshot) {
+    element.textContent = "En attente de la première mesure Bunny. Les compteurs Zeno seront affichés après actualisation.";
+    element.className = "admin-message status-pending";
+    return;
+  }
+  const metrics = snapshot.metrics || {};
+  element.textContent = metrics.apiAvailable
+    ? "✓ API Bunny connectée · bibliothèque " + (metrics.libraryName || "Zeno Video") + " · dernière vérification : " + (snapshot.collected_at ? new Date(snapshot.collected_at).toLocaleString("fr-FR") : "date inconnue")
+    : "Suivi Zeno actif · statistiques globales Bunny non connectées. La clé API doit rester dans les secrets Supabase, jamais dans cette page." + (metrics.apiError ? " Détail : " + metrics.apiError : "");
+  element.className = "admin-message " + (metrics.apiAvailable ? "success" : "status-pending");
+}
+
 function renderHostingUsage(snapshots) {
   hostingUsageCards.replaceChildren();
+  updateBunnyHostingSettings(snapshots.find(item => item.provider === "bunny"));
   const labels = {
     cloudinary: "Cloudinary",
     mux: "Mux",
@@ -213,7 +229,8 @@ function renderHostingUsage(snapshots) {
     deepstorage: "DeepStorage",
     dropbox: "Dropbox",
     onedrive: "OneDrive",
-    vioo: "Vioo"
+    vioo: "Vioo",
+    bunny: "Bunny Stream"
   };
   const statusLabels = {
     ok: "Mesure API disponible",
@@ -314,6 +331,13 @@ function renderHostingUsage(snapshots) {
       addHostingMetric(card, "Quota global du compte", "Non disponible sans autorisation Microsoft");
     } else if (snapshot.provider === "vioo") {
       addHostingMetric(card, "Quota et stockage fournisseur", "Non accessibles automatiquement pour le moment");
+    } else if (snapshot.provider === "bunny") {
+      addHostingMetric(card, "Bibliothèque", metrics.libraryName || "Zeno Video");
+      addHostingMetric(card, "Identifiant bibliothèque", metrics.libraryId || "811150");
+      addHostingMetric(card, "Vidéos dans Bunny", formatUsageNumber(metrics.videoCount, 0));
+      addHostingMetric(card, "Stockage de la bibliothèque", formatUsageBytes(metrics.storageUsageBytes));
+      addHostingMetric(card, "Trafic du mois", formatUsageBytes(metrics.trafficUsageBytes));
+      addHostingMetric(card, "Connexion API", metrics.apiAvailable ? "Connectée" : "Non configurée ou indisponible");
     }
 
     if (metrics.note) addHostingMetric(card, "Note", metrics.note);
@@ -334,7 +358,7 @@ async function loadHostingUsage(refresh = false) {
     if (error) throw new Error(error.message || "Impossible de récupérer les statistiques des hébergeurs.");
     let snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];
 
-    if (!refresh && snapshots.length === 0) {
+    if (!refresh && (snapshots.length === 0 || !snapshots.some(item => item.provider === "bunny"))) {
       ({ data, error } = await db.functions.invoke("hosting-usage", { body: { action: "refresh" } }));
       if (error) throw new Error(error.message || "Impossible de lancer la première mesure.");
       snapshots = Array.isArray(data?.snapshots) ? data.snapshots : [];

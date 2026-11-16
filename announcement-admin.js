@@ -2,6 +2,7 @@ const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
+const BUNNY_LIBRARY_ID = "811150";
 const CLOUDINARY_VIDEO_UPLOAD_PRESET = "zeno_video_upload";
 const CLOUDINARY_IMAGE_UPLOAD_PRESET = "zeno_cover_upload";
 const db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -29,6 +30,8 @@ const oneDriveChatGPTButton = document.getElementById("onedrive-chatgpt-button")
 const deepStorageFile = document.getElementById("deepstorage-file");
 const deepStorageSource = document.getElementById("deepstorage-source");
 const deepStorageStatusElement = document.getElementById("deepstorage-status");
+const bunnySource = document.getElementById("bunny-source");
+const bunnyDownloadSource = document.getElementById("bunny-download-source");
 const saveButton = document.getElementById("save-button");
 
 let announcements = [];
@@ -47,12 +50,14 @@ function updateMediaFields(){
 }
 function updateProviderFields(){
   const provider=providerSelect.value;
-  for(const name of ["cloudinary","mux","vioo","dropbox","onedrive","deepstorage"]){
+  for(const name of ["cloudinary","mux","vioo","dropbox","onedrive","deepstorage","bunny"]){
     document.getElementById(name+"-fields").classList.toggle("admin-hidden",provider!==name);
   }
   deepStorageFile.disabled=provider!=="deepstorage"||!deepStorageStatus.available;
   muxFile.disabled=provider!=="mux"||Boolean(editingId);
   cloudinaryFile.disabled=provider!=="cloudinary";
+  bunnySource.disabled=provider!=="bunny";
+  bunnyDownloadSource.disabled=provider!=="bunny";
   if(provider==="deepstorage")checkDeepStorageAvailability(false);
 }
 mediaType.addEventListener("change",updateMediaFields);
@@ -658,6 +663,9 @@ async function loadAnnouncements(){
       dropboxSource.value=item.video_provider==="dropbox"?item.video_url||"":"";
       oneDriveSource.value=item.video_provider==="onedrive"?item.video_url||"":"";
       deepStorageSource.value=item.video_provider==="deepstorage"?item.video_url||"":"";
+      const bunnyMatch=String(item.video_url||"").match(/\/embed\/\d+\/([^/?#]+)/);
+      bunnySource.value=item.video_provider==="bunny"&&bunnyMatch?decodeURIComponent(bunnyMatch[1]):"";
+      bunnyDownloadSource.value=item.video_provider==="bunny"?item.video_download_url||"":"";
       coverInput.value="";
       if(currentCover){coverPreview.src=currentCover;coverPreview.classList.remove("admin-hidden");}else coverPreview.classList.add("admin-hidden");
       updateMediaFields();
@@ -725,6 +733,11 @@ form.addEventListener("submit",async event=>{
   if(type==="video"&&provider==="mux"&&!editingId&&!muxSelectedFile){show(message,"Choisis le fichier vidéo à envoyer sur Mux.");return;}
   if(type==="video"&&provider==="deepstorage"&&!deepStorageStatus.available&&deepFile){show(message,deepStorageStatus.message||"L’API DeepStorage n’est pas disponible.");await checkDeepStorageAvailability(true);return;}
   if(type==="video"&&provider==="onedrive"&&!isOneDriveEmbedUrl(oneDriveSource.value)){show(message,"Ce lien n’est pas un véritable lien Embed OneDrive. Utilise le bouton pour le convertir.");refreshOneDriveHelper();return;}
+  if(type==="video"&&provider==="bunny"&&!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bunnySource.value.trim())){show(message,"Indique un identifiant vidéo Bunny Stream valide (format UUID).");bunnySource.focus();return;}
+  if(type==="video"&&provider==="bunny"&&bunnyDownloadSource.value.trim()){
+    try{const url=new URL(bunnyDownloadSource.value.trim());if(url.protocol!=="https:"||url.username||url.password)throw new Error();}
+    catch{show(message,"Le lien de téléchargement Bunny doit être une URL HTTPS valide.");bunnyDownloadSource.focus();return;}
+  }
 
   saveButton.disabled=true;providerSelect.disabled=true;
   try{
@@ -742,7 +755,7 @@ form.addEventListener("submit",async event=>{
       await saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,coverProvider,file:muxSelectedFile});
       resetForm();await loadAnnouncements();return;
     }
-    let videoUrl=null;
+    let videoUrl=null,videoDownloadUrl=null;
     if(type==="video"){
       if(provider==="cloudinary"){
         const raw=cloudinarySource.value.trim();
@@ -765,10 +778,15 @@ form.addEventListener("submit",async event=>{
       }else if(provider==="vioo")videoUrl=normalizeViooEmbedUrl(viooSource.value);
       else if(provider==="dropbox")videoUrl=normalizeDropboxUrl(dropboxSource.value);
       else if(provider==="onedrive")videoUrl=normalizeOneDriveEmbedUrl(oneDriveSource.value);
+      else if(provider==="bunny"){
+        videoUrl="https://player.mediadelivery.net/embed/"+BUNNY_LIBRARY_ID+"/"+encodeURIComponent(bunnySource.value.trim());
+        videoDownloadUrl=bunnyDownloadSource.value.trim()||null;
+      }
       else throw new Error("Hébergeur vidéo non pris en charge.");
     }
     const payload={title,description,cover_url:coverUrl,scheduled_for:dateValue?new Date(dateValue).toISOString():null,
-      media_type:type,video_provider:type==="video"?provider:null,video_url:type==="video"?videoUrl:null,updated_at:new Date().toISOString()};
+      media_type:type,video_provider:type==="video"?provider:null,video_url:type==="video"?videoUrl:null,
+      video_download_url:type==="video"&&provider==="bunny"?videoDownloadUrl:null,updated_at:new Date().toISOString()};
     const result=editingId?await db.from("video_announcements").update(payload).eq("id",editingId):await db.from("video_announcements").insert({...payload,is_visible:true});
     if(result.error)throw new Error(result.error.message);
     show(message,"Annonce enregistrée avec succès.");resetForm();await loadAnnouncements();
