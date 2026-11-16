@@ -1672,6 +1672,29 @@ function uploadToMux(file, uploadUrl) {
       return;
     }
 
+    const startedAt = Date.now();
+    let lastProgressAt = startedAt;
+    let lastProgressBytes = 0;
+    let currentChunk = null;
+    let retryCount = 0;
+    let averageSpeed = 0;
+
+    const formatUploadDuration = seconds => {
+      if (!Number.isFinite(seconds) || seconds < 0) return "—";
+      const total = Math.ceil(seconds);
+      const hours = Math.floor(total / 3600);
+      const minutes = Math.floor((total % 3600) / 60);
+      const secs = total % 60;
+      if (hours) return hours + " h " + minutes + " min";
+      if (minutes) return minutes + " min " + secs + " s";
+      return secs + " s";
+    };
+
+    const formatUploadSpeed = bytesPerSecond => {
+      if (!Number.isFinite(bytesPerSecond) || bytesPerSecond <= 0) return "calcul…";
+      return (bytesPerSecond / (1024 * 1024)).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " Mo/s";
+    };
+
     const upload = upChunkLibrary.createUpload({
       endpoint: uploadUrl,
       file,
@@ -1682,16 +1705,50 @@ function uploadToMux(file, uploadUrl) {
       maxChunkSize: 30720
     });
 
-    upload.on("progress", event => {
-      const percent = Math.round(Number(event.detail) || 0);
-      showMessage(videoMessage, "Envoi reprenable vers Mux : " + percent + "%");
+    upload.on("attempt", event => {
+      const detail = event.detail || {};
+      currentChunk = Number.isFinite(Number(detail.chunkNumber)) ? Number(detail.chunkNumber) + 1 : null;
     });
-    upload.on("offline", () => showMessage(videoMessage, "Connexion interrompue : Mux met l'envoi en pause et le reprendra automatiquement."));
-    upload.on("online", () => showMessage(videoMessage, "Connexion rétablie : reprise de l'envoi vers Mux…"));
+
+    upload.on("attemptFailure", () => {
+      retryCount++;
+    });
+
+    upload.on("progress", event => {
+      const percent = Math.max(0, Math.min(100, Number(event.detail) || 0));
+      const now = Date.now();
+      const elapsedSeconds = Math.max(0.001, (now - startedAt) / 1000);
+      const uploadedBytes = file.size * percent / 100;
+      const intervalSeconds = Math.max(0.001, (now - lastProgressAt) / 1000);
+      const intervalBytes = Math.max(0, uploadedBytes - lastProgressBytes);
+      const instantSpeed = intervalBytes / intervalSeconds;
+      averageSpeed = uploadedBytes / elapsedSeconds;
+      const remainingSeconds = averageSpeed > 0
+        ? ((file.size - uploadedBytes) / averageSpeed)
+        : NaN;
+      const details = [
+        "Envoi reprenable vers Mux : " + Math.round(percent) + "%",
+        "débit moyen " + formatUploadSpeed(averageSpeed),
+        "débit récent " + formatUploadSpeed(instantSpeed),
+        "écoulé " + formatUploadDuration(elapsedSeconds),
+        "restant estimé " + formatUploadDuration(remainingSeconds),
+        "reprises " + retryCount
+      ];
+      if (currentChunk !== null) details.push("morceau " + currentChunk);
+      showMessage(muxStatusElement || videoMessage, details.join(" · "));
+      lastProgressAt = now;
+      lastProgressBytes = uploadedBytes;
+    });
+
+    upload.on("offline", () => showMessage(muxStatusElement || videoMessage, "Connexion interrompue : Mux met l'envoi en pause et le reprendra automatiquement. Temps écoulé : " + formatUploadDuration((Date.now() - startedAt) / 1000) + "."));
+    upload.on("online", () => showMessage(muxStatusElement || videoMessage, "Connexion rétablie : reprise de l'envoi vers Mux… Reprises détectées : " + retryCount + "."));
     upload.on("error", event => {
       reject(new Error(event.detail?.message || "Le transfert vers Mux a échoué après plusieurs tentatives."));
     });
-    upload.on("success", resolve);
+    upload.on("success", () => {
+      showMessage(muxStatusElement || videoMessage, "✓ Envoi terminé vers Mux à 100 % · durée " + formatUploadDuration((Date.now() - startedAt) / 1000) + " · reprises " + retryCount + ". Mux commence maintenant le traitement.");
+      resolve();
+    });
   });
 }
 
