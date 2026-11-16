@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=45" defer></script>
+  <script src="admin.js?v=46" defer></script>
 </head>
 <body>
   <header>
@@ -117,6 +117,7 @@
               <option value="onedrive">OneDrive — lecteur intégré</option>
               <option value="deepstorage">DeepStorage API</option>
               <option value="mux">Mux — streaming vidéo</option>
+              <option value="bunny">Bunny Stream — streaming adaptatif</option>
             </select>
           </label>
           <label>Titre de la vidéo
@@ -209,6 +210,13 @@
             </label>
             <p id="mux-status" class="admin-message status-pending" aria-live="polite">Mux utilisera un envoi direct et sécurisé. Une vidéo indépendante sera publiée automatiquement après traitement. Si elle est liée à une annonce, elle restera « À VENIR » jusqu'à ton clic sur « Publier ».</p>
             <p class="cover-help">Le fichier part directement de ton téléphone vers Mux. Zeno Video ne le stocke pas sur GitHub ni dans Supabase. Les vidéos en cours de traitement restent invisibles au public.</p>
+          </div>
+          <div id="bunny-fields" class="admin-hidden">
+            <label>Identifiant de la vidéo Bunny Stream
+              <input type="text" id="bunny-video-id" placeholder="fbea9276-bb64-4da6-b0fa-fa16bbb7cad4" autocomplete="off">
+            </label>
+            <p class="cover-help">La vidéo est déjà hébergée et traitée sur Bunny. Colle uniquement son identifiant : Zeno utilisera automatiquement le lecteur de ta bibliothèque Bunny Video (ID 811150). Aucun téléversement ni clé API n’est nécessaire ici.</p>
+            <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir Bunny Stream ↗</a>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
