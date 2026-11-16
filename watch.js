@@ -201,7 +201,13 @@ function showBunnyPlayer(video) {
     wrap.replaceChildren(frame);
   });
 
-  downloadButton.hidden = true;
+  if (video.download_url) {
+    downloadButton.href = video.download_url;
+    downloadButton.hidden = false;
+  } else {
+    downloadButton.removeAttribute("href");
+    downloadButton.hidden = true;
+  }
   showCoverPreview(video, launchButton, note);
 }
 
