@@ -3,6 +3,7 @@ const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
+const BUNNY_LIBRARY_ID = "811150";
 const CLOUDINARY_VIDEO_UPLOAD_PRESET = "zeno_video_upload";
 const CLOUDINARY_IMAGE_UPLOAD_PRESET = "zeno_cover_upload";
 
@@ -55,6 +56,8 @@ const deepStorageStatusElement = document.getElementById("deepstorage-status");
 const muxFields = document.getElementById("mux-fields");
 const muxFileInput = document.getElementById("mux-file");
 const muxStatusElement = document.getElementById("mux-status");
+const bunnyFields = document.getElementById("bunny-fields");
+const bunnyVideoIdInput = document.getElementById("bunny-video-id");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -675,12 +678,15 @@ function updateProviderFields() {
   const isDropbox = providerSelect.value === "dropbox";
   const isOneDrive = providerSelect.value === "onedrive";
   const isMux = providerSelect.value === "mux";
+  const isBunny = providerSelect.value === "bunny";
   cloudinaryFields.classList.toggle("admin-hidden", !isCloudinary);
   viooFields.classList.toggle("admin-hidden", !isVioo);
   dropboxFields.classList.toggle("admin-hidden", !isDropbox);
   oneDriveFields.classList.toggle("admin-hidden", !isOneDrive);
   deepStorageFields.classList.toggle("admin-hidden", !isDeepStorage);
   muxFields.classList.toggle("admin-hidden", !isMux);
+  bunnyFields.classList.toggle("admin-hidden", !isBunny);
+  bunnyVideoIdInput.disabled = !isBunny;
 
   if (!isCloudinary) videoFileInput.value = "";
   if (!isDeepStorage) deepStorageFileInput.value = "";
@@ -954,6 +960,7 @@ function resetVideoForm() {
   oneDriveDownloadUrlInput.value = "";
   deepStorageFileInput.value = "";
   muxFileInput.value = "";
+  bunnyVideoIdInput.value = "";
   updateProviderFields();
   refreshOneDriveHelper();
 }
@@ -1101,7 +1108,7 @@ async function loadAdminVideos() {
       : video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
 
     const providerLabel = document.createElement("p");
-    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux" };
+    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream" };
     providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
 
     const actions = document.createElement("div");
@@ -1186,7 +1193,15 @@ function editVideo(video) {
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
+  } else if (providerSelect.value === "bunny") {
+    const bunnyMatch = String(video.playback_url || "").match(/\\/embed\\/\\d+\\/([^/?#]+)/);
+    bunnyVideoIdInput.value = bunnyMatch ? decodeURIComponent(bunnyMatch[1]) : "";
+    viooIdInput.value = "";
+    viooThumbnailInput.value = "";
+    dropboxUrlInput.value = "";
+    oneDriveUrlInput.value = "";
   } else {
+    bunnyVideoIdInput.value = "";
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
@@ -1711,6 +1726,12 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (provider === "bunny" && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(bunnyVideoIdInput.value.trim())) {
+    showMessage(videoMessage, "Indique un identifiant vidéo Bunny Stream valide (format UUID).");
+    bunnyVideoIdInput.focus();
+    return;
+  }
+
   if (provider === "vioo" && !viooIdInput.value.trim()) {
     showMessage(videoMessage, "Indique l'identifiant ou le lien du lecteur Vioo.");
     return;
@@ -1832,6 +1853,11 @@ videoForm.addEventListener("submit", async (event) => {
       } else {
         throw new Error("Aucun fichier DeepStorage à envoyer.");
       }
+    } else if (provider === "bunny") {
+      const bunnyVideoId = bunnyVideoIdInput.value.trim();
+      playbackUrl = "https://player.mediadelivery.net/embed/" + BUNNY_LIBRARY_ID + "/" + encodeURIComponent(bunnyVideoId);
+      publicId = null;
+      videoFormat = null;
     } else if (provider === "mux") {
       publicId = null;
       videoFormat = null;
