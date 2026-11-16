@@ -58,6 +58,7 @@ const muxFileInput = document.getElementById("mux-file");
 const muxStatusElement = document.getElementById("mux-status");
 const bunnyFields = document.getElementById("bunny-fields");
 const bunnyVideoIdInput = document.getElementById("bunny-video-id");
+const bunnyDownloadUrlInput = document.getElementById("bunny-download-url");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
@@ -687,6 +688,7 @@ function updateProviderFields() {
   muxFields.classList.toggle("admin-hidden", !isMux);
   bunnyFields.classList.toggle("admin-hidden", !isBunny);
   bunnyVideoIdInput.disabled = !isBunny;
+  bunnyDownloadUrlInput.disabled = !isBunny;
 
   if (!isCloudinary) videoFileInput.value = "";
   if (!isDeepStorage) deepStorageFileInput.value = "";
@@ -958,6 +960,7 @@ function resetVideoForm() {
   dropboxUrlInput.value = "";
   oneDriveUrlInput.value = "";
   oneDriveDownloadUrlInput.value = "";
+  bunnyDownloadUrlInput.value = "";
   deepStorageFileInput.value = "";
   muxFileInput.value = "";
   bunnyVideoIdInput.value = "";
@@ -1196,12 +1199,14 @@ function editVideo(video) {
   } else if (providerSelect.value === "bunny") {
     const bunnyMatch = String(video.playback_url || "").match(/\/embed\/\d+\/([^/?#]+)/);
     bunnyVideoIdInput.value = bunnyMatch ? decodeURIComponent(bunnyMatch[1]) : "";
+    bunnyDownloadUrlInput.value = video.download_url || "";
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
     oneDriveUrlInput.value = "";
   } else {
     bunnyVideoIdInput.value = "";
+    bunnyDownloadUrlInput.value = "";
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
@@ -1732,6 +1737,17 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  if (provider === "bunny" && bunnyDownloadUrlInput.value.trim()) {
+    try {
+      const bunnyDownloadUrl = new URL(bunnyDownloadUrlInput.value.trim());
+      if (bunnyDownloadUrl.protocol !== "https:" || bunnyDownloadUrl.username || bunnyDownloadUrl.password) throw new Error();
+    } catch {
+      showMessage(videoMessage, "Le lien de téléchargement Bunny doit être une URL HTTPS valide.");
+      bunnyDownloadUrlInput.focus();
+      return;
+    }
+  }
+
   if (provider === "vioo" && !viooIdInput.value.trim()) {
     showMessage(videoMessage, "Indique l'identifiant ou le lien du lecteur Vioo.");
     return;
@@ -1856,6 +1872,7 @@ videoForm.addEventListener("submit", async (event) => {
     } else if (provider === "bunny") {
       const bunnyVideoId = bunnyVideoIdInput.value.trim();
       playbackUrl = "https://player.mediadelivery.net/embed/" + BUNNY_LIBRARY_ID + "/" + encodeURIComponent(bunnyVideoId);
+      downloadUrl = bunnyDownloadUrlInput.value.trim() || null;
       publicId = null;
       videoFormat = null;
     } else if (provider === "mux") {
