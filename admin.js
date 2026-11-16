@@ -1194,7 +1194,7 @@ function editVideo(video) {
     viooThumbnailInput.value = "";
     dropboxUrlInput.value = "";
   } else if (providerSelect.value === "bunny") {
-    const bunnyMatch = String(video.playback_url || "").match(/\\/embed\\/\\d+\\/([^/?#]+)/);
+    const bunnyMatch = String(video.playback_url || "").match(/\/embed\/\d+\/([^/?#]+)/);
     bunnyVideoIdInput.value = bunnyMatch ? decodeURIComponent(bunnyMatch[1]) : "";
     viooIdInput.value = "";
     viooThumbnailInput.value = "";
