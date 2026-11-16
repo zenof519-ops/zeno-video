@@ -71,7 +71,7 @@ function asNumber(value: unknown) {
 
 function summarizeZeno(videos: any[]) {
   const result: Record<string, any> = {};
-  for (const provider of ["cloudinary", "vioo", "dropbox", "onedrive", "deepstorage", "mux"]) {
+  for (const provider of ["cloudinary", "vioo", "dropbox", "onedrive", "deepstorage", "mux", "bunny"]) {
     const rows = videos.filter(v => v.provider === provider);
     result[provider] = {
       videos: rows.length,
@@ -86,24 +86,48 @@ function summarizeZeno(videos: any[]) {
   return result;
 }
 
+function sizeFromHeaders(response: Response) {
+  const range = response.headers.get("content-range");
+  const rangeMatch = range?.match(/\/(\d+)$/);
+  if (rangeMatch) {
+    const total = Number(rangeMatch[1]);
+    if (Number.isFinite(total) && total > 0) return total;
+  }
+
+  for (const header of ["x-ms-file-size", "x-ms-meta-file-size", "x-file-size", "x-goog-stored-content-length"]) {
+    const value = asNumber(response.headers.get(header));
+    if (value !== null && value > 0) return value;
+  }
+
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+  const contentLength = asNumber(response.headers.get("content-length"));
+  if (response.ok && contentLength !== null && contentLength > 0 &&
+      !contentType.includes("text/html") && !contentType.includes("application/json")) {
+    return contentLength;
+  }
+  return null;
+}
+
 async function remoteFileSize(url: string | null) {
   if (!url) return null;
   try {
-    let response = await fetch(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(12000) });
-    let size = asNumber(response.headers.get("content-length"));
-    const contentType = response.headers.get("content-type") || "";
-    if (response.ok && size && size > 0 && !contentType.toLowerCase().includes("text/html") && !contentType.toLowerCase().includes("application/json")) return size;
+    let response = await fetch(url, {
+      method: "HEAD",
+      redirect: "follow",
+      signal: AbortSignal.timeout(12000)
+    });
+    let size = sizeFromHeaders(response);
+    if (size !== null) return size;
+
     response = await fetch(url, {
       method: "GET",
       headers: { Range: "bytes=0-0" },
       redirect: "follow",
       signal: AbortSignal.timeout(12000)
     });
-    const range = response.headers.get("content-range");
-    const match = range?.match(/\/(\d+)$/);
-    if (match) return Number(match[1]);
+    size = sizeFromHeaders(response);
     await response.body?.cancel();
-    return null;
+    return size;
   } catch {
     return null;
   }
@@ -178,6 +202,38 @@ async function muxMetrics() {
     periodEnd: new Date(end * 1000).toISOString(),
     note: "La livraison Mux est agrégée avec un délai d’environ 12 heures."
   };
+}
+
+
+async function bunnyMetrics(zeno: Record<string, any>) {
+  const libraryId = Deno.env.get("BUNNY_STREAM_LIBRARY_ID") || "811150";
+  const key = Deno.env.get("BUNNY_API_KEY");
+  if (!key) {
+    return {
+      account: "Bunny Stream", libraryId, apiAvailable: false,
+      zenoVideoCount: Number(zeno.videos || 0),
+      note: "Les vidéos, lectures et téléchargements Zeno sont suivis. Les chiffres globaux Bunny (stockage et trafic du compte) nécessitent la clé API Bunny dans les secrets Supabase ; aucune clé n’est exposée dans le navigateur."
+    };
+  }
+  try {
+    const data = await fetchJson("https://api.bunny.net/videolibrary/" + encodeURIComponent(libraryId), {
+      headers: { AccessKey: key }
+    });
+    return {
+      account: "Bunny Stream", libraryId, libraryName: data.Name ?? "Bunny Stream",
+      apiAvailable: true, videoCount: asNumber(data.VideoCount),
+      storageUsageBytes: asNumber(data.StorageUsage), trafficUsageBytes: asNumber(data.TrafficUsage),
+      dateModified: data.DateModified ?? null, zenoVideoCount: Number(zeno.videos || 0),
+      note: "Stockage et trafic proviennent de l’API Bunny. Les compteurs de lectures et téléchargements proviennent de Zeno Video."
+    };
+  } catch (error) {
+    return {
+      account: "Bunny Stream", libraryId, apiAvailable: false,
+      zenoVideoCount: Number(zeno.videos || 0),
+      apiError: error instanceof Error ? error.message : "Erreur API inconnue.",
+      note: "Les compteurs Zeno restent disponibles, mais la lecture des statistiques globales Bunny a échoué. Vérifie la clé API et ses autorisations dans les secrets Supabase."
+    };
+  }
 }
 
 async function imageKitMetrics() {
@@ -273,18 +329,98 @@ async function deepStorageMetrics(videos: any[]) {
 
 async function externalStorageMetrics(provider: "dropbox" | "onedrive", videos: any[]) {
   const rows = videos.filter(v => v.provider === provider);
-  const sizes = await Promise.all(rows.map(v => remoteFileSize(provider === "dropbox" ? v.playback_url : (v.download_url || v.playback_url))));
-  const known = sizes.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const sizes = await Promise.all(rows.map(async video => {
+    if (provider === "dropbox") return await remoteFileSize(video.playback_url);
+    // OneDrive embed URLs and ordinary share/download URLs can expose different response headers.
+    // Try both independently; never infer a size from an HTML player page.
+    const candidates = [video.download_url, video.playback_url].filter((url, index, all) =>
+      typeof url === "string" && url.length > 0 && all.indexOf(url) === index
+    );
+    for (const candidate of candidates) {
+      const size = await remoteFileSize(candidate);
+      if (size !== null && size > 0) return size;
+    }
+    return null;
+  }));
+  const known = sizes.filter((v): v is number => typeof v === "number" && Number.isFinite(v) && v > 0);
+  const isOneDrive = provider === "onedrive";
   return {
-    account: provider === "dropbox" ? "Dropbox" : "OneDrive",
+    account: isOneDrive ? "OneDrive" : "Dropbox",
     linkedVideos: rows.length,
     measuredFiles: known.length,
     unknownFiles: rows.length - known.length,
     zenoFilesSizeBytes: known.reduce((sum, size) => sum + size, 0),
     accountQuotaAvailable: false,
+    measurementMethod: isOneDrive ? "Liens publics OneDrive : en-têtes HTTP HEAD et Range, lien de téléchargement puis lien du lecteur" : "Lien public Dropbox",
     note: rows.length === 0
-      ? "Aucun fichier Zeno n’est actuellement enregistré chez ce fournisseur. Le quota global du compte nécessite une autorisation OAuth."
-      : "Taille mesurée pour " + known.length + " fichier(s) sur " + rows.length + " ; " + (rows.length - known.length) + " fichier(s) restent inconnus depuis le lien public. Le quota global du compte nécessite une autorisation OAuth."
+      ? "Aucun fichier Zeno n’est actuellement enregistré chez ce fournisseur."
+      : "Taille mesurée pour " + known.length + " fichier(s) sur " + rows.length + " ; " + (rows.length - known.length) + " fichier(s) restent inconnus car OneDrive ne fournit pas de taille exploitable sur leurs liens publics. Le quota global du compte n’est pas accessible sans autorisation Microsoft."
+  };
+}
+
+
+async function dropboxMetrics(videos: any[]) {
+  const rows = videos.filter(v => v.provider === "dropbox");
+  const sizes = await Promise.all(rows.map(v => remoteFileSize(v.playback_url)));
+  const known = sizes.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  const { data: credentials, error: credentialError } = await service
+    .from("dropbox_oauth_credentials")
+    .select("refresh_token,account_id,connected_at")
+    .eq("id", 1)
+    .maybeSingle();
+  if (credentialError) throw new Error("Impossible de lire la connexion Dropbox enregistrée.");
+  if (!credentials?.refresh_token) {
+    return {
+      account: "Dropbox",
+      linkedVideos: rows.length,
+      measuredFiles: known.length,
+      unknownFiles: rows.length - known.length,
+      zenoFilesSizeBytes: known.reduce((sum, size) => sum + size, 0),
+      accountQuotaAvailable: false,
+      note: "La connexion OAuth Dropbox n’est pas encore établie. Le quota global sera disponible après autorisation."
+    };
+  }
+
+  const appKey = Deno.env.get("DROPBOX_APP_KEY");
+  const appSecret = Deno.env.get("DROPBOX_APP_SECRET");
+  if (!appKey || !appSecret) throw new Error("Identifiants de l’application Dropbox absents des secrets Supabase.");
+  const tokenForm = new URLSearchParams({
+    grant_type: "refresh_token",
+    refresh_token: credentials.refresh_token,
+    client_id: appKey,
+    client_secret: appSecret
+  });
+  const tokenResponse = await fetch("https://api.dropboxapi.com/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: tokenForm,
+    signal: AbortSignal.timeout(15000)
+  });
+  const tokenData = await tokenResponse.json().catch(() => ({}));
+  if (!tokenResponse.ok || !tokenData.access_token) {
+    throw new Error("Le renouvellement automatique du jeton Dropbox a échoué.");
+  }
+
+  const usage = await fetchJson("https://api.dropboxapi.com/2/users/get_space_usage", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + tokenData.access_token }
+  });
+  const allocation = usage.allocation || {};
+  const usedBytes = asNumber(usage.used);
+  const allocatedBytes = asNumber(allocation.allocated ?? allocation.team?.allocated ?? allocation.user?.allocated);
+  return {
+    account: "Dropbox",
+    linkedVideos: rows.length,
+    measuredFiles: known.length,
+    unknownFiles: rows.length - known.length,
+    zenoFilesSizeBytes: known.reduce((sum, size) => sum + size, 0),
+    accountUsedBytes: usedBytes,
+    accountAllocatedBytes: allocatedBytes,
+    accountRemainingBytes: usedBytes === null || allocatedBytes === null ? null : Math.max(0, allocatedBytes - usedBytes),
+    allocationType: allocation[".tag"] || null,
+    accountQuotaAvailable: usedBytes !== null && allocatedBytes !== null,
+    connectedAt: credentials.connected_at,
+    note: "L’espace global utilisé et l’allocation proviennent de l’API officielle Dropbox. Les tailles des fichiers Zeno sont mesurées séparément lorsque le lien public expose leur taille."
   };
 }
 
@@ -295,13 +431,16 @@ async function collectProvider(provider: string, videos: any[], zeno: Record<str
     else if (provider === "mux") metrics = await muxMetrics();
     else if (provider === "imagekit") metrics = await imageKitMetrics();
     else if (provider === "deepstorage") metrics = await deepStorageMetrics(videos);
-    else if (provider === "dropbox" || provider === "onedrive") metrics = await externalStorageMetrics(provider, videos);
+    else if (provider === "bunny") metrics = await bunnyMetrics(zeno);
+    else if (provider === "dropbox") metrics = await dropboxMetrics(videos);
+    else if (provider === "onedrive") metrics = await externalStorageMetrics(provider, videos);
     else metrics = {
       account: "Vioo",
       note: "Zeno suit les lectures et téléchargements initiés depuis son site. Aucun accès API officiel de quota n'est configuré pour Vioo."
     };
 
-    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" || provider === "deepstorage" ? "partial" : "ok";
+    const status = provider === "dropbox" || provider === "onedrive" || provider === "vioo" || provider === "deepstorage" ||
+      (provider === "bunny" && !metrics.apiAvailable) ? "partial" : "ok";
     return { provider, status, metrics: { ...metrics, zeno } };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Erreur inconnue";
@@ -332,9 +471,38 @@ async function refresh() {
   if (error) throw error;
 
   const zeno = summarizeZeno(videos || []);
-  const providers = ["cloudinary", "mux", "imagekit", "deepstorage", "dropbox", "onedrive", "vioo"];
+  const providers = ["cloudinary", "mux", "imagekit", "deepstorage", "dropbox", "onedrive", "vioo", "bunny"];
   const snapshots = await Promise.all(providers.map(provider => collectProvider(provider, videos || [], zeno[provider] || {})));
   const collectedAt = new Date().toISOString();
+
+  // Compare OneDrive's measured Zeno files with the immediately preceding snapshot.
+  // A zero caused by unknown file sizes is never treated as a real storage measurement.
+  const onedriveSnapshot = snapshots.find(item => item.provider === "onedrive");
+  if (onedriveSnapshot) {
+    const { data: previousRows, error: previousError } = await service
+      .from("hosting_usage_snapshots")
+      .select("metrics,collected_at")
+      .eq("provider", "onedrive")
+      .order("collected_at", { ascending: false })
+      .limit(1);
+    if (previousError) throw previousError;
+
+    const currentMetrics = onedriveSnapshot.metrics || {};
+    const previous = previousRows?.[0] || null;
+    const previousMetrics = previous?.metrics || {};
+    const currentIsMeasured = Number(currentMetrics.measuredFiles || 0) > 0;
+    const previousIsMeasured = Number(previousMetrics.measuredFiles || 0) > 0;
+    const comparable = currentIsMeasured && previousIsMeasured;
+    onedriveSnapshot.metrics = {
+      ...currentMetrics,
+      previousMeasuredFilesSizeBytes: comparable ? Number(previousMetrics.zenoFilesSizeBytes || 0) : null,
+      measuredFilesSizeDeltaBytes: comparable
+        ? Number(currentMetrics.zenoFilesSizeBytes || 0) - Number(previousMetrics.zenoFilesSizeBytes || 0)
+        : null,
+      previousMeasuredAt: comparable ? previous.collected_at : null,
+      trendAvailable: comparable
+    };
+  }
 
   const { error: insertError } = await service.from("hosting_usage_snapshots").insert(
     snapshots.map(item => ({
