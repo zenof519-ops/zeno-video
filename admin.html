@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=50" defer></script>
+  <script src="admin.js?v=51" defer></script>
 </head>
 <body>
   <header>
@@ -90,6 +90,12 @@
         <p class="cover-help">Bibliothèque utilisée par Zeno Video. Les clés API ne doivent jamais être placées dans le code du site : elles restent côté serveur, dans les secrets Supabase.</p>
         <p id="bunny-hosting-settings-status" class="admin-message status-pending" aria-live="polite">En attente de la première mesure Bunny.</p>
         <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir les paramètres Bunny Stream ↗</a>
+      </section>
+      <section class="admin-panel" id="deepstorage-hosting-settings">
+        <div class="section-title"><h2>Paramètres d’hébergement — DeepStorage</h2></div>
+        <p class="cover-help">Zeno Video utilise la clé serveur <code>DEEPSTORAGE_API_KEY</code> pour vérifier l’accès au compte. Elle doit rester dans les secrets Supabase et ne doit jamais être placée dans le code public.</p>
+        <p id="deepstorage-hosting-settings-status" class="admin-message status-pending" aria-live="polite">En attente de la première mesure DeepStorage.</p>
+        <p class="status-help">La connexion à l’API permet de lire les informations de compte et les droits retournés par DeepStorage. Le quota global de stockage et le trafic ne seront affichés que si l’API les fournit ; les tailles des fichiers Zeno sont mesurées séparément à partir de leurs liens publics.</p>
       </section>
       <section class="admin-panel delete-status-panel" aria-live="polite">
         <h2>État de la suppression définitive</h2>
