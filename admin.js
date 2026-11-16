@@ -219,9 +219,31 @@ function updateBunnyHostingSettings(snapshot) {
   element.className = "admin-message " + (metrics.apiAvailable ? "success" : "status-pending");
 }
 
+
+function updateDeepStorageHostingSettings(snapshot) {
+  const element = document.getElementById("deepstorage-hosting-settings-status");
+  if (!element) return;
+  if (!snapshot) {
+    element.textContent = "En attente de la première mesure DeepStorage. Actualise les statistiques des hébergeurs pour vérifier l'API.";
+    element.className = "admin-message status-pending";
+    return;
+  }
+  const metrics = snapshot.metrics || {};
+  const connected = metrics.apiAvailable === true;
+  const scopes = Array.isArray(metrics.scopes) ? metrics.scopes : [];
+  const plan = metrics.plan ? " · offre " + metrics.plan : "";
+  const permissions = scopes.length ? " · droits API : " + scopes.join(", ") : "";
+  const checkedAt = snapshot.collected_at ? " · dernière vérification : " + new Date(snapshot.collected_at).toLocaleString("fr-FR") : "";
+  element.textContent = connected
+    ? "✓ API DeepStorage connectée" + plan + permissions + checkedAt
+    : "API DeepStorage non disponible" + (metrics.apiError ? " · " + metrics.apiError : " · vérifie la clé DEEPSTORAGE_API_KEY et son accès API.");
+  element.className = "admin-message " + (connected ? "success" : "status-pending");
+}
+
 function renderHostingUsage(snapshots) {
   hostingUsageCards.replaceChildren();
   updateBunnyHostingSettings(snapshots.find(item => item.provider === "bunny"));
+  updateDeepStorageHostingSettings(snapshots.find(item => item.provider === "deepstorage"));
   const labels = {
     cloudinary: "Cloudinary",
     mux: "Mux",
