@@ -172,6 +172,39 @@ function showMuxPlayer(video) {
   showCoverPreview(video, launchButton, note);
 }
 
+function showBunnyPlayer(video) {
+  const launchButton = document.createElement("button");
+  launchButton.type = "button";
+  launchButton.className = "btn";
+  launchButton.textContent = "▶ Lancer la lecture";
+
+  const note = document.createElement("p");
+  note.className = "stats-note";
+  note.textContent = "Le lancement sera comptabilisé lorsque tu appuieras sur ce bouton.";
+
+  launchButton.addEventListener("click", () => {
+    if (launchButton.disabled) return;
+    launchButton.disabled = true;
+    launchButton.textContent = "Ouverture du lecteur Bunny…";
+    registerViewOnce();
+
+    const frame = document.createElement("iframe");
+    frame.src = video.playback_url;
+    frame.loading = "eager";
+    frame.allow = "autoplay; encrypted-media; picture-in-picture; fullscreen";
+    frame.allowFullscreen = true;
+    frame.title = video.title;
+    frame.referrerPolicy = "strict-origin-when-cross-origin";
+    frame.style.width = "100%";
+    frame.style.aspectRatio = "16 / 9";
+    frame.style.border = "0";
+    wrap.replaceChildren(frame);
+  });
+
+  downloadButton.hidden = true;
+  showCoverPreview(video, launchButton, note);
+}
+
 function showCloudinaryPlayer(video, mediaUrl, downloadUrl) {
   const launchButton = document.createElement("button");
   launchButton.type = "button";
@@ -327,6 +360,8 @@ async function loadVideo() {
       } else {
         downloadButton.hidden = true;
       }
+    } else if (provider === "bunny" && video.playback_url) {
+      showBunnyPlayer(video);
     } else if (provider === "vioo" && video.playback_url) {
       showViooPlayer(video);
       // Aucun lien de téléchargement direct Vioo n'étant disponible.
