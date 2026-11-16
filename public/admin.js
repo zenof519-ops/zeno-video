@@ -1014,43 +1014,66 @@ document.getElementById("logout-button").addEventListener("click", async () => {
 
 async function prepareMuxDownload(video, button) {
   if (!video?.id || video.provider !== "mux" || video.mux_status !== "ready") return;
-  if (!confirm("Préparer le fichier MP4 téléchargeable de « " + video.title + " » ? Mux facturera le stockage du MP4 et sa livraison lorsqu'il sera téléchargé.")) return;
+  if (!confirm("Démarrer ou vérifier la préparation du fichier MP4 téléchargeable de « " + video.title + " » ? Mux facture le stockage du MP4 et sa livraison lorsqu'il est téléchargé.")) return;
 
   button.disabled = true;
-  button.textContent = "Préparation du MP4…";
-  showMessage(videoMessage, "Demande de génération du fichier MP4 sur Mux…");
+  button.textContent = "Vérification du MP4…";
+  muxDownloadsPreparing.add(video.id);
+  showMessage(videoMessage, "Vérification de l'état du MP4 sur Mux…");
+
+  const maxChecks = 80;
+  const checkDelayMs = 15000;
 
   try {
-    const { data, error } = await db.functions.invoke("mux-enable-download", {
-      body: { videoId: video.id }
-    });
-    if (error) {
-      let details = error.message || "Impossible de préparer le téléchargement Mux.";
-      try {
-        if (error.context && typeof error.context.json === "function") {
-          const payload = await error.context.json();
-          details = payload.error || payload.message || details;
-        }
-      } catch {}
-      throw new Error(details);
-    }
-    if (data?.error) throw new Error(data.error);
+    for (let attempt = 1; attempt <= maxChecks; attempt++) {
+      const { data, error } = await db.functions.invoke("mux-enable-download", {
+        body: { videoId: video.id }
+      });
 
-    if (data?.ready && data?.downloadUrl) {
-      muxDownloadsPreparing.delete(video.id);
-      button.textContent = "Téléchargement activé";
-      showMessage(videoMessage, "✓ Téléchargement activé. Le bouton est maintenant disponible sur la page publique.");
-      await loadAdminVideos();
-    } else {
-      muxDownloadsPreparing.add(video.id);
+      if (error) {
+        let details = error.message || "Impossible de vérifier le téléchargement Mux.";
+        try {
+          if (error.context && typeof error.context.json === "function") {
+            const payload = await error.context.json();
+            details = payload.error || payload.message || details;
+          }
+        } catch {}
+        throw new Error(details);
+      }
+      if (data?.error) throw new Error(data.error);
+
+      if (data?.ready && data?.downloadUrl) {
+        muxDownloadsPreparing.delete(video.id);
+        button.textContent = "Téléchargement activé";
+        showMessage(videoMessage, "✓ Téléchargement activé. Le bouton est maintenant disponible sur la page publique.");
+        await loadAdminVideos();
+        return;
+      }
+
+      if (data?.status === "errored" || data?.status === "failed") {
+        throw new Error("Mux n'a pas pu générer le MP4. La vidéo originale reste disponible ; tu peux réessayer après vérification.");
+      }
+
       button.textContent = "MP4 en préparation…";
-      showMessage(videoMessage, "✓ Demande acceptée par Mux. Le bouton public apparaîtra automatiquement dès que le MP4 sera prêt.");
+      showMessage(
+        videoMessage,
+        "Mux prépare toujours le MP4 (" + attempt + "/" + maxChecks + "). Vérification automatique toutes les 15 secondes."
+      );
+
+      if (attempt < maxChecks) {
+        await new Promise(resolve => setTimeout(resolve, checkDelayMs));
+      }
     }
+
+    muxDownloadsPreparing.delete(video.id);
+    button.disabled = false;
+    button.textContent = "Vérifier l'état du MP4";
+    showMessage(videoMessage, "Le MP4 est toujours en préparation après 20 minutes. Rien n'a été supprimé : appuie sur « Vérifier l'état du MP4 » pour contrôler à nouveau.");
   } catch (error) {
     muxDownloadsPreparing.delete(video.id);
     showMessage(videoMessage, "Erreur : " + error.message);
     button.disabled = false;
-    button.textContent = "Activer téléchargement MP4";
+    button.textContent = "Réessayer la vérification MP4";
   }
 }
 
@@ -1652,11 +1675,11 @@ function uploadToMux(file, uploadUrl) {
     const upload = upChunkLibrary.createUpload({
       endpoint: uploadUrl,
       file,
-      chunkSize: 5120,
+      chunkSize: 10240,
       attempts: 5,
       dynamicChunkSize: true,
-      minChunkSize: 256,
-      maxChunkSize: 20480
+      minChunkSize: 5120,
+      maxChunkSize: 30720
     });
 
     upload.on("progress", event => {
