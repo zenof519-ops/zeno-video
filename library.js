@@ -52,7 +52,6 @@ async function loadVideos() {
         const u = new URL(video.playback_url); u.searchParams.delete("raw"); u.searchParams.set("dl", "1"); download.href = u.toString();
       } else if (provider === "mux" && video.download_url) {
         download.href = new URL(video.download_url).toString();
-      }
       } else if (provider === "bunny" && video.download_url) {
         // Bunny MP4 Fallback : ouvrir le lecteur MP4 natif du navigateur dans un nouvel onglet.
         download.href = new URL(video.download_url).toString();
