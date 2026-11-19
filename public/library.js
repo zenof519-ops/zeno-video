@@ -24,7 +24,7 @@ async function loadVideos() {
     const [videoResponse, announcementResponse, categoryResponse] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id,category_id&is_published=eq.true&order=created_at.desc`, { headers }),
       fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order&order=sort_order.asc,name.asc`, { headers })
+      fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order,cover_url&order=sort_order.asc,name.asc`, { headers })
     ]);
     if (!videoResponse.ok) throw new Error("Supabase (" + videoResponse.status + ") : " + await videoResponse.text());
     if (!announcementResponse.ok) throw new Error("Chargement des annonces impossible (" + announcementResponse.status + ").");
@@ -122,16 +122,29 @@ async function loadVideos() {
       }
     }
 
-    function addCategoryFilter(id, label, total) {
+    function addCategoryFolder(id, label, total, coverUrl = null, folderKind = "category") {
       const button = document.createElement("button");
       button.type = "button";
-      button.className = "category-filter" + (id === activeFilter ? " active" : "");
+      button.className = "category-folder" + (id === activeFilter ? " active" : "");
       button.setAttribute("aria-pressed", id === activeFilter ? "true" : "false");
-      button.textContent = label + " (" + total + ")";
       button.dataset.categoryFilter = id;
+      const folder = document.createElement("span");
+      folder.className = "category-folder-art " + folderKind;
+      if (coverUrl) {
+        try {
+          const cover = new URL(coverUrl);
+          if (cover.protocol === "https:") folder.style.setProperty("--folder-cover", "url(" + JSON.stringify(cover.href) + ")");
+        } catch {}
+      }
+      const name = document.createElement("strong");
+      name.textContent = label;
+      const amount = document.createElement("span");
+      amount.className = "category-folder-count";
+      amount.textContent = total + (total > 1 ? " vidéos" : " vidéo");
+      button.append(folder, name, amount);
       button.addEventListener("click", () => {
         activeFilter = id;
-        categoryFilters.querySelectorAll("button").forEach(item => {
+        categoryFilters.querySelectorAll(".category-folder").forEach(item => {
           const selected = item.dataset.categoryFilter === activeFilter;
           item.classList.toggle("active", selected);
           item.setAttribute("aria-pressed", selected ? "true" : "false");
@@ -143,10 +156,10 @@ async function loadVideos() {
 
     if (categoryFilters) {
       categoryFilters.replaceChildren();
-      addCategoryFilter("all", "Toutes les vidéos", regularVideos.length + announcements.length);
-      addCategoryFilter("none", "Sans catégorie", uncategorizedCount);
+      addCategoryFolder("all", "Toutes les vidéos", regularVideos.length + announcements.length, null, "all");
+      addCategoryFolder("none", "Sans catégorie", uncategorizedCount, null, "uncategorized");
       for (const category of categories) {
-        addCategoryFilter(category.id, category.name, categoryCounts.get(category.id) || 0);
+        addCategoryFolder(category.id, category.name, categoryCounts.get(category.id) || 0, category.cover_url);
       }
     }
     renderGrid(activeFilter);

@@ -30,6 +30,8 @@ const categoryForm = document.getElementById("category-form");
 const categoryNameInput = document.getElementById("category-name");
 const categoryList = document.getElementById("admin-category-list");
 const categoryMessage = document.getElementById("category-message");
+const categoryCoverFileInput = document.getElementById("category-cover-file");
+const categoryCoverProviderSelect = document.getElementById("category-cover-provider");
 let announcementsCache = [];
 let categoriesCache = [];
 let adminVideosCache = [];
@@ -1134,7 +1136,7 @@ async function prepareMuxDownload(video, button) {
 
 async function loadAdminCategories() {
   const { data, error } = await db.from("video_categories")
-    .select("id,name,sort_order,created_at")
+    .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id")
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
   if (error) {
@@ -1182,6 +1184,33 @@ function renderCategoryManager() {
     name.value = category.name;
     name.maxLength = 80;
     name.setAttribute("aria-label", "Nom de la catégorie " + category.name);
+    const coverPreview = document.createElement("div");
+    coverPreview.className = "category-admin-cover-preview";
+    if (category.cover_url) {
+      const coverImage = document.createElement("img");
+      coverImage.src = category.cover_url;
+      coverImage.alt = "Couverture de " + category.name;
+      coverPreview.append(coverImage);
+    } else {
+      coverPreview.textContent = "Aucune couverture";
+    }
+    const coverControls = document.createElement("div");
+    coverControls.className = "category-cover-controls";
+    const coverFile = document.createElement("input");
+    coverFile.type = "file";
+    coverFile.accept = "image/jpeg,image/png,image/webp";
+    coverFile.setAttribute("aria-label", "Choisir une couverture pour " + category.name);
+    const coverProvider = document.createElement("select");
+    coverProvider.setAttribute("aria-label", "Hébergeur de la couverture de " + category.name);
+    coverProvider.innerHTML = '<option value="imagekit">ImageKit</option><option value="cloudinary">Cloudinary</option>';
+    coverProvider.value = category.cover_provider === "cloudinary" ? "cloudinary" : "imagekit";
+    const saveCover = document.createElement("button");
+    saveCover.type = "button";
+    saveCover.className = "alt";
+    saveCover.textContent = category.cover_url ? "Changer la couverture" : "Ajouter une couverture";
+    saveCover.addEventListener("click", () => saveCategoryCover(category, coverFile, coverProvider, saveCover));
+    coverControls.append(coverFile, coverProvider, saveCover);
+
     const count = document.createElement("p");
     count.textContent = videosInCategory.length + (videosInCategory.length > 1 ? " vidéo(s) classée(s)" : " vidéo classée");
     const actions = document.createElement("div");
@@ -1230,7 +1259,7 @@ function renderCategoryManager() {
     const remove = document.createElement("button");
     remove.type = "button";
     remove.className = "danger";
-    remove.textContent = "Supprimer";
+    remove.textContent = "Supprimer la catégorie";
     remove.addEventListener("click", async () => {
       if (!confirm("Supprimer la catégorie « " + category.name + " » ? Les vidéos seront conservées et redeviendront sans catégorie.")) return;
       remove.disabled = true;
@@ -1245,37 +1274,114 @@ function renderCategoryManager() {
       await loadAdminVideos();
     });
 
-    actions.append(rename, empty, remove);
-    card.append(name, count, actions);
+    const permanentRemove = document.createElement("button");
+    permanentRemove.type = "button";
+    permanentRemove.className = "danger";
+    permanentRemove.textContent = "Supprimer la catégorie et ses vidéos";
+    permanentRemove.addEventListener("click", () => permanentlyDeleteCategory(category, videosInCategory.length, permanentRemove));
+
+    actions.append(rename, empty, remove, permanentRemove);
+    card.append(name, coverPreview, coverControls, count, actions);
     categoryList.append(card);
   }
+}
+
+async function uploadCategoryCover(file, provider) {
+  if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("Choisis une couverture JPG, PNG ou WebP.");
+  if (provider === "cloudinary") {
+    const uploaded = await uploadToCloudinary(file, "image", "Envoi de la couverture de catégorie vers Cloudinary…");
+    return { cover_url: uploaded.secure_url, cover_provider: "cloudinary", cover_cloudinary_public_id: uploaded.public_id, cover_imagekit_file_id: null };
+  }
+  const uploaded = await uploadToImageKit(file);
+  return { cover_url: uploaded.url, cover_provider: "imagekit", cover_cloudinary_public_id: null, cover_imagekit_file_id: uploaded.fileId };
+}
+
+async function saveCategoryCover(category, fileInput, providerSelect, button) {
+  const file = fileInput.files?.[0];
+  if (!file) { showMessage(categoryMessage, "Choisis d'abord une image pour la couverture."); return; }
+  button.disabled = true;
+  try {
+    showMessage(categoryMessage, "Préparation de la couverture de « " + category.name + " »…");
+    const coverData = await uploadCategoryCover(file, providerSelect.value);
+    const { error } = await db.from("video_categories").update(coverData).eq("id", category.id);
+    if (error) throw new Error("Image envoyée, mais l'enregistrement Supabase a échoué : " + error.message);
+    showMessage(categoryMessage, "Couverture de « " + category.name + " » enregistrée.");
+    await loadAdminCategories();
+  } catch (error) { showMessage(categoryMessage, "Erreur : " + error.message); }
+  finally { button.disabled = false; }
 }
 
 categoryForm?.addEventListener("submit", async event => {
   event.preventDefault();
   const name = categoryNameInput.value.trim();
-  if (!name) {
-    showMessage(categoryMessage, "Indique un nom pour cette catégorie.");
-    return;
-  }
+  if (!name) { showMessage(categoryMessage, "Indique un nom pour cette catégorie."); return; }
   const submit = categoryForm.querySelector('button[type="submit"]');
   submit.disabled = true;
-  const { data, error } = await db.from("video_categories")
-    .insert({ name })
-    .select("id,name,sort_order,created_at")
-    .single();
-  submit.disabled = false;
-  if (error) {
-    showMessage(categoryMessage, error.code === "23505"
-      ? "Une catégorie porte déjà ce nom."
-      : "Impossible de créer la catégorie : " + error.message);
-    return;
-  }
-  categoryNameInput.value = "";
-  showMessage(categoryMessage, "Catégorie « " + data.name + " » créée.");
-  await loadAdminCategories();
-  if (categorySelect) categorySelect.value = data.id;
+  try {
+    const { data, error } = await db.from("video_categories")
+      .insert({ name })
+      .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id")
+      .single();
+    if (error) throw new Error(error.code === "23505" ? "Une catégorie porte déjà ce nom." : error.message);
+    categoryNameInput.value = "";
+    showMessage(categoryMessage, "Catégorie « " + data.name + " » créée.");
+    if (categoryCoverFileInput?.files?.[0]) {
+      try {
+        const coverData = await uploadCategoryCover(categoryCoverFileInput.files[0], categoryCoverProviderSelect?.value || "imagekit");
+        const { error: coverError } = await db.from("video_categories").update(coverData).eq("id", data.id);
+        if (coverError) throw new Error(coverError.message);
+        showMessage(categoryMessage, "Catégorie « " + data.name + " » créée avec sa couverture.");
+      } catch (coverError) { showMessage(categoryMessage, "Catégorie créée, mais sa couverture n'a pas pu être enregistrée : " + coverError.message); }
+    }
+    if (categoryCoverFileInput) categoryCoverFileInput.value = "";
+    await loadAdminCategories();
+    if (categorySelect) categorySelect.value = data.id;
+  } catch (error) { showMessage(categoryMessage, "Impossible de créer la catégorie : " + error.message); }
+  finally { submit.disabled = false; }
 });
+
+async function permanentlyDeleteCategory(category, displayedCount, button) {
+  const { data: videos, error: listError } = await db.from("videos").select("id,title,provider,cloudinary_public_id,mux_asset_id").eq("category_id", category.id);
+  if (listError) { showMessage(categoryMessage, "Impossible de lire les vidéos de cette catégorie : " + listError.message); return; }
+  const total = videos?.length || 0;
+  const warning = "SUPPRESSION DÉFINITIVE\n\nLe dossier « " + category.name + " » et ses " + total +
+    " vidéo(s) vont être supprimés de Zeno Video. Cette action est irréversible.\n\nCloudinary et Mux seront sollicités lorsque leurs connexions sont disponibles. Pour les autres hébergeurs, seules les fiches Zeno Video seront supprimées ; les fichiers distants resteront chez leur hébergeur.\n\nContinuer ?";
+  if (!confirm(warning)) return;
+  button.disabled = true;
+  const categoryButtons = categoryList.querySelectorAll("button");
+  categoryButtons.forEach(item => item.disabled = true);
+  let removed = 0;
+  try {
+    const configResult = await db.functions.invoke("delete-video-permanently", { body: { checkOnly: true } });
+    const deletionConfig = configResult.data || {};
+    for (const video of videos || []) {
+      const provider = String(video.provider || "cloudinary").toLowerCase();
+      const canDeleteRemote = (provider === "cloudinary" && Boolean(deletionConfig.cloudinary && video.cloudinary_public_id)) ||
+        (provider === "mux" && Boolean(deletionConfig.mux && video.mux_asset_id));
+      showMessage(categoryMessage, "Suppression de la vidéo " + (removed + 1) + "/" + total + " : " + video.title + "…");
+      const { data, error } = await db.functions.invoke("delete-video-permanently", { body: { videoId: video.id, deleteVideoAsset: canDeleteRemote } });
+      if (error || !data?.success) {
+        let details = data?.error || error?.message || "La suppression n'a pas été confirmée.";
+        try { if (error?.context && typeof error.context.json === "function") { const payload = await error.context.json(); details = payload.error || payload.message || details; } } catch {}
+        throw new Error("Arrêt après " + removed + "/" + total + " vidéo(s). Échec sur « " + video.title + " » : " + details);
+      }
+      removed++;
+    }
+    showMessage(categoryMessage, "Suppression du dossier et de sa couverture…");
+    const { data: categoryResult, error: categoryError } = await db.functions.invoke("delete-video-permanently", { body: { categoryId: category.id } });
+    if (categoryError || !categoryResult?.success) throw new Error(categoryResult?.error || categoryError?.message || "Impossible de supprimer le dossier après le traitement de ses vidéos.");
+    showMessage(categoryMessage, "✓ " + categoryResult.message);
+    await loadAdminCategories();
+    await loadAdminVideos();
+  } catch (error) {
+    showMessage(categoryMessage, error.message + " Le dossier est conservé pour permettre de reprendre la suppression.");
+    await loadAdminCategories();
+    await loadAdminVideos();
+  } finally {
+    categoryButtons.forEach(item => item.disabled = false);
+    button.disabled = false;
+  }
+}
 
 async function saveVideoCategory(video, select, button) {
   button.disabled = true;
@@ -1312,7 +1418,7 @@ async function loadAdminVideos() {
     return linkedAnnouncement?.media_type !== "video";
   });
 
-  adminVideosCache = libraryVideos;
+  adminVideosCache = videos;
   renderCategoryManager();
   showMessage(videoMessage, "");
   adminCount.textContent = libraryVideos.length + " vidéo(s)";

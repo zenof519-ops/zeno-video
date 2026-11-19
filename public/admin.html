@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=15">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=53" defer></script>
+  <script src="admin.js?v=54" defer></script>
 </head>
 <body>
   <header>
@@ -132,6 +132,12 @@
         <form id="category-form" class="admin-form category-create-form">
           <label>Nom de la nouvelle catégorie
             <input type="text" id="category-name" maxlength="80" placeholder="Ex. DBS Beerus Remake" required>
+          </label>
+          <label>Couverture du dossier (facultatif)
+            <input type="file" id="category-cover-file" accept="image/jpeg,image/png,image/webp">
+          </label>
+          <label>Hébergeur de la couverture
+            <select id="category-cover-provider"><option value="imagekit">ImageKit</option><option value="cloudinary">Cloudinary</option></select>
           </label>
           <button type="submit">Créer la catégorie</button>
         </form>
