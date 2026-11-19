@@ -1456,9 +1456,10 @@ async function loadAdminVideos() {
     back.type = "button";
     back.className = "alt category-back";
     back.textContent = "← Retour aux dossiers";
-    back.addEventListener("click", () => {
+    back.addEventListener("click", async () => {
       activeAdminCategoryId = null;
-      loadAdminVideos();
+      await loadAdminVideos();
+      categoryList?.scrollIntoView({ behavior: "smooth", block: "start" });
     });
     const heading = document.createElement("h3");
     heading.textContent = currentCategory.name + " · " + visibleVideos.length + (visibleVideos.length > 1 ? " vidéos" : " vidéo");
