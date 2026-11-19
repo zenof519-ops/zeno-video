@@ -3,10 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Retrouve les vidéos disponibles et les annonces à venir sur Zeno Video, puis partage chaque lecteur en un seul lien.">
   <title>Zeno Video</title>
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=14">
   <script src="videos.js" defer></script>
-  <script src="library.js?v=13" defer></script>
+  <script src="library.js?v=21" defer></script>
 </head>
 <body>
   <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><span>BIBLIOTHÈQUE</span></header>
@@ -16,6 +17,7 @@
     <p class="intro">Retrouve ici les vidéos disponibles et partage leur lecteur en un seul lien.</p>
     <section>
       <div class="section-title"><h2>Mes vidéos et annonces</h2><span id="video-count"></span></div>
+      <div id="category-filters" class="category-filters category-folder-grid" aria-label="Dossiers de catégories de la vidéothèque"></div>
       <div id="video-grid" class="grid"></div>
       <p id="empty-message" hidden>Aucune vidéo pour le moment.</p>
     </section>
