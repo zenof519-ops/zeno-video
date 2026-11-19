@@ -1214,20 +1214,25 @@ function renderCategoryManager() {
 
     const count = document.createElement("p");
     count.textContent = videosInCategory.length + (videosInCategory.length > 1 ? " vidéo(s) classée(s)" : " vidéo classée");
+    // Un dossier est effectivement publié s'il est marqué publié OU si au moins
+    // une de ses vidéos indépendantes est publiée individuellement.
+    const isCategoryEffectivelyPublished = Boolean(category.is_published) ||
+      videosInCategory.some(video => video.is_published);
     const publishCategory = document.createElement("button");
     publishCategory.type = "button";
     publishCategory.className = "alt";
-    publishCategory.textContent = category.is_published ? "Dépublier le dossier" : "Publier le dossier";
+    publishCategory.textContent = isCategoryEffectivelyPublished ? "Dépublier le dossier" : "Publier le dossier";
     publishCategory.addEventListener("click", async () => {
-      const action = category.is_published ? "dépublier" : "publier";
-      const details = category.is_published
+      const nextPublishedState = !isCategoryEffectivelyPublished;
+      const action = isCategoryEffectivelyPublished ? "dépublier" : "publier";
+      const details = isCategoryEffectivelyPublished
         ? "Le dossier et toutes les vidéos indépendantes qu'il contient seront dépubliés et disparaîtront du site public. Les vidéos resteront dans ton administration."
         : "Le dossier et toutes les vidéos indépendantes qu'il contient seront publiés et visibles sur le site public.";
       if (!confirm("Veux-tu " + action + " le dossier « " + category.name + " » ? " + details)) return;
       publishCategory.disabled = true;
 
       const { error: videosError } = await db.from("videos")
-        .update({ is_published: !category.is_published })
+        .update({ is_published: nextPublishedState })
         .eq("category_id", category.id)
         .is("announcement_id", null);
       if (videosError) {
@@ -1237,16 +1242,16 @@ function renderCategoryManager() {
       }
 
       const { error: categoryError } = await db.from("video_categories")
-        .update({ is_published: !category.is_published, is_hidden: false })
+        .update({ is_published: nextPublishedState, is_hidden: false })
         .eq("id", category.id);
       if (categoryError) {
-        showMessage(categoryMessage, "Les vidéos ont été " + (category.is_published ? "dépubliées" : "publiées") + ", mais le statut du dossier n'a pas pu être enregistré : " + categoryError.message);
+        showMessage(categoryMessage, "Les vidéos ont été " + (nextPublishedState ? "publiées" : "dépubliées") + ", mais le statut du dossier n'a pas pu être enregistré : " + categoryError.message);
         await loadAdminVideos();
         await loadAdminCategories();
         return;
       }
 
-      showMessage(categoryMessage, "Dossier « " + category.name + " » et toutes ses vidéos " + (category.is_published ? "dépubliés." : "publiés."));
+      showMessage(categoryMessage, "Dossier « " + category.name + " » et toutes ses vidéos " + (nextPublishedState ? "publiés." : "dépubliés."));
       await loadAdminVideos();
       await loadAdminCategories();
     });
