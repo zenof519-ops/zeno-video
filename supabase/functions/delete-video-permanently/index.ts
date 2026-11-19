@@ -248,10 +248,16 @@ Deno.serve(async (req: Request) => {
     if (categoryError) return json({ error: "Impossible de lire la catégorie : " + categoryError.message }, 500, origin);
     if (!category) return json({ error: "Cette catégorie n'existe plus." }, 404, origin);
 
+    const preserveVideos = body.preserveVideos === true;
     const { data: remainingVideos, error: remainingError } = await supabase
       .from("videos").select("id").eq("category_id", categoryId).limit(1);
     if (remainingError) return json({ error: "Impossible de vérifier le contenu de la catégorie : " + remainingError.message }, 500, origin);
-    if (remainingVideos?.length) return json({ error: "La catégorie contient encore des vidéos. Termine d'abord leur suppression puis réessaie." }, 409, origin);
+    if (remainingVideos?.length && preserveVideos) {
+      const { error: unassignError } = await supabase.from("videos").update({ category_id: null }).eq("category_id", categoryId);
+      if (unassignError) return json({ error: "Impossible de retirer les vidéos du dossier. La catégorie est conservée.", details: unassignError.message }, 500, origin);
+    } else if (remainingVideos?.length) {
+      return json({ error: "La catégorie contient encore des vidéos. Termine d'abord leur suppression puis réessaie." }, 409, origin);
+    }
 
     let coverResult = "aucune couverture";
     const coverUrl = category.cover_url as string | null;
@@ -314,7 +320,10 @@ Deno.serve(async (req: Request) => {
     if (deleteCategoryError || !deletedCategory?.length) {
       return json({ error: "La couverture a été traitée, mais la catégorie n'a pas pu être supprimée.", details: deleteCategoryError?.message || "Aucune catégorie supprimée.", cover: coverResult }, 500, origin);
     }
-    return json({ success: true, category: category.name, cover: coverResult, message: "Catégorie et fiches vidéo supprimées de Supabase. " + coverResult + "." }, 200, origin);
+    const message = preserveVideos
+      ? "Catégorie supprimée. Les vidéos ont été conservées dans la bibliothèque sans catégorie. " + coverResult + "."
+      : "Catégorie et fiches vidéo supprimées de Supabase. " + coverResult + ".";
+    return json({ success: true, category: category.name, cover: coverResult, videosPreserved: preserveVideos, message }, 200, origin);
   }
 
   const videoId = String(body.videoId ?? "");

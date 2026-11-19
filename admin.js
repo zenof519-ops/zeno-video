@@ -1263,13 +1263,16 @@ function renderCategoryManager() {
     remove.addEventListener("click", async () => {
       if (!confirm("Supprimer la catégorie « " + category.name + " » ? Les vidéos seront conservées et redeviendront sans catégorie.")) return;
       remove.disabled = true;
-      const { error } = await db.from("video_categories").delete().eq("id", category.id);
-      if (error) {
+      remove.disabled = true;
+      const { data, error } = await db.functions.invoke("delete-video-permanently", {
+        body: { categoryId: category.id, preserveVideos: true }
+      });
+      if (error || !data?.success) {
         remove.disabled = false;
-        showMessage(categoryMessage, "Impossible de supprimer cette catégorie : " + error.message);
+        showMessage(categoryMessage, data?.error || error?.message || "La suppression de la catégorie n'a pas été confirmée.");
         return;
       }
-      showMessage(categoryMessage, "Catégorie supprimée. Les vidéos ont été conservées.");
+      showMessage(categoryMessage, data.message || "Catégorie supprimée. Les vidéos ont été conservées sans catégorie.");
       await loadAdminCategories();
       await loadAdminVideos();
     });
