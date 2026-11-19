@@ -105,6 +105,12 @@ async function loadVideos() {
             if (cover.protocol === "https:") folder.style.setProperty("--folder-cover", "url(" + JSON.stringify(cover.href) + ")");
           } catch {}
         }
+        if (!category.cover_url) {
+          const zenoHead = document.createElement("span");
+          zenoHead.className = "category-folder-zeno-head";
+          zenoHead.setAttribute("aria-hidden", "true");
+          folder.append(zenoHead);
+        }
         const name = document.createElement("strong");
         name.textContent = category.name;
         const amount = document.createElement("span");
