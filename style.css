@@ -260,3 +260,57 @@ footer { padding: 24px 18px; border-top: 1px solid rgba(237,75,183,.25); color: 
 .hosting-usage-status.ok { background: rgba(34,197,94,.13); color: #86efac; }
 .hosting-usage-status.partial, .hosting-usage-status.needs_permission { background: rgba(245,158,11,.13); color: #fcd34d; }
 .hosting-usage-status.error { background: rgba(239,68,68,.13); color: #fca5a5; }
+
+
+/* Catégories de la vidéothèque */
+.category-filters { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0 1.4rem; }
+.category-filter {
+  border:1px solid rgba(214,164,59,.35); border-radius:999px;
+  background:rgba(255,255,255,.045); color:inherit; padding:.65rem .95rem;
+  font:inherit; font-size:.9rem; cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.category-filter:hover { border-color:rgba(214,164,59,.75); transform:translateY(-1px); }
+.category-filter.active { background:rgba(214,164,59,.17); border-color:#d6a43b; color:#f4d38a; }
+.category-admin-list { display:grid; gap:.8rem; margin-top:1rem; }
+.category-admin-card { display:grid; gap:.65rem; }
+.category-admin-card input,.category-video-controls select { width:100%; min-width:0; }
+.category-video-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin:.5rem 0 .8rem; }
+.category-video-controls select { flex:1 1 190px; }
+.category-create-form { margin-top:1rem; }
+@media (max-width:520px) {
+  .category-filter { padding:.55rem .75rem; font-size:.82rem; }
+  .category-video-controls button { flex:1 1 auto; }
+}
+
+
+/* Category folders with optional cover art */
+.category-folder-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(145px,1fr)); gap:1rem; margin:1.25rem 0 1.75rem; }
+.category-folder {
+  position:relative; display:flex; flex-direction:column; align-items:stretch; gap:.42rem;
+  min-width:0; padding:.55rem .55rem .75rem; border:1px solid rgba(214,164,59,.22);
+  border-radius:13px; background:rgba(255,255,255,.035); color:inherit; text-align:left;
+  cursor:pointer; transition:transform .18s ease,border-color .18s ease,background .18s ease;
+}
+.category-folder:hover { transform:translateY(-3px); border-color:rgba(214,164,59,.7); background:rgba(255,255,255,.07); }
+.category-folder.active { border-color:#d6a43b; background:rgba(214,164,59,.1); box-shadow:0 0 0 1px rgba(214,164,59,.2); }
+.category-folder-art {
+  position:relative; display:block; height:94px; margin-top:10px; border-radius:9px;
+  overflow:visible; background:linear-gradient(145deg,#6942a6,#39215f);
+  background-image:linear-gradient(145deg,rgba(37,18,65,.2),rgba(37,18,65,.72)),var(--folder-cover,linear-gradient(145deg,#7652aa,#302044));
+  background-size:cover; background-position:center; box-shadow:0 8px 16px rgba(0,0,0,.22);
+}
+.category-folder-art::before { content:""; position:absolute; left:10px; top:-10px; width:42%; height:15px; border-radius:8px 8px 0 0; background:inherit; filter:brightness(1.18); }
+.category-folder-art::after { content:""; position:absolute; inset:0; border:1px solid rgba(255,255,255,.2); border-radius:9px; background:linear-gradient(145deg,rgba(255,255,255,.14),transparent 48%,rgba(0,0,0,.12)); }
+.category-folder-art.all { background-image:linear-gradient(145deg,#a87827,#5d3c18); }
+.category-folder-art.uncategorized { background-image:linear-gradient(145deg,#625c79,#302c43); }
+.category-folder strong { font-size:.96rem; line-height:1.25; overflow-wrap:anywhere; }
+.category-folder-count { color:var(--muted,#b8b0c9); font-size:.8rem; }
+.category-admin-cover-preview { width:100%; height:105px; display:grid; place-items:center; overflow:hidden; border:1px dashed rgba(214,164,59,.35); border-radius:9px; color:var(--muted,#b8b0c9); background:rgba(255,255,255,.025); }
+.category-admin-cover-preview img { width:100%; height:100%; object-fit:cover; }
+.category-cover-controls { display:grid; grid-template-columns:1fr; gap:.5rem; }
+.category-cover-controls input { width:100%; }
+@media (max-width:520px) {
+  .category-folder-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:.7rem; }
+  .category-folder-art { height:82px; }
+}

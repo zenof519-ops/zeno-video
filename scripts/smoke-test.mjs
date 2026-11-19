@@ -27,8 +27,8 @@ const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
   ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
-  ['Accueil : CSS relié au bon chemin GitHub Pages', home.includes('href="/zeno-video/style.css?v=11"')],
-  ['Accueil : scripts reliés au bon chemin GitHub Pages', home.includes('src="/zeno-video/library.js?v=17"') && home.includes('src="/zeno-video/videos.js"')],
+  ['Accueil : CSS relié au bon chemin GitHub Pages', /href="\/zeno-video\/style\.css\?v=\d+"/.test(home)],
+  ['Accueil : scripts reliés au bon chemin GitHub Pages', /src="\/zeno-video\/library\.js\?v=\d+"/.test(home) && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
   ['Ressources : scripts de galerie copiés', existsSync(join(root, 'videos.js')) && existsSync(join(root, 'library.js'))],
   ['Administration : script conservé', /<script src="admin\.js\?v=\d+" defer><\/script>/.test(admin)],
@@ -88,7 +88,12 @@ const checks = [
   ['Suppression Mux : l’API Mux supprime l’asset côté serveur', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('https://api.mux.com/video/v1/assets/') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('MUX_TOKEN_SECRET')],
   ['Suppression : couverture partagée protégée', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('from("video_announcements").select("id").eq("cover_url", thumbnailUrl)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('coverIsShared')],
   ['Lecteur : miniature native pour les vidéos directes', read('watch.js').includes('media.poster = video.thumbnail_url')]
-];
+
+  ['Catégories : dossiers publics avec couvertures personnalisées', read('library.js').includes('function addCategoryFolder') && read('library.js').includes('cover_url') && home.includes('category-folder-grid')],
+  ['Catégories : création, renommage et couverture dans l’administration', admin.includes('category-cover-file') && admin.includes('async function uploadCategoryCover') && admin.includes('Enregistrer le nom')],
+  ['Catégories : suppression simple et suppression définitive distinctes', admin.includes('Supprimer la catégorie') && admin.includes('Supprimer la catégorie et ses vidéos') && admin.includes('permanentlyDeleteCategory')],
+  ['Catégories : Edge Function sécurisée pour supprimer le contenu du dossier', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('if (body.categoryId)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('deleteVideoAsset')],
+]; 
 
 // Le build Astro copie les fichiers JavaScript publics sans les compiler.
 // On les analyse donc explicitement pour détecter les erreurs de syntaxe avant déploiement.
