@@ -90,8 +90,8 @@ const checks = [
   ['Lecteur : miniature native pour les vidéos directes', read('watch.js').includes('media.poster = video.thumbnail_url')]
 
   ['Catégories : dossiers publics avec couvertures personnalisées', read('library.js').includes('function addCategoryFolder') && read('library.js').includes('cover_url') && home.includes('category-folder-grid')],
-  ['Catégories : création, renommage et couverture dans l’administration', admin.includes('category-cover-file') && admin.includes('async function uploadCategoryCover') && admin.includes('Enregistrer le nom')],
-  ['Catégories : suppression simple et suppression définitive distinctes', admin.includes('Supprimer la catégorie') && admin.includes('Supprimer la catégorie et ses vidéos') && admin.includes('permanentlyDeleteCategory')],
+  ['Catégories : création, renommage et couverture dans l’administration', read('admin.html').includes('category-cover-file') && read('admin.js').includes('async function uploadCategoryCover') && read('admin.js').includes('Enregistrer le nom')],
+  ['Catégories : suppression simple et suppression définitive distinctes', read('admin.js').includes('Supprimer la catégorie') && read('admin.js').includes('Supprimer la catégorie et ses vidéos') && read('admin.js').includes('permanentlyDeleteCategory')],
   ['Catégories : Edge Function sécurisée pour supprimer le contenu du dossier', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('if (body.categoryId)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('deleteVideoAsset')],
 ]; 
 
