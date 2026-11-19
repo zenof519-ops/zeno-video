@@ -1364,7 +1364,9 @@ function renderCategoryManager() {
     permanentRemove.textContent = "Supprimer la catégorie et ses vidéos";
     permanentRemove.addEventListener("click", () => permanentlyDeleteCategory(category, videosInCategory.length, permanentRemove));
 
-    actions.append(openFolder, publishCategory);\n    if (publishNewVideos) actions.append(publishNewVideos);\n    actions.append(rename, empty, remove, permanentRemove);
+    actions.append(openFolder, publishCategory);
+    if (publishNewVideos) actions.append(publishNewVideos);
+    actions.append(rename, empty, remove, permanentRemove);
     card.append(name, coverPreview, coverControls, count, actions);
     categoryList.append(card);
   }
