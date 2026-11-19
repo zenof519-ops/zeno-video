@@ -24,7 +24,7 @@ async function loadVideos() {
     const [videoResponse, announcementResponse, categoryResponse] = await Promise.all([
       fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id,category_id&is_published=eq.true&order=created_at.desc`, { headers }),
       fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order,cover_url&order=sort_order.asc,name.asc`, { headers })
+      fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order,cover_url,is_published&order=sort_order.asc,name.asc`, { headers })
     ]);
     if (!videoResponse.ok) throw new Error("Supabase (" + videoResponse.status + ") : " + await videoResponse.text());
     if (!announcementResponse.ok) throw new Error("Chargement des annonces impossible (" + announcementResponse.status + ").");
@@ -91,7 +91,8 @@ async function loadVideos() {
     function renderHome() {
       categoryFilters.replaceChildren();
       categoryFilters.hidden = false;
-      for (const category of categories) {
+      const publicCategories = categories.filter(category => category.is_published || categoryVideos.some(video => video.category_id === category.id));
+      for (const category of publicCategories) {
         const total = categoryVideos.filter(video => video.category_id === category.id).length;
         const button = document.createElement("button");
         button.type = "button";
