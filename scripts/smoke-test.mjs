@@ -87,8 +87,7 @@ const checks = [
   ['Administration : bouton de suppression définitive proposé pour Cloudinary et Mux', read('admin.js').includes('["cloudinary", "mux"].includes(video.provider || "cloudinary")') && read('admin.js').includes('video.mux_asset_id')],
   ['Suppression Mux : l’API Mux supprime l’asset côté serveur', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('https://api.mux.com/video/v1/assets/') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('MUX_TOKEN_SECRET')],
   ['Suppression : couverture partagée protégée', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('from("video_announcements").select("id").eq("cover_url", thumbnailUrl)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('coverIsShared')],
-  ['Lecteur : miniature native pour les vidéos directes', read('watch.js').includes('media.poster = video.thumbnail_url')]
-
+  ['Lecteur : miniature native pour les vidéos directes', read('watch.js').includes('media.poster = video.thumbnail_url')],
   ['Catégories : dossiers publics avec couvertures personnalisées', read('library.js').includes('function addCategoryFolder') && read('library.js').includes('cover_url') && home.includes('category-folder-grid')],
   ['Catégories : création, renommage et couverture dans l’administration', read('admin.html').includes('category-cover-file') && read('admin.js').includes('async function uploadCategoryCover') && read('admin.js').includes('Enregistrer le nom')],
   ['Catégories : suppression simple et suppression définitive distinctes', read('admin.js').includes('Supprimer la catégorie') && read('admin.js').includes('Supprimer la catégorie et ses vidéos') && read('admin.js').includes('permanentlyDeleteCategory')],
