@@ -13,6 +13,7 @@ if (missing.length) {
 }
 const read = (file) => readFileSync(join(root, file), 'utf8');
 const home = read('index.html');
+const rootHome = readFileSync('index.html', 'utf8');
 const astroConfig = readFileSync('astro.config.mjs', 'utf8');
 const hostingUsageFunction = readFileSync('supabase/functions/hosting-usage/index.ts', 'utf8');
 const muxWebhookFunction = readFileSync('supabase/functions/mux-webhook/index.ts', 'utf8');
@@ -27,6 +28,8 @@ const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
   ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
+  ['Pages publiques : index.html racine contient les conteneurs des dossiers et des vidéos', rootHome.includes('id="category-filters"') && rootHome.includes('id="video-grid"') && rootHome.includes('id="empty-message"')],
+  ['Pages publiques : index.html racine charge la version actuelle du script de bibliothèque', /library\\.js\\?v=21/.test(rootHome)],
   ['Accueil : CSS relié au bon chemin GitHub Pages', /href="\/zeno-video\/style\.css\?v=\d+"/.test(home)],
   ['Accueil : scripts reliés au bon chemin GitHub Pages', /src="\/zeno-video\/library\.js\?v=\d+"/.test(home) && home.includes('src="/zeno-video/videos.js"')],
   ['Ressources : feuille de style copiée', existsSync(join(root, 'style.css'))],
