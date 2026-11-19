@@ -35,6 +35,7 @@ async function loadVideos() {
     const announcementIds = new Set(announcements.map(item => item.id));
     const linkedVideos = videos.filter(video => video.announcement_id && announcementIds.has(video.announcement_id));
     const regularVideos = videos.filter(video => !video.announcement_id || !announcementIds.has(video.announcement_id));
+    const categoryVideos = videos.filter(video => { if (!video.announcement_id) return true; const linkedAnnouncement = announcements.find(item => item.id === video.announcement_id); return linkedAnnouncement?.media_type !== "video"; });
     grid.replaceChildren();
 
     function makeDownload(video) {
@@ -88,23 +89,24 @@ async function loadVideos() {
     }
 
     let activeFilter = "all";
-    const categoryCounts = new Map(categories.map(category => [category.id, regularVideos.filter(video => video.category_id === category.id).length]));
-    const uncategorizedCount = regularVideos.filter(video => !video.category_id).length;
+    const categoryCounts = new Map(categories.map(category => [category.id, categoryVideos.filter(video => video.category_id === category.id).length]));
+    const uncategorizedCount = categoryVideos.filter(video => !video.category_id).length;
 
     function renderGrid(filterId) {
       grid.replaceChildren();
-      const visibleVideos = regularVideos.filter(video => {
+      const visibleVideos = (filterId === "all" ? regularVideos : categoryVideos).filter(video => {
         if (filterId === "all") return true;
         if (filterId === "none") return !video.category_id;
         return video.category_id === filterId;
       });
-      const total = announcements.length + visibleVideos.length;
+      const visibleAnnouncements = filterId === "all" ? announcements : [];
+      const total = visibleAnnouncements.length + visibleVideos.length;
       count.textContent = total + (total > 1 ? " éléments" : " élément");
       empty.hidden = total !== 0;
       if (total === 0) empty.textContent = "Aucune vidéo dans cette catégorie pour le moment.";
 
       const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
-      for (const announcement of announcements) {
+      for (const announcement of visibleAnnouncements) {
         const linked = byAnnouncement.get(announcement.id);
         const url = announcement.media_type === "video"
           ? "announcement.html?id=" + encodeURIComponent(announcement.id)
@@ -115,7 +117,7 @@ async function loadVideos() {
         makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
       }
       for (const video of visibleVideos) {
-        const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
+        const url = video.announcement_id ? "watch.html?v=10&a=" + encodeURIComponent(video.announcement_id) : "watch.html?v=10&id=" + encodeURIComponent(video.id);
         makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
       }
     }
@@ -141,7 +143,7 @@ async function loadVideos() {
 
     if (categoryFilters) {
       categoryFilters.replaceChildren();
-      addCategoryFilter("all", "Toutes les vidéos", regularVideos.length);
+      addCategoryFilter("all", "Toutes les vidéos", regularVideos.length + announcements.length);
       addCategoryFilter("none", "Sans catégorie", uncategorizedCount);
       for (const category of categories) {
         addCategoryFilter(category.id, category.name, categoryCounts.get(category.id) || 0);
