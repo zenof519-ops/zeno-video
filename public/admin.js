@@ -1137,7 +1137,7 @@ async function prepareMuxDownload(video, button) {
 
 async function loadAdminCategories() {
   const { data, error } = await db.from("video_categories")
-    .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id")
+    .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id,is_published")
     .order("sort_order", { ascending: true })
     .order("name", { ascending: true });
   if (error) {
@@ -1214,6 +1214,40 @@ function renderCategoryManager() {
 
     const count = document.createElement("p");
     count.textContent = videosInCategory.length + (videosInCategory.length > 1 ? " vidéo(s) classée(s)" : " vidéo classée");
+    const unpublishedVideos = videosInCategory.filter(video => !video.is_published);
+    const publishCategory = document.createElement("button");
+    publishCategory.type = "button";
+    publishCategory.className = category.is_published ? "alt" : "";
+    publishCategory.textContent = category.is_published
+      ? (unpublishedVideos.length ? "Publier les nouvelles vidéos" : "Dossier publié")
+      : "Publier le dossier";
+    publishCategory.disabled = Boolean(category.is_published) && unpublishedVideos.length === 0;
+    publishCategory.addEventListener("click", async () => {
+      if (!confirm("Publier le dossier « " + category.name + " » et toutes les vidéos actuellement rangées dedans ? Elles seront visibles sur le site public.")) return;
+      publishCategory.disabled = true;
+      const { error: videosError } = await db.from("videos")
+        .update({ is_published: true })
+        .eq("category_id", category.id)
+        .is("announcement_id", null);
+      if (videosError) {
+        publishCategory.disabled = false;
+        showMessage(categoryMessage, "Impossible de publier les vidéos du dossier : " + videosError.message);
+        return;
+      }
+      const { error: categoryError } = await db.from("video_categories")
+        .update({ is_published: true })
+        .eq("id", category.id);
+      if (categoryError) {
+        showMessage(categoryMessage, "Les vidéos ont été publiées, mais le statut du dossier n'a pas pu être enregistré : " + categoryError.message);
+        await loadAdminVideos();
+        await loadAdminCategories();
+        return;
+      }
+      showMessage(categoryMessage, "Dossier « " + category.name + " » et ses vidéos publiés.");
+      await loadAdminVideos();
+      await loadAdminCategories();
+    });
+
     const openFolder = document.createElement("button");
     openFolder.type = "button";
     openFolder.className = "alt category-admin-open";
@@ -1293,7 +1327,7 @@ function renderCategoryManager() {
     permanentRemove.textContent = "Supprimer la catégorie et ses vidéos";
     permanentRemove.addEventListener("click", () => permanentlyDeleteCategory(category, videosInCategory.length, permanentRemove));
 
-    actions.append(openFolder, rename, empty, remove, permanentRemove);
+    actions.append(openFolder, publishCategory, rename, empty, remove, permanentRemove);
     card.append(name, coverPreview, coverControls, count, actions);
     categoryList.append(card);
   }
@@ -1333,7 +1367,7 @@ categoryForm?.addEventListener("submit", async event => {
   try {
     const { data, error } = await db.from("video_categories")
       .insert({ name })
-      .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id")
+      .select("id,name,sort_order,created_at,cover_url,cover_provider,cover_cloudinary_public_id,cover_imagekit_file_id,is_published")
       .single();
     if (error) throw new Error(error.code === "23505" ? "Une catégorie porte déjà ce nom." : error.message);
     categoryNameInput.value = "";
