@@ -260,3 +260,25 @@ footer { padding: 24px 18px; border-top: 1px solid rgba(237,75,183,.25); color: 
 .hosting-usage-status.ok { background: rgba(34,197,94,.13); color: #86efac; }
 .hosting-usage-status.partial, .hosting-usage-status.needs_permission { background: rgba(245,158,11,.13); color: #fcd34d; }
 .hosting-usage-status.error { background: rgba(239,68,68,.13); color: #fca5a5; }
+
+
+/* Catégories de la vidéothèque */
+.category-filters { display:flex; flex-wrap:wrap; gap:.6rem; margin:1rem 0 1.4rem; }
+.category-filter {
+  border:1px solid rgba(214,164,59,.35); border-radius:999px;
+  background:rgba(255,255,255,.045); color:inherit; padding:.65rem .95rem;
+  font:inherit; font-size:.9rem; cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.category-filter:hover { border-color:rgba(214,164,59,.75); transform:translateY(-1px); }
+.category-filter.active { background:rgba(214,164,59,.17); border-color:#d6a43b; color:#f4d38a; }
+.category-admin-list { display:grid; gap:.8rem; margin-top:1rem; }
+.category-admin-card { display:grid; gap:.65rem; }
+.category-admin-card input,.category-video-controls select { width:100%; min-width:0; }
+.category-video-controls { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin:.5rem 0 .8rem; }
+.category-video-controls select { flex:1 1 190px; }
+.category-create-form { margin-top:1rem; }
+@media (max-width:520px) {
+  .category-filter { padding:.55rem .75rem; font-size:.82rem; }
+  .category-video-controls button { flex:1 1 auto; }
+}

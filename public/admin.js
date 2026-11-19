@@ -25,7 +25,14 @@ const announcementCoverInput = document.getElementById("announcement-cover-file"
 const announcementCoverProvider = document.getElementById("announcement-cover-provider");
 const announcementCoverPreview = document.getElementById("announcement-cover-preview");
 const announcementSelect = document.getElementById("video-announcement-id");
+const categorySelect = document.getElementById("video-category-id");
+const categoryForm = document.getElementById("category-form");
+const categoryNameInput = document.getElementById("category-name");
+const categoryList = document.getElementById("admin-category-list");
+const categoryMessage = document.getElementById("category-message");
 let announcementsCache = [];
+let categoriesCache = [];
+let adminVideosCache = [];
 let editingAnnouncementId = null;
 let currentAnnouncementCover = null;
 const videoFileInput = document.getElementById("video-file");
@@ -1026,6 +1033,7 @@ async function openDashboard(user) {
   loginSection.classList.add("admin-hidden");
   dashboard.classList.remove("admin-hidden");
   updateWeeklyMaintenanceReminder();
+  await loadAdminCategories();
   await loadAdminAnnouncements();
   await loadAdminVideos();
   await loadHostingUsage(dropboxOAuthJustConnected);
@@ -1123,6 +1131,167 @@ async function prepareMuxDownload(video, button) {
   }
 }
 
+
+async function loadAdminCategories() {
+  const { data, error } = await db.from("video_categories")
+    .select("id,name,sort_order,created_at")
+    .order("sort_order", { ascending: true })
+    .order("name", { ascending: true });
+  if (error) {
+    showMessage(categoryMessage, "Impossible de charger les catégories : " + error.message);
+    return;
+  }
+  categoriesCache = data || [];
+  updateVideoCategorySelect();
+  renderCategoryManager();
+}
+
+function updateVideoCategorySelect() {
+  if (!categorySelect) return;
+  const selected = categorySelect.value;
+  categorySelect.replaceChildren();
+  const none = document.createElement("option");
+  none.value = "";
+  none.textContent = "Aucune catégorie";
+  categorySelect.append(none);
+  for (const category of categoriesCache) {
+    const option = document.createElement("option");
+    option.value = category.id;
+    option.textContent = category.name;
+    categorySelect.append(option);
+  }
+  categorySelect.value = selected;
+}
+
+function renderCategoryManager() {
+  if (!categoryList) return;
+  categoryList.replaceChildren();
+  if (!categoriesCache.length) {
+    const empty = document.createElement("p");
+    empty.className = "cover-help";
+    empty.textContent = "Aucune catégorie pour le moment. Crée ta première catégorie ci-dessus.";
+    categoryList.append(empty);
+    return;
+  }
+  for (const category of categoriesCache) {
+    const videosInCategory = adminVideosCache.filter(video => video.category_id === category.id);
+    const card = document.createElement("article");
+    card.className = "admin-video category-admin-card";
+    const name = document.createElement("input");
+    name.type = "text";
+    name.value = category.name;
+    name.maxLength = 80;
+    name.setAttribute("aria-label", "Nom de la catégorie " + category.name);
+    const count = document.createElement("p");
+    count.textContent = videosInCategory.length + (videosInCategory.length > 1 ? " vidéo(s) classée(s)" : " vidéo classée");
+    const actions = document.createElement("div");
+    actions.className = "admin-actions";
+
+    const rename = document.createElement("button");
+    rename.type = "button";
+    rename.textContent = "Enregistrer le nom";
+    rename.addEventListener("click", async () => {
+      const newName = name.value.trim();
+      if (!newName) {
+        showMessage(categoryMessage, "Le nom d'une catégorie ne peut pas être vide.");
+        name.focus();
+        return;
+      }
+      rename.disabled = true;
+      const { error } = await db.from("video_categories").update({ name: newName }).eq("id", category.id);
+      rename.disabled = false;
+      if (error) {
+        showMessage(categoryMessage, "Impossible de renommer cette catégorie : " + error.message);
+        return;
+      }
+      showMessage(categoryMessage, "Catégorie renommée.");
+      await loadAdminCategories();
+    });
+
+    const empty = document.createElement("button");
+    empty.type = "button";
+    empty.className = "alt";
+    empty.textContent = "Vider";
+    empty.disabled = videosInCategory.length === 0;
+    empty.addEventListener("click", async () => {
+      if (!confirm("Retirer les " + videosInCategory.length + " vidéo(s) de « " + category.name + " » ? Les vidéos resteront dans Zeno Video, sans catégorie.")) return;
+      empty.disabled = true;
+      const { error } = await db.from("videos").update({ category_id: null }).eq("category_id", category.id);
+      if (error) {
+        empty.disabled = false;
+        showMessage(categoryMessage, "Impossible de vider la catégorie : " + error.message);
+        return;
+      }
+      showMessage(categoryMessage, "Catégorie vidée. Les vidéos sont conservées sans catégorie.");
+      await loadAdminVideos();
+      await loadAdminCategories();
+    });
+
+    const remove = document.createElement("button");
+    remove.type = "button";
+    remove.className = "danger";
+    remove.textContent = "Supprimer";
+    remove.addEventListener("click", async () => {
+      if (!confirm("Supprimer la catégorie « " + category.name + " » ? Les vidéos seront conservées et redeviendront sans catégorie.")) return;
+      remove.disabled = true;
+      const { error } = await db.from("video_categories").delete().eq("id", category.id);
+      if (error) {
+        remove.disabled = false;
+        showMessage(categoryMessage, "Impossible de supprimer cette catégorie : " + error.message);
+        return;
+      }
+      showMessage(categoryMessage, "Catégorie supprimée. Les vidéos ont été conservées.");
+      await loadAdminCategories();
+      await loadAdminVideos();
+    });
+
+    actions.append(rename, empty, remove);
+    card.append(name, count, actions);
+    categoryList.append(card);
+  }
+}
+
+categoryForm?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const name = categoryNameInput.value.trim();
+  if (!name) {
+    showMessage(categoryMessage, "Indique un nom pour cette catégorie.");
+    return;
+  }
+  const submit = categoryForm.querySelector('button[type="submit"]');
+  submit.disabled = true;
+  const { data, error } = await db.from("video_categories")
+    .insert({ name })
+    .select("id,name,sort_order,created_at")
+    .single();
+  submit.disabled = false;
+  if (error) {
+    showMessage(categoryMessage, error.code === "23505"
+      ? "Une catégorie porte déjà ce nom."
+      : "Impossible de créer la catégorie : " + error.message);
+    return;
+  }
+  categoryNameInput.value = "";
+  showMessage(categoryMessage, "Catégorie « " + data.name + " » créée.");
+  await loadAdminCategories();
+  if (categorySelect) categorySelect.value = data.id;
+});
+
+async function saveVideoCategory(video, select, button) {
+  button.disabled = true;
+  const { error } = await db.from("videos")
+    .update({ category_id: select.value || null })
+    .eq("id", video.id);
+  button.disabled = false;
+  if (error) {
+    showMessage(videoMessage, "Impossible de déplacer cette vidéo : " + error.message);
+    return;
+  }
+  showMessage(videoMessage, "Catégorie de « " + video.title + " » mise à jour.");
+  await loadAdminVideos();
+  await loadAdminCategories();
+}
+
 async function loadAdminVideos() {
   showMessage(videoMessage, "Chargement des vidéos...");
   videoList.innerHTML = "";
@@ -1143,6 +1312,8 @@ async function loadAdminVideos() {
     return linkedAnnouncement?.media_type !== "video";
   });
 
+  adminVideosCache = libraryVideos;
+  renderCategoryManager();
   showMessage(videoMessage, "");
   adminCount.textContent = libraryVideos.length + " vidéo(s)";
 
@@ -1178,6 +1349,31 @@ async function loadAdminVideos() {
     status.textContent = video.provider === "mux" && video.mux_status !== "ready"
       ? "Statut : " + (video.mux_status === "errored" ? "Erreur de traitement Mux" : video.mux_status === "upload_failed" ? "Échec de l'envoi Mux" : "Traitement Mux en cours")
       : video.is_published ? "Statut : Publiée" : "Statut : Non publiée";
+
+    const categoryLabel = document.createElement("p");
+    const videoCategory = categoriesCache.find(category => category.id === video.category_id);
+    categoryLabel.textContent = "Catégorie : " + (videoCategory?.name || "Aucune catégorie");
+    const categoryControls = document.createElement("div");
+    categoryControls.className = "category-video-controls";
+    const categoryMoveSelect = document.createElement("select");
+    categoryMoveSelect.setAttribute("aria-label", "Déplacer " + video.title + " vers une catégorie");
+    const noCategoryOption = document.createElement("option");
+    noCategoryOption.value = "";
+    noCategoryOption.textContent = "Aucune catégorie";
+    categoryMoveSelect.append(noCategoryOption);
+    for (const category of categoriesCache) {
+      const option = document.createElement("option");
+      option.value = category.id;
+      option.textContent = category.name;
+      categoryMoveSelect.append(option);
+    }
+    categoryMoveSelect.value = video.category_id || "";
+    const moveButton = document.createElement("button");
+    moveButton.type = "button";
+    moveButton.className = "alt";
+    moveButton.textContent = "Déplacer";
+    moveButton.addEventListener("click", () => saveVideoCategory(video, categoryMoveSelect, moveButton));
+    categoryControls.append(categoryMoveSelect, moveButton);
 
     const providerLabel = document.createElement("p");
     const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream" };
@@ -1231,7 +1427,7 @@ async function loadAdminVideos() {
         ((video.provider || "cloudinary") !== "mux" || Boolean(video.mux_asset_id))) {
       actions.append(permanentDeleteButton);
     }
-    card.append(title, description, views, downloads, status, providerLabel, actions);
+    card.append(title, description, views, downloads, status, categoryLabel, categoryControls, providerLabel, actions);
     videoList.append(card);
   }
 }
@@ -1239,6 +1435,7 @@ async function loadAdminVideos() {
 function editVideo(video) {
   editingId = video.id;
   editingVideo = video;
+  categorySelect.value = video.category_id || "";
   announcementSelect.value = video.announcement_id || "";
   videoFormat = video.format || "mp4";
   currentThumbnailUrl = video.thumbnail_url || null;
@@ -2114,6 +2311,7 @@ videoForm.addEventListener("submit", async (event) => {
       description: selectedAnnouncement?.description || description,
       provider,
       announcement_id: selectedAnnouncementId,
+      category_id: categorySelect.value || null,
       cloudinary_public_id: publicId,
       playback_url: playbackUrl,
       download_url: downloadUrl,

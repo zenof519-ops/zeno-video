@@ -5,6 +5,7 @@ const CLOUD_NAME = "wnonuvx4";
 const grid = document.getElementById("video-grid");
 const count = document.getElementById("video-count");
 const empty = document.getElementById("empty-message");
+const categoryFilters = document.getElementById("category-filters");
 
 async function registerDownload(videoId) {
   try {
@@ -20,20 +21,20 @@ async function registerDownload(videoId) {
 async function loadVideos() {
   try {
     const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
-    const [videoResponse, announcementResponse] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id&is_published=eq.true&order=created_at.desc`, { headers }),
-      fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers })
+    const [videoResponse, announcementResponse, categoryResponse] = await Promise.all([
+      fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id,category_id&is_published=eq.true&order=created_at.desc`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order&order=sort_order.asc,name.asc`, { headers })
     ]);
     if (!videoResponse.ok) throw new Error("Supabase (" + videoResponse.status + ") : " + await videoResponse.text());
     if (!announcementResponse.ok) throw new Error("Chargement des annonces impossible (" + announcementResponse.status + ").");
+    if (!categoryResponse.ok) throw new Error("Chargement des catégories impossible (" + categoryResponse.status + ").");
     const videos = await videoResponse.json();
     const announcements = await announcementResponse.json();
+    const categories = await categoryResponse.json();
     const announcementIds = new Set(announcements.map(item => item.id));
     const linkedVideos = videos.filter(video => video.announcement_id && announcementIds.has(video.announcement_id));
     const regularVideos = videos.filter(video => !video.announcement_id || !announcementIds.has(video.announcement_id));
-    const total = announcements.length + regularVideos.length;
-    count.textContent = total + (total > 1 ? " éléments" : " élément");
-    empty.hidden = total !== 0;
     grid.replaceChildren();
 
     function makeDownload(video) {
@@ -86,21 +87,67 @@ async function loadVideos() {
       card.append(copy); grid.append(card);
     }
 
-    const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
-    for (const announcement of announcements) {
-      const linked = byAnnouncement.get(announcement.id);
-      const url = announcement.media_type === "video"
-        ? "announcement.html?id=" + encodeURIComponent(announcement.id)
-        : linked
-          ? "watch.html?v=10&a=" + encodeURIComponent(announcement.id)
-          : "announcement.html?id=" + encodeURIComponent(announcement.id);
-      const label = announcement.media_type === "video" ? "APERÇU VIDÉO" : (linked ? "DISPONIBLE" : "À VENIR");
-      makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
+    let activeFilter = "all";
+    const categoryCounts = new Map(categories.map(category => [category.id, regularVideos.filter(video => video.category_id === category.id).length]));
+    const uncategorizedCount = regularVideos.filter(video => !video.category_id).length;
+
+    function renderGrid(filterId) {
+      grid.replaceChildren();
+      const visibleVideos = regularVideos.filter(video => {
+        if (filterId === "all") return true;
+        if (filterId === "none") return !video.category_id;
+        return video.category_id === filterId;
+      });
+      const total = announcements.length + visibleVideos.length;
+      count.textContent = total + (total > 1 ? " éléments" : " élément");
+      empty.hidden = total !== 0;
+      if (total === 0) empty.textContent = "Aucune vidéo dans cette catégorie pour le moment.";
+
+      const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
+      for (const announcement of announcements) {
+        const linked = byAnnouncement.get(announcement.id);
+        const url = announcement.media_type === "video"
+          ? "announcement.html?id=" + encodeURIComponent(announcement.id)
+          : linked
+            ? "watch.html?v=10&a=" + encodeURIComponent(announcement.id)
+            : "announcement.html?id=" + encodeURIComponent(announcement.id);
+        const label = announcement.media_type === "video" ? "APERÇU VIDÉO" : (linked ? "DISPONIBLE" : "À VENIR");
+        makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
+      }
+      for (const video of visibleVideos) {
+        const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
+        makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
+      }
     }
-    for (const video of regularVideos) {
-      const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
-      makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
+
+    function addCategoryFilter(id, label, total) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "category-filter" + (id === activeFilter ? " active" : "");
+      button.setAttribute("aria-pressed", id === activeFilter ? "true" : "false");
+      button.textContent = label + " (" + total + ")";
+      button.dataset.categoryFilter = id;
+      button.addEventListener("click", () => {
+        activeFilter = id;
+        categoryFilters.querySelectorAll("button").forEach(item => {
+          const selected = item.dataset.categoryFilter === activeFilter;
+          item.classList.toggle("active", selected);
+          item.setAttribute("aria-pressed", selected ? "true" : "false");
+        });
+        renderGrid(activeFilter);
+      });
+      categoryFilters.append(button);
     }
+
+    if (categoryFilters) {
+      categoryFilters.replaceChildren();
+      addCategoryFilter("all", "Toutes les vidéos", regularVideos.length);
+      addCategoryFilter("none", "Sans catégorie", uncategorizedCount);
+      for (const category of categories) {
+        addCategoryFilter(category.id, category.name, categoryCounts.get(category.id) || 0);
+      }
+    }
+    renderGrid(activeFilter);
   } catch (error) {
     count.textContent = "Erreur de chargement";
     empty.hidden = false;

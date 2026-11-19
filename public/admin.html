@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=14">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=52" defer></script>
+  <script src="admin.js?v=53" defer></script>
 </head>
 <body>
   <header>
@@ -122,6 +122,22 @@
         <div class="section-title"><h3>Mes annonces</h3><span id="announcement-count"></span></div>
         <div id="admin-announcement-list"></div>
       </section>
+
+      <section class="admin-panel" id="category-management">
+        <div class="section-title">
+          <h2>Gestion des catégories</h2>
+          <span class="cover-help">Dossiers de ta vidéothèque</span>
+        </div>
+        <p class="cover-help">Crée tes propres catégories, renomme-les, déplace les vidéos existantes ou retire-les d'un dossier. Supprimer une catégorie ne supprime jamais les vidéos.</p>
+        <form id="category-form" class="admin-form category-create-form">
+          <label>Nom de la nouvelle catégorie
+            <input type="text" id="category-name" maxlength="80" placeholder="Ex. DBS Beerus Remake" required>
+          </label>
+          <button type="submit">Créer la catégorie</button>
+        </form>
+        <p id="category-message" class="admin-message" aria-live="polite"></p>
+        <div id="admin-category-list" class="category-admin-list"></div>
+      </section>
       <section class="admin-panel">
         <h2 id="form-title">Ajouter une vidéo</h2>
         <form id="video-form" class="admin-form">
@@ -141,6 +157,9 @@
           </label>
           <label>Description
             <textarea id="video-description"></textarea>
+          </label>
+          <label>Catégorie (facultatif)
+            <select id="video-category-id"><option value="">Aucune catégorie</option></select>
           </label>
           <label>Associer à une annonce existante (facultatif)
             <select id="video-announcement-id"><option value="">Aucune annonce — vidéo indépendante</option></select>
