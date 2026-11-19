@@ -35,6 +35,7 @@ const categoryCoverProviderSelect = document.getElementById("category-cover-prov
 let announcementsCache = [];
 let categoriesCache = [];
 let adminVideosCache = [];
+let activeAdminCategoryId = null;
 let editingAnnouncementId = null;
 let currentAnnouncementCover = null;
 const videoFileInput = document.getElementById("video-file");
@@ -1176,7 +1177,7 @@ function renderCategoryManager() {
     return;
   }
   for (const category of categoriesCache) {
-    const videosInCategory = adminVideosCache.filter(video => video.category_id === category.id);
+    const videosInCategory = adminVideosCache.filter(video => video.category_id === category.id && !video.announcement_id);
     const card = document.createElement("article");
     card.className = "admin-video category-admin-card";
     const name = document.createElement("input");
@@ -1213,6 +1214,15 @@ function renderCategoryManager() {
 
     const count = document.createElement("p");
     count.textContent = videosInCategory.length + (videosInCategory.length > 1 ? " vidéo(s) classée(s)" : " vidéo classée");
+    const openFolder = document.createElement("button");
+    openFolder.type = "button";
+    openFolder.className = "alt category-admin-open";
+    openFolder.textContent = "Ouvrir le dossier";
+    openFolder.addEventListener("click", () => {
+      activeAdminCategoryId = category.id;
+      loadAdminVideos();
+      document.getElementById("admin-video-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
     const actions = document.createElement("div");
     actions.className = "admin-actions";
 
@@ -1283,7 +1293,7 @@ function renderCategoryManager() {
     permanentRemove.textContent = "Supprimer la catégorie et ses vidéos";
     permanentRemove.addEventListener("click", () => permanentlyDeleteCategory(category, videosInCategory.length, permanentRemove));
 
-    actions.append(rename, empty, remove, permanentRemove);
+    actions.append(openFolder, rename, empty, remove, permanentRemove);
     card.append(name, coverPreview, coverControls, count, actions);
     categoryList.append(card);
   }
@@ -1397,8 +1407,8 @@ async function saveVideoCategory(video, select, button) {
     return;
   }
   showMessage(videoMessage, "Catégorie de « " + video.title + " » mise à jour.");
-  await loadAdminVideos();
   await loadAdminCategories();
+  await loadAdminVideos();
 }
 
 async function loadAdminVideos() {
@@ -1433,12 +1443,44 @@ async function loadAdminVideos() {
   document.getElementById("stat-views").textContent = totalViews.toLocaleString("fr-FR");
   document.getElementById("stat-downloads").textContent = totalDownloads.toLocaleString("fr-FR");
 
-  if (libraryVideos.length === 0) {
-    videoList.textContent = "Aucune vidéo enregistrée.";
+  if (activeAdminCategoryId && !categoriesCache.some(category => category.id === activeAdminCategoryId)) activeAdminCategoryId = null;
+  const currentCategory = categoriesCache.find(category => category.id === activeAdminCategoryId) || null;
+  const visibleVideos = currentCategory
+    ? libraryVideos.filter(video => video.category_id === currentCategory.id && !video.announcement_id)
+    : libraryVideos.filter(video => !video.category_id || Boolean(video.announcement_id));
+
+  if (currentCategory) {
+    const navigation = document.createElement("div");
+    navigation.className = "category-navigation";
+    const back = document.createElement("button");
+    back.type = "button";
+    back.className = "alt category-back";
+    back.textContent = "← Retour aux dossiers";
+    back.addEventListener("click", () => {
+      activeAdminCategoryId = null;
+      loadAdminVideos();
+    });
+    const heading = document.createElement("h3");
+    heading.textContent = currentCategory.name + " · " + visibleVideos.length + (visibleVideos.length > 1 ? " vidéos" : " vidéo");
+    navigation.append(back, heading);
+    videoList.append(navigation);
+  } else {
+    const heading = document.createElement("p");
+    heading.className = "category-list-hint";
+    heading.textContent = "Vidéos sans catégorie · ouvre un dossier ci-dessus pour consulter les vidéos classées.";
+    videoList.append(heading);
+  }
+
+  adminCount.textContent = visibleVideos.length + " vidéo(s) affichée(s)";
+  if (visibleVideos.length === 0) {
+    const message = document.createElement("p");
+    message.className = "cover-help";
+    message.textContent = currentCategory ? "Ce dossier ne contient encore aucune vidéo." : "Aucune vidéo sans catégorie. Ouvre un dossier pour consulter les vidéos classées.";
+    videoList.append(message);
     return;
   }
 
-  for (const video of libraryVideos) {
+  for (const video of visibleVideos) {
     const card = document.createElement("article");
     card.className = "admin-video";
 
@@ -1461,9 +1503,10 @@ async function loadAdminVideos() {
 
     const categoryLabel = document.createElement("p");
     const videoCategory = categoriesCache.find(category => category.id === video.category_id);
-    categoryLabel.textContent = "Catégorie : " + (videoCategory?.name || "Aucune catégorie");
+    categoryLabel.textContent = video.announcement_id ? "Annonce liée · conservée hors des catégories" : "Catégorie : " + (videoCategory?.name || "Aucune catégorie");
     const categoryControls = document.createElement("div");
     categoryControls.className = "category-video-controls";
+    if (!video.announcement_id) {
     const categoryMoveSelect = document.createElement("select");
     categoryMoveSelect.setAttribute("aria-label", "Déplacer " + video.title + " vers une catégorie");
     const noCategoryOption = document.createElement("option");
@@ -1483,6 +1526,7 @@ async function loadAdminVideos() {
     moveButton.textContent = "Déplacer";
     moveButton.addEventListener("click", () => saveVideoCategory(video, categoryMoveSelect, moveButton));
     categoryControls.append(categoryMoveSelect, moveButton);
+    }
 
     const providerLabel = document.createElement("p");
     const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream" };
@@ -2420,7 +2464,7 @@ videoForm.addEventListener("submit", async (event) => {
       description: selectedAnnouncement?.description || description,
       provider,
       announcement_id: selectedAnnouncementId,
-      category_id: categorySelect.value || null,
+      category_id: selectedAnnouncementId ? null : (categorySelect.value || null),
       cloudinary_public_id: publicId,
       playback_url: playbackUrl,
       download_url: downloadUrl,
