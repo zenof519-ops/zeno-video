@@ -35,7 +35,7 @@ async function loadVideos() {
     const announcementIds = new Set(announcements.map(item => item.id));
     const linkedVideos = videos.filter(video => video.announcement_id && announcementIds.has(video.announcement_id));
     const regularVideos = videos.filter(video => !video.announcement_id || !announcementIds.has(video.announcement_id));
-    const categoryVideos = videos.filter(video => { if (!video.announcement_id) return true; const linkedAnnouncement = announcements.find(item => item.id === video.announcement_id); return linkedAnnouncement?.media_type !== "video"; });
+    const categoryVideos = regularVideos;
     grid.replaceChildren();
 
     function makeDownload(video) {
@@ -88,25 +88,40 @@ async function loadVideos() {
       card.append(copy); grid.append(card);
     }
 
-    let activeFilter = "all";
-    const categoryCounts = new Map(categories.map(category => [category.id, categoryVideos.filter(video => video.category_id === category.id).length]));
-    const uncategorizedCount = categoryVideos.filter(video => !video.category_id).length;
+    function renderHome() {
+      categoryFilters.replaceChildren();
+      categoryFilters.hidden = false;
+      for (const category of categories) {
+        const total = categoryVideos.filter(video => video.category_id === category.id).length;
+        const button = document.createElement("button");
+        button.type = "button";
+        button.className = "category-folder";
+        const folder = document.createElement("span");
+        folder.className = "category-folder-art";
+        if (category.cover_url) {
+          try {
+            const cover = new URL(category.cover_url);
+            if (cover.protocol === "https:") folder.style.setProperty("--folder-cover", "url(" + JSON.stringify(cover.href) + ")");
+          } catch {}
+        }
+        const name = document.createElement("strong");
+        name.textContent = category.name;
+        const amount = document.createElement("span");
+        amount.className = "category-folder-count";
+        amount.textContent = total + (total > 1 ? " vidéos" : " vidéo");
+        button.append(folder, name, amount);
+        button.addEventListener("click", () => renderCategory(category));
+        categoryFilters.append(button);
+      }
 
-    function renderGrid(filterId) {
       grid.replaceChildren();
-      const visibleVideos = (filterId === "all" ? regularVideos : categoryVideos).filter(video => {
-        if (filterId === "all") return true;
-        if (filterId === "none") return !video.category_id;
-        return video.category_id === filterId;
-      });
-      const visibleAnnouncements = filterId === "all" ? announcements : [];
-      const total = visibleAnnouncements.length + visibleVideos.length;
+      const uncategorizedVideos = categoryVideos.filter(video => !video.category_id);
+      const total = announcements.length + uncategorizedVideos.length;
       count.textContent = total + (total > 1 ? " éléments" : " élément");
       empty.hidden = total !== 0;
-      if (total === 0) empty.textContent = "Aucune vidéo dans cette catégorie pour le moment.";
-
+      empty.textContent = "Aucune annonce ni vidéo sans catégorie pour le moment.";
       const byAnnouncement = new Map(linkedVideos.map(video => [video.announcement_id, video]));
-      for (const announcement of visibleAnnouncements) {
+      for (const announcement of announcements) {
         const linked = byAnnouncement.get(announcement.id);
         const url = announcement.media_type === "video"
           ? "announcement.html?id=" + encodeURIComponent(announcement.id)
@@ -116,40 +131,39 @@ async function loadVideos() {
         const label = announcement.media_type === "video" ? "APERÇU VIDÉO" : (linked ? "DISPONIBLE" : "À VENIR");
         makeCard(announcement.title, announcement.description, announcement.cover_url, url, label, linked || null);
       }
-      for (const video of visibleVideos) {
+      for (const video of uncategorizedVideos) {
         const url = video.announcement_id ? "watch.html?v=10&a=" + encodeURIComponent(video.announcement_id) : "watch.html?v=10&id=" + encodeURIComponent(video.id);
         makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
       }
     }
 
-    function addCategoryFolder(id, label, total, coverUrl = null, folderKind = "category") {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "category-folder" + (id === activeFilter ? " active" : "");
-      button.setAttribute("aria-pressed", id === activeFilter ? "true" : "false");
-      button.dataset.categoryFilter = id;
-      const folder = document.createElement("span");
-      folder.className = "category-folder-art " + folderKind;
-      if (coverUrl) {
-        try {
-          const cover = new URL(coverUrl);
-          if (cover.protocol === "https:") folder.style.setProperty("--folder-cover", "url(" + JSON.stringify(cover.href) + ")");
-        } catch {}
+    function renderCategory(category) {
+      categoryFilters.replaceChildren();
+      categoryFilters.hidden = false;
+      const navigation = document.createElement("div");
+      navigation.className = "category-navigation public-category-navigation";
+      const back = document.createElement("button");
+      back.type = "button";
+      back.className = "btn alt category-back";
+      back.textContent = "← Retour à la bibliothèque";
+      back.addEventListener("click", renderHome);
+      const heading = document.createElement("h2");
+      heading.textContent = category.name;
+      navigation.append(back, heading);
+      categoryFilters.append(navigation);
+
+      grid.replaceChildren();
+      const visibleVideos = categoryVideos.filter(video => video.category_id === category.id);
+      count.textContent = visibleVideos.length + (visibleVideos.length > 1 ? " vidéos" : " vidéo");
+      empty.hidden = visibleVideos.length !== 0;
+      empty.textContent = "Aucune vidéo dans cette catégorie pour le moment.";
+      for (const video of visibleVideos) {
+        const url = "watch.html?v=10&id=" + encodeURIComponent(video.id);
+        makeCard(video.title, video.description, video.thumbnail_url, url, "DISPONIBLE", video);
       }
-      const name = document.createElement("strong");
-      name.textContent = label;
-      const amount = document.createElement("span");
-      amount.className = "category-folder-count";
-      amount.textContent = total + (total > 1 ? " vidéos" : " vidéo");
-      button.append(folder, name, amount);
-      button.addEventListener("click", () => {
-        activeFilter = id;
-        categoryFilters.querySelectorAll(".category-folder").forEach(item => {
-          const selected = item.dataset.categoryFilter === activeFilter;
-          item.classList.toggle("active", selected);
-          item.setAttribute("aria-pressed", selected ? "true" : "false");
-        });
-        renderGrid(activeFilter);
+    }
+
+    renderHome();
       });
       categoryFilters.append(button);
     }
