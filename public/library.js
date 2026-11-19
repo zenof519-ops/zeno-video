@@ -164,19 +164,6 @@ async function loadVideos() {
     }
 
     renderHome();
-      });
-      categoryFilters.append(button);
-    }
-
-    if (categoryFilters) {
-      categoryFilters.replaceChildren();
-      addCategoryFolder("all", "Toutes les vidéos", regularVideos.length + announcements.length, null, "all");
-      addCategoryFolder("none", "Sans catégorie", uncategorizedCount, null, "uncategorized");
-      for (const category of categories) {
-        addCategoryFolder(category.id, category.name, categoryCounts.get(category.id) || 0, category.cover_url);
-      }
-    }
-    renderGrid(activeFilter);
   } catch (error) {
     count.textContent = "Erreur de chargement";
     empty.hidden = false;
