@@ -1438,10 +1438,42 @@ async function permanentlyDeleteCategory(category, displayedCount, button) {
   }
 }
 
+function getNextVideoSortOrder(categoryId, excludedVideoId = null) {
+  const currentOrders = adminVideosCache
+    .filter(video =>
+      video.id !== excludedVideoId &&
+      !video.announcement_id &&
+      (video.category_id || null) === (categoryId || null)
+    )
+    .map(video => Number(video.sort_order) || 0);
+  return Math.max(0, ...currentOrders) + 10;
+}
+
+async function saveVideoOrder(orderedVideos) {
+  showMessage(videoMessage, "Enregistrement du nouvel ordre d’affichage…");
+  const results = await Promise.all(orderedVideos.map((video, index) =>
+    db.from("videos")
+      .update({ sort_order: (index + 1) * 10 })
+      .eq("id", video.id)
+  ));
+  const failed = results.find(result => result.error);
+  if (failed) {
+    showMessage(videoMessage, "L’ordre n’a pas pu être entièrement enregistré : " + failed.error.message);
+    await loadAdminVideos();
+    return;
+  }
+  showMessage(videoMessage, "Nouvel ordre d’affichage enregistré. Le site public sera actualisé automatiquement.");
+  await loadAdminVideos();
+}
+
 async function saveVideoCategory(video, select, button) {
   button.disabled = true;
+  const nextCategoryId = select.value || null;
   const { error } = await db.from("videos")
-    .update({ category_id: select.value || null })
+    .update({
+      category_id: nextCategoryId,
+      sort_order: getNextVideoSortOrder(nextCategoryId, video.id)
+    })
     .eq("id", video.id);
   button.disabled = false;
   if (error) {
@@ -1460,6 +1492,7 @@ async function loadAdminVideos() {
   const { data: videos, error } = await db
     .from("videos")
     .select("*")
+    .order("sort_order", { ascending: true })
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -1571,6 +1604,45 @@ async function loadAdminVideos() {
     categoryControls.append(categoryMoveSelect, moveButton);
     }
 
+    const sortableVideos = visibleVideos.filter(item => !item.announcement_id);
+    const videoOrderIndex = sortableVideos.findIndex(item => item.id === video.id);
+    let orderControls = null;
+    if (!video.announcement_id && videoOrderIndex !== -1) {
+      orderControls = document.createElement("div");
+      orderControls.className = "video-order-controls";
+      const orderLabel = document.createElement("span");
+      orderLabel.textContent = "Ordre public";
+      const moveUp = document.createElement("button");
+      moveUp.type = "button";
+      moveUp.className = "alt";
+      moveUp.textContent = "↑ Monter";
+      moveUp.disabled = videoOrderIndex === 0;
+      moveUp.setAttribute("aria-label", "Monter " + video.title + " dans l’ordre public");
+      moveUp.addEventListener("click", async () => {
+        const reordered = [...sortableVideos];
+        [reordered[videoOrderIndex - 1], reordered[videoOrderIndex]] =
+          [reordered[videoOrderIndex], reordered[videoOrderIndex - 1]];
+        moveUp.disabled = true;
+        moveDown.disabled = true;
+        await saveVideoOrder(reordered);
+      });
+      const moveDown = document.createElement("button");
+      moveDown.type = "button";
+      moveDown.className = "alt";
+      moveDown.textContent = "↓ Descendre";
+      moveDown.disabled = videoOrderIndex === sortableVideos.length - 1;
+      moveDown.setAttribute("aria-label", "Descendre " + video.title + " dans l’ordre public");
+      moveDown.addEventListener("click", async () => {
+        const reordered = [...sortableVideos];
+        [reordered[videoOrderIndex], reordered[videoOrderIndex + 1]] =
+          [reordered[videoOrderIndex + 1], reordered[videoOrderIndex]];
+        moveUp.disabled = true;
+        moveDown.disabled = true;
+        await saveVideoOrder(reordered);
+      });
+      orderControls.append(orderLabel, moveUp, moveDown);
+    }
+
     const providerLabel = document.createElement("p");
     const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream" };
     providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
@@ -1623,7 +1695,9 @@ async function loadAdminVideos() {
         ((video.provider || "cloudinary") !== "mux" || Boolean(video.mux_asset_id))) {
       actions.append(permanentDeleteButton);
     }
-    card.append(title, description, views, downloads, status, categoryLabel, categoryControls, providerLabel, actions);
+    card.append(title, description, views, downloads, status, categoryLabel, categoryControls);
+    if (orderControls) card.append(orderControls);
+    card.append(providerLabel, actions);
     videoList.append(card);
   }
 }
@@ -2432,7 +2506,8 @@ videoForm.addEventListener("submit", async (event) => {
             thumbnail_provider: thumbnailProvider,
             thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
             thumbnail_imagekit_file_id: thumbnailImageKitFileId,
-            announcement_id: selectedAnnouncementId
+            announcement_id: selectedAnnouncementId,
+            sort_order: getNextVideoSortOrder(selectedAnnouncementId ? null : (categorySelect.value || null))
           }
         });
 
@@ -2527,7 +2602,11 @@ videoForm.addEventListener("submit", async (event) => {
     if (editingId) {
       result = await db.from("videos").update(videoData).eq("id", editingId);
     } else {
-      result = await db.from("videos").insert({ ...videoData, is_published: !selectedAnnouncementId });
+      result = await db.from("videos").insert({
+        ...videoData,
+        is_published: !selectedAnnouncementId,
+        sort_order: getNextVideoSortOrder(selectedAnnouncementId ? null : (categorySelect.value || null))
+      });
     }
 
     if (result.error && !editingId && result.error.message.includes("Failed to fetch")) {
