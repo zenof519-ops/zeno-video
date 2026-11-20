@@ -2600,6 +2600,13 @@ videoForm.addEventListener("submit", async (event) => {
       mux_status: provider === "mux" ? (editingVideo?.mux_status || null) : null
     };
 
+    if (editingId && editingVideo) {
+      const destinationCategoryId = selectedAnnouncementId ? null : (categorySelect.value || null);
+      if (destinationCategoryId !== (editingVideo.category_id || null)) {
+        videoData.sort_order = getNextVideoSortOrder(destinationCategoryId, editingVideo.id);
+      }
+    }
+
     let result;
     const saveStartedAt = new Date().toISOString();
     if (editingId) {
