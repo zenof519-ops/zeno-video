@@ -331,3 +331,15 @@ footer { padding: 24px 18px; border-top: 1px solid rgba(237,75,183,.25); color: 
 .public-category-navigation { grid-column:1/-1; }
 .category-back { flex:0 0 auto; }
 .category-folder-grid[hidden] { display:none; }
+
+
+/* Contrôle de l'ordre public des vidéos depuis l'administration */
+.video-order-controls {
+  display:flex; flex-wrap:wrap; align-items:center; gap:8px;
+  margin:12px 0 4px; padding:10px 12px;
+  border:1px solid rgba(85,217,242,.24); border-radius:11px;
+  background:rgba(85,217,242,.045);
+}
+.video-order-controls span { margin-right:auto; color:var(--zeno-gold); font-size:13px; font-weight:700; }
+.video-order-controls button { padding:8px 11px; }
+.video-order-controls button:disabled { opacity:.42; cursor:not-allowed; }
