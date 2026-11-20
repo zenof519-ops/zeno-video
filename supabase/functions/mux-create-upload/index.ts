@@ -94,6 +94,7 @@ Deno.serve(async (req: Request) => {
   const thumbnailCloudinaryPublicId = payload.thumbnail_cloudinary_public_id ? String(payload.thumbnail_cloudinary_public_id) : null;
   const thumbnailImageKitFileId = payload.thumbnail_imagekit_file_id ? String(payload.thumbnail_imagekit_file_id) : null;
   const announcementId = payload.announcement_id ? String(payload.announcement_id) : null;
+  const sortOrder = Number.isInteger(payload.sort_order) && payload.sort_order >= 0 ? payload.sort_order : 1000000;
 
   if (!title || title.length > 200 || description.length > 5000) {
     return json({ error: "Le titre est obligatoire (200 caractères maximum) et la description ne doit pas dépasser 5 000 caractères." }, 400, origin);
@@ -162,7 +163,8 @@ Deno.serve(async (req: Request) => {
     mux_asset_id: null,
     mux_playback_id: null,
     mux_status: "waiting",
-    announcement_id: announcementId
+    announcement_id: announcementId,
+    sort_order: sortOrder
   });
 
   if (insertError) {
