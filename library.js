@@ -22,7 +22,7 @@ async function loadVideos() {
   try {
     const headers = { apikey: SUPABASE_KEY, Authorization: `Bearer ${SUPABASE_KEY}` };
     const [videoResponse, announcementResponse, categoryResponse] = await Promise.all([
-      fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id,category_id&is_published=eq.true&order=created_at.desc`, { headers }),
+      fetch(`${SUPABASE_URL}/rest/v1/videos?select=id,title,description,playback_url,download_url,thumbnail_url,cloudinary_public_id,provider,announcement_id,category_id&is_published=eq.true&order=sort_order.asc,created_at.desc`, { headers }),
       fetch(`${SUPABASE_URL}/rest/v1/video_announcements?select=id,title,description,cover_url,scheduled_for,media_type&is_visible=eq.true&order=created_at.desc`, { headers }),
       fetch(`${SUPABASE_URL}/rest/v1/video_categories?select=id,name,sort_order,cover_url,is_published,is_hidden&order=sort_order.asc,name.asc`, { headers })
     ]);
