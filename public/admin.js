@@ -1469,10 +1469,13 @@ async function saveVideoOrder(orderedVideos) {
 async function saveVideoCategory(video, select, button) {
   button.disabled = true;
   const nextCategoryId = select.value || null;
+  const nextSortOrder = nextCategoryId === (video.category_id || null)
+    ? Number(video.sort_order)
+    : getNextVideoSortOrder(nextCategoryId, video.id);
   const { error } = await db.from("videos")
     .update({
       category_id: nextCategoryId,
-      sort_order: getNextVideoSortOrder(nextCategoryId, video.id)
+      sort_order: nextSortOrder
     })
     .eq("id", video.id);
   button.disabled = false;
