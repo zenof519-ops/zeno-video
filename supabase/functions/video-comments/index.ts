@@ -192,7 +192,7 @@ Deno.serve(async (req: Request) => {
       if (action === "admin_list") {
         const videoId = cleanText(payload.videoId, 36);
         let query = service.from("video_comments")
-          .select("id,video_id,parent_id,visitor_id,author_type,author_name,content,edit_token_hash,is_hidden,created_at,updated_at")
+          .select("id,video_id,parent_id,visitor_id,author_type,author_name,content,is_hidden,created_at,updated_at")
           .order("created_at", { ascending: true }).limit(1000);
         if (videoId) {
           if (!UUID_RE.test(videoId)) return json({ error: "Filtre vidéo invalide." }, 400, origin);
