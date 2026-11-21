@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Administration — Zeno Video</title>
-  <link rel="stylesheet" href="style.css?v=17">
+  <link rel="stylesheet" href="style.css?v=18">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=61" defer></script>
+  <script src="admin.js?v=62" defer></script>
 </head>
 <body>
   <header>
@@ -39,6 +39,25 @@
           <button id="logout-button" class="alt">Déconnexion</button>
         </div>
       </div>
+      <section class="admin-panel" id="comment-management">
+        <div class="section-title">
+          <h2>Gestion des commentaires</h2>
+          <button type="button" id="refresh-admin-comments" class="alt">Actualiser</button>
+        </div>
+        <p class="cover-help">Tous les avis publiés sous les vidéos. Tu peux répondre publiquement, masquer ou supprimer un commentaire.</p>
+        <div class="stats-grid">
+          <article class="stat-card"><span>Messages</span><strong id="admin-comment-total">—</strong></article>
+          <article class="stat-card"><span>Sans réponse</span><strong id="admin-comment-unanswered">—</strong></article>
+          <article class="stat-card"><span>Masqués</span><strong id="admin-comment-hidden">—</strong></article>
+          <article class="stat-card"><span>Visiteurs</span><strong id="admin-comment-visitors">—</strong></article>
+        </div>
+        <label for="admin-comment-video-filter">Filtrer par vidéo</label>
+        <select id="admin-comment-video-filter" class="comment-filter">
+          <option value="">Toutes les vidéos</option>
+        </select>
+        <p id="admin-comments-message" class="admin-message" role="status" aria-live="polite"></p>
+        <div id="admin-comments-list" class="comment-admin-list"></div>
+      </section>
       <section class="admin-panel weekly-maintenance-panel admin-hidden" id="weekly-maintenance-panel" aria-live="polite">
         <div class="section-title">
           <h2>Maintenance hebdomadaire</h2>

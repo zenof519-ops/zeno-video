@@ -429,6 +429,8 @@ async function loadVideo() {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");
     }
 
+    await initializeVideoComments(id);
+
   } catch (error) {
     document.getElementById("video-title").textContent =
       error.message;
@@ -482,3 +484,210 @@ document.getElementById("copy-watch-link").onclick =
       prompt("Copie ce lien :", location.href);
     }
   };
+
+
+/* Commentaires publics sans compte — les droits de modification reposent sur un jeton local propre au commentaire. */
+const COMMENTS_API = `${SUPABASE_URL}/functions/v1/video-comments`;
+const VISITOR_STORAGE_KEY = "zeno-video-comment-visitor-v1";
+const COMMENT_TOKENS_KEY = "zeno-video-comment-edit-tokens-v1";
+const commentsSection = document.getElementById("comments-section");
+const commentsList = document.getElementById("comments-list");
+const commentsForm = document.getElementById("comment-form");
+const commentsInput = document.getElementById("comment-content");
+const commentsMessage = document.getElementById("comment-message");
+const commentsSubmit = document.getElementById("comment-submit");
+const commentsCancelEdit = document.getElementById("comment-cancel-edit");
+const commentsCount = document.getElementById("comments-count");
+let currentCommentVideoId = null;
+let currentVisitorId = null;
+let editingCommentId = null;
+let visitorDisplayName = "Visiteur";
+
+function createLocalUuid() {
+  if (crypto.randomUUID) return crypto.randomUUID();
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, char => {
+    const value = Math.random() * 16 | 0;
+    return (char === "x" ? value : (value & 3 | 8)).toString(16);
+  });
+}
+function getVisitorId() {
+  try {
+    let value = localStorage.getItem(VISITOR_STORAGE_KEY);
+    if (!value || !/^[0-9a-f-]{36}$/i.test(value)) {
+      value = createLocalUuid();
+      localStorage.setItem(VISITOR_STORAGE_KEY, value);
+    }
+    return value;
+  } catch {
+    return createLocalUuid();
+  }
+}
+function getCommentTokens() {
+  try {
+    const value = JSON.parse(localStorage.getItem(COMMENT_TOKENS_KEY) || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+function saveCommentToken(commentId, token) {
+  try {
+    const tokens = getCommentTokens();
+    tokens[commentId] = token;
+    localStorage.setItem(COMMENT_TOKENS_KEY, JSON.stringify(tokens));
+  } catch {
+    setCommentMessage("Ton commentaire est publié, mais le navigateur n’a pas pu mémoriser son droit de modification. Évite d’effacer les données du navigateur.");
+  }
+}
+function setCommentMessage(message, isError = false) {
+  if (!commentsMessage) return;
+  commentsMessage.textContent = message;
+  commentsMessage.className = "admin-message" + (isError ? " error" : "");
+}
+async function callCommentsApi(payload) {
+  const response = await fetch(COMMENTS_API, {
+    method: "POST",
+    headers: {
+      apikey: SUPABASE_KEY,
+      Authorization: `Bearer ${SUPABASE_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || "Impossible de contacter le service de commentaires.");
+  return data;
+}
+function formatCommentDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+function createCommentElement(comment, isReply = false) {
+  const article = document.createElement("article");
+  article.className = isReply ? "comment-card comment-reply" : "comment-card";
+  const header = document.createElement("div");
+  header.className = "comment-header";
+  const author = document.createElement("strong");
+  author.textContent = comment.author_name || "Utilisateur";
+  const date = document.createElement("time");
+  date.dateTime = comment.created_at || "";
+  date.textContent = formatCommentDate(comment.created_at);
+  header.append(author, date);
+  const content = document.createElement("p");
+  content.className = "comment-content";
+  content.textContent = comment.content || "";
+  article.append(header, content);
+  if (comment.updated_at && comment.created_at && new Date(comment.updated_at) - new Date(comment.created_at) > 1000) {
+    const edited = document.createElement("small");
+    edited.className = "comment-edited";
+    edited.textContent = "Modifié";
+    article.append(edited);
+  }
+  if (!isReply && comment.author_type === "visitor" && getCommentTokens()[comment.id]) {
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "comment-edit-button";
+    edit.textContent = "Modifier";
+    edit.addEventListener("click", () => {
+      editingCommentId = comment.id;
+      commentsInput.value = comment.content || "";
+      commentsSubmit.textContent = "Enregistrer la modification";
+      commentsCancelEdit.hidden = false;
+      setCommentMessage("Tu modifies ton commentaire.");
+      commentsInput.focus();
+      commentsForm.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    article.append(edit);
+  }
+  return article;
+}
+async function renderVideoComments() {
+  const result = await callCommentsApi({ action: "list", videoId: currentCommentVideoId });
+  const comments = Array.isArray(result.comments) ? result.comments : [];
+  const roots = comments.filter(item => !item.parent_id);
+  commentsCount.textContent = roots.length + (roots.length > 1 ? " commentaires" : " commentaire");
+  commentsList.replaceChildren();
+  if (!roots.length) {
+    const empty = document.createElement("p");
+    empty.className = "comments-empty";
+    empty.textContent = "Aucun commentaire pour le moment. Sois le premier à donner ton avis !";
+    commentsList.append(empty);
+    return;
+  }
+  const replies = new Map();
+  for (const item of comments.filter(item => item.parent_id)) {
+    if (!replies.has(item.parent_id)) replies.set(item.parent_id, []);
+    replies.get(item.parent_id).push(item);
+  }
+  for (const item of roots) {
+    const group = document.createElement("div");
+    group.className = "comment-thread";
+    group.append(createCommentElement(item));
+    for (const reply of replies.get(item.id) || []) group.append(createCommentElement(reply, true));
+    commentsList.append(group);
+  }
+}
+async function initializeVideoComments(videoId) {
+  if (!videoId || !commentsSection || !commentsForm) return;
+  currentCommentVideoId = videoId;
+  currentVisitorId = getVisitorId();
+  commentsSection.hidden = false;
+  setCommentMessage("Préparation de ton espace de commentaires…");
+  try {
+    await renderVideoComments();
+    setCommentMessage("Aucun compte n’est nécessaire. Ton pseudonyme automatique sera attribué à ton premier commentaire.");
+  } catch (error) {
+    commentsList.replaceChildren();
+    const message = document.createElement("p");
+    message.className = "comments-empty";
+    message.textContent = error.message;
+    commentsList.append(message);
+    setCommentMessage(error.message, true);
+  }
+}
+function resetCommentEditor() {
+  editingCommentId = null;
+  commentsForm.reset();
+  commentsSubmit.textContent = "Envoyer le commentaire";
+  commentsCancelEdit.hidden = true;
+}
+commentsCancelEdit?.addEventListener("click", () => {
+  resetCommentEditor();
+  setCommentMessage("Modification annulée.");
+});
+commentsForm?.addEventListener("submit", async event => {
+  event.preventDefault();
+  const content = commentsInput.value.trim();
+  if (document.getElementById("comment-website")?.value) return;
+  if (!content || content.length > 2000 || !currentCommentVideoId) return;
+  commentsSubmit.disabled = true;
+  setCommentMessage(editingCommentId ? "Modification en cours…" : "Envoi du commentaire…");
+  try {
+    if (editingCommentId) {
+      const token = getCommentTokens()[editingCommentId];
+      if (!token) throw new Error("Le droit de modification n’est plus disponible sur cet appareil.");
+      await callCommentsApi({ action: "edit", commentId: editingCommentId, editToken: token, content });
+      resetCommentEditor();
+      await renderVideoComments();
+      setCommentMessage("Ton commentaire a été modifié.");
+    } else {
+      const editToken = createLocalUuid();
+      const result = await callCommentsApi({
+        action: "create",
+        videoId: currentCommentVideoId,
+        visitorId: currentVisitorId,
+        editToken,
+        content
+      });
+      if (result.comment?.id) saveCommentToken(result.comment.id, editToken);
+      visitorDisplayName = result.comment?.author_name || visitorDisplayName;
+      resetCommentEditor();
+      await renderVideoComments();
+      setCommentMessage("Commentaire envoyé. Merci pour ton avis !");
+    }
+  } catch (error) {
+    setCommentMessage(error.message, true);
+  } finally {
+    commentsSubmit.disabled = false;
+  }
+});

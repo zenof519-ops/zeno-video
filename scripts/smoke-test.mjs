@@ -74,7 +74,7 @@ const checks = [
   ['PostHog : SDK chargé sur le lecteur vidéo', watch.includes('posthog-config.js') && watch.includes('posthog.js?v=2')],
   ['PostHog : administration privée exclue du suivi', !admin.includes('posthog.js')],
   ['PostHog : événements vidéo personnalisés présents', read('watch.js').includes('video_launch_requested') && read('watch.js').includes('video_download_requested')],
-  ['PostHog : clic de téléchargement capturé sans bloquer le lien natif', read('watch.js').includes('captureAnalytics("video_download_requested"') && read('watch.js').includes('transport: "sendBeacon"') && !read('watch.js').includes('event.preventDefault()') && !read('watch.js').includes('window.open(destination')],
+  ['PostHog : clic de téléchargement capturé sans bloquer le lien natif', read('watch.js').includes('captureAnalytics("video_download_requested"') && read('watch.js').includes('transport: "sendBeacon"') && read('watch.js').includes('downloadButton.addEventListener("click", () => {') && !read('watch.js').includes('downloadButton.addEventListener("click", event => { event.preventDefault()') && !read('watch.js').includes('window.open(destination')],
   ['Lecteur : script conservé et cache actualisé', /watch\.js\?v=\d+/.test(watch)],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')],
   ['Compteurs : lecteur et galerie utilisent la fonction Edge sécurisée', read('watch.js').includes('/functions/v1/video-counter') && read('library.js').includes('/functions/v1/video-counter')],
@@ -108,6 +108,13 @@ const checks = [
   ['Catégories : création, renommage et couverture dans l’administration', read('admin.html').includes('category-cover-file') && read('admin.js').includes('async function uploadCategoryCover') && read('admin.js').includes('Enregistrer le nom')],
   ['Catégories : suppression simple et suppression définitive distinctes', read('admin.js').includes('Supprimer la catégorie') && read('admin.js').includes('Supprimer la catégorie et ses vidéos') && read('admin.js').includes('permanentlyDeleteCategory')],
   ['Catégories : Edge Function sécurisée pour supprimer le contenu du dossier', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('if (body.categoryId)') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('deleteVideoAsset')],
+  ['Commentaires : espace public intégré sous le lecteur', watch.includes('comments-section') && watch.includes('comment-form') && watch.includes('comments-list')],
+  ['Commentaires : identité anonyme locale et jeton de modification', read('watch.js').includes('VISITOR_STORAGE_KEY') && read('watch.js').includes('COMMENT_TOKENS_KEY') && read('watch.js').includes('action: "edit"')],
+  ['Commentaires : opérations publiques via Edge Function, sans accès direct à la table', read('watch.js').includes('/functions/v1/video-comments') && !read('watch.js').includes('/rest/v1/video_comments')],
+  ['Commentaires : administration avec réponses, masquage et suppression', admin.includes('id="comment-management"') && read('admin.js').includes('admin_reply') && read('admin.js').includes('admin_hide') && read('admin.js').includes('admin_delete')],
+  ['Commentaires : Edge Function vérifie l’administrateur, hache les jetons et limite le débit', readFileSync('supabase/functions/video-comments/index.ts', 'utf8').includes('ADMIN_ID') && readFileSync('supabase/functions/video-comments/index.ts', 'utf8').includes('sha256(editToken)') && readFileSync('supabase/functions/video-comments/index.ts', 'utf8').includes('consume_video_comment_rate_limit')],
+  ['Commentaires : migration RLS et accès directs anon/authenticated révoqués', readFileSync('supabase/migrations/20261121100801_add_anonymous_video_comments.sql', 'utf8').includes('ENABLE ROW LEVEL SECURITY') && readFileSync('supabase/migrations/20261121100801_add_anonymous_video_comments.sql', 'utf8').includes('REVOKE ALL PRIVILEGES ON TABLE public.video_comments FROM PUBLIC, anon, authenticated')],
+  ['Commentaires : index de la clé étrangère visiteur présent', readFileSync('supabase/migrations/20261121100855_index_video_comment_visitors.sql', 'utf8').includes('video_comments_visitor_id_idx')],
 ]; 
 
 // Le build Astro copie les fichiers JavaScript publics sans les compiler.
