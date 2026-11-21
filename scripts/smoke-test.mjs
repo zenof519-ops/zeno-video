@@ -74,7 +74,7 @@ const checks = [
   ['PostHog : SDK chargé sur le lecteur vidéo', watch.includes('posthog-config.js') && watch.includes('posthog.js?v=2')],
   ['PostHog : administration privée exclue du suivi', !admin.includes('posthog.js')],
   ['PostHog : événements vidéo personnalisés présents', read('watch.js').includes('video_launch_requested') && read('watch.js').includes('video_download_requested')],
-  ['PostHog : clic de téléchargement capturé sans bloquer le lien natif', read('watch.js').includes('captureAnalytics("video_download_requested"') && read('watch.js').includes('transport: "sendBeacon"') && !read('watch.js').includes('event.preventDefault()') && !read('watch.js').includes('window.open(destination')],
+  ['PostHog : clic de téléchargement capturé sans bloquer le lien natif', read('watch.js').includes('captureAnalytics("video_download_requested"') && read('watch.js').includes('transport: "sendBeacon"') && read('watch.js').includes('downloadButton.addEventListener("click", () => {') && !read('watch.js').includes('downloadButton.addEventListener("click", event => { event.preventDefault()') && !read('watch.js').includes('window.open(destination')],
   ['Lecteur : script conservé et cache actualisé', /watch\.js\?v=\d+/.test(watch)],
   ['Lecteur : lecture par identifiant URL', read('watch.js').includes('location.search')],
   ['Compteurs : lecteur et galerie utilisent la fonction Edge sécurisée', read('watch.js').includes('/functions/v1/video-counter') && read('library.js').includes('/functions/v1/video-counter')],
