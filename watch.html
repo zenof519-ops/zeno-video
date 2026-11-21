@@ -19,7 +19,7 @@
   <script src="posthog-config.js" defer></script>
   <script src="posthog.js?v=2" defer></script>
   <script src="videos.js" defer></script>
-  <script src="watch.js?v=25" defer></script>
+  <script src="watch.js?v=26" defer></script>
 </head>
 <body>
   <header>
@@ -32,6 +32,21 @@
     <p id="video-description" class="intro"></p>
     <div id="player-wrap" class="player"></div>
     <p><a id="download-video" class="btn" hidden>Télécharger la vidéo</a></p>
+    <section id="comments-section" class="comments-panel" hidden aria-live="polite">
+      <div class="section-title"><h2>Commentaires</h2><span id="comments-count">0 commentaire</span></div>
+      <p class="comments-intro">Partage ton avis sur cette vidéo. Aucun compte n’est nécessaire.</p>
+      <div id="comments-list" class="comments-list"><p class="comments-empty">Chargement des commentaires…</p></div>
+      <form id="comment-form" class="comment-form">
+        <label for="comment-content">Écrire un commentaire</label>
+        <textarea id="comment-content" maxlength="2000" rows="4" required placeholder="Que penses-tu de cette vidéo ?"></textarea>
+        <label class="comment-honeypot" aria-hidden="true">Ne pas remplir<input id="comment-website" type="text" tabindex="-1" autocomplete="off"></label>
+        <div class="comment-form-actions">
+          <button id="comment-submit" type="submit">Envoyer le commentaire</button>
+          <button id="comment-cancel-edit" class="alt" type="button" hidden>Annuler</button>
+        </div>
+        <p id="comment-message" class="admin-message" role="status" aria-live="polite"></p>
+      </form>
+    </section>
     <button id="copy-watch-link">Copier le lien de cette vidéo</button>
     <p id="error-message" hidden>Vidéo introuvable.</p>
   </main>
