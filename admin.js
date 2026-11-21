@@ -1024,6 +1024,219 @@ function resetVideoForm() {
   refreshOneDriveHelper();
 }
 
+
+/* Modération des commentaires — toutes les actions sensibles passent par l'Edge Function authentifiée. */
+const adminCommentsList = document.getElementById("admin-comments-list");
+const adminCommentsMessage = document.getElementById("admin-comments-message");
+const adminCommentFilter = document.getElementById("admin-comment-video-filter");
+const adminCommentTotal = document.getElementById("admin-comment-total");
+const adminCommentUnanswered = document.getElementById("admin-comment-unanswered");
+const adminCommentHidden = document.getElementById("admin-comment-hidden");
+const adminCommentVisitors = document.getElementById("admin-comment-visitors");
+
+function commentAdminMessage(message, error = false) {
+  if (!adminCommentsMessage) return;
+  adminCommentsMessage.textContent = message;
+  adminCommentsMessage.className = "admin-message" + (error ? " error" : "");
+}
+async function invokeCommentAdmin(payload) {
+  const { data, error } = await db.functions.invoke("video-comments", { body: payload });
+  if (error) {
+    let detail = error.message || "Erreur du service de commentaires.";
+    try {
+      if (error.context && typeof error.context.json === "function") {
+        const body = await error.context.json();
+        detail = body.error || body.message || detail;
+      }
+    } catch {}
+    throw new Error(detail);
+  }
+  if (data?.error) throw new Error(data.error);
+  return data;
+}
+function formatAdminCommentDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" });
+}
+function populateAdminCommentFilter() {
+  if (!adminCommentFilter) return;
+  const selected = adminCommentFilter.value;
+  adminCommentFilter.replaceChildren();
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = "Toutes les vidéos";
+  adminCommentFilter.append(all);
+  for (const video of adminVideosCache || []) {
+    const option = document.createElement("option");
+    option.value = video.id;
+    option.textContent = video.title || "Vidéo sans titre";
+    adminCommentFilter.append(option);
+  }
+  adminCommentFilter.value = selected;
+}
+function renderAdminComments(comments) {
+  adminCommentsList.replaceChildren();
+  const roots = comments.filter(item => !item.parent_id);
+  const replies = new Map();
+  for (const item of comments.filter(item => item.parent_id)) {
+    if (!replies.has(item.parent_id)) replies.set(item.parent_id, []);
+    replies.get(item.parent_id).push(item);
+  }
+  const videoNames = new Map((adminVideosCache || []).map(video => [video.id, video.title]));
+  const uniqueVisitors = new Set(roots.map(item => item.visitor_id).filter(Boolean));
+  adminCommentTotal.textContent = comments.length.toLocaleString("fr-FR");
+  adminCommentUnanswered.textContent = roots.filter(item => !(replies.get(item.id) || []).length).length.toLocaleString("fr-FR");
+  adminCommentHidden.textContent = comments.filter(item => item.is_hidden).length.toLocaleString("fr-FR");
+  adminCommentVisitors.textContent = uniqueVisitors.size.toLocaleString("fr-FR");
+  if (!roots.length) {
+    const empty = document.createElement("p");
+    empty.className = "comments-empty";
+    empty.textContent = "Aucun commentaire pour le moment.";
+    adminCommentsList.append(empty);
+    return;
+  }
+  roots.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+  for (const comment of roots) {
+    const card = document.createElement("article");
+    card.className = "comment-admin-card";
+    const heading = document.createElement("div");
+    heading.className = "comment-admin-heading";
+    const author = document.createElement("strong");
+    author.textContent = comment.author_name || "Utilisateur";
+    const date = document.createElement("span");
+    date.className = "comment-admin-date";
+    date.textContent = formatAdminCommentDate(comment.created_at);
+    heading.append(author, date);
+    const video = document.createElement("p");
+    video.className = "comment-admin-meta";
+    video.textContent = "Vidéo : " + (videoNames.get(comment.video_id) || "Vidéo supprimée ou indisponible");
+    const content = document.createElement("p");
+    content.className = "comment-content";
+    content.textContent = comment.content || "";
+    card.append(heading, video, content);
+    if (comment.is_hidden) {
+      const hidden = document.createElement("span");
+      hidden.className = "comment-hidden-label";
+      hidden.textContent = "COMMENTAIRE MASQUÉ";
+      card.append(hidden);
+    }
+    const threadReplies = replies.get(comment.id) || [];
+    if (threadReplies.length) {
+      const replyWrap = document.createElement("div");
+      replyWrap.className = "comment-admin-replies";
+      for (const reply of threadReplies) {
+        const replyCard = document.createElement("div");
+        replyCard.className = "comment-admin-reply";
+        const replyAuthor = document.createElement("strong");
+        replyAuthor.textContent = reply.author_name || "Administration Zeno Video";
+        const replyDate = document.createElement("small");
+        replyDate.className = "comment-admin-date";
+        replyDate.textContent = formatAdminCommentDate(reply.created_at);
+        const replyContent = document.createElement("p");
+        replyContent.textContent = reply.content || "";
+        const replyDelete = document.createElement("button");
+        replyDelete.type = "button";
+        replyDelete.className = "danger";
+        replyDelete.textContent = "Supprimer la réponse";
+        replyDelete.addEventListener("click", async () => {
+          if (!confirm("Supprimer cette réponse ?")) return;
+          try {
+            await invokeCommentAdmin({ action: "admin_delete", commentId: reply.id });
+            await loadAdminComments();
+          } catch (error) { commentAdminMessage(error.message, true); }
+        });
+        replyCard.append(replyAuthor, replyDate, replyContent, replyDelete);
+        replyWrap.append(replyCard);
+      }
+      card.append(replyWrap);
+    }
+    const replyForm = document.createElement("form");
+    replyForm.className = "comment-admin-reply";
+    const replyLabel = document.createElement("label");
+    replyLabel.textContent = threadReplies.length ? "Ajouter une autre réponse publique" : "Répondre publiquement";
+    const replyInput = document.createElement("textarea");
+    replyInput.rows = 2;
+    replyInput.maxLength = 2000;
+    replyInput.required = true;
+    replyInput.placeholder = "Écris ta réponse…";
+    const replyButton = document.createElement("button");
+    replyButton.type = "submit";
+    replyButton.textContent = "Envoyer la réponse";
+    replyForm.append(replyLabel, replyInput, replyButton);
+    replyForm.addEventListener("submit", async event => {
+      event.preventDefault();
+      const content = replyInput.value.trim();
+      if (!content) return;
+      replyButton.disabled = true;
+      try {
+        await invokeCommentAdmin({ action: "admin_reply", commentId: comment.id, content });
+        await loadAdminComments();
+        commentAdminMessage("Réponse publiée sous le commentaire.");
+      } catch (error) {
+        commentAdminMessage(error.message, true);
+        replyButton.disabled = false;
+      }
+    });
+    const actions = document.createElement("div");
+    actions.className = "comment-admin-actions";
+    const hideButton = document.createElement("button");
+    hideButton.type = "button";
+    hideButton.className = "alt";
+    hideButton.textContent = comment.is_hidden ? "Rendre visible" : "Masquer";
+    hideButton.addEventListener("click", async () => {
+      hideButton.disabled = true;
+      try {
+        await invokeCommentAdmin({ action: "admin_hide", commentId: comment.id, hidden: !comment.is_hidden });
+        await loadAdminComments();
+        commentAdminMessage(comment.is_hidden ? "Commentaire rendu visible." : "Commentaire masqué.");
+      } catch (error) {
+        commentAdminMessage(error.message, true);
+        hideButton.disabled = false;
+      }
+    });
+    const deleteButton = document.createElement("button");
+    deleteButton.type = "button";
+    deleteButton.className = "danger";
+    deleteButton.textContent = "Supprimer";
+    deleteButton.addEventListener("click", async () => {
+      if (!confirm("Supprimer ce commentaire et toutes ses réponses ? Cette action est définitive.")) return;
+      deleteButton.disabled = true;
+      try {
+        await invokeCommentAdmin({ action: "admin_delete", commentId: comment.id });
+        await loadAdminComments();
+        commentAdminMessage("Commentaire supprimé.");
+      } catch (error) {
+        commentAdminMessage(error.message, true);
+        deleteButton.disabled = false;
+      }
+    });
+    actions.append(hideButton, deleteButton);
+    card.append(replyForm, actions);
+    adminCommentsList.append(card);
+  }
+}
+async function loadAdminComments() {
+  if (!adminCommentsList) return;
+  populateAdminCommentFilter();
+  adminCommentsList.replaceChildren();
+  commentAdminMessage("Chargement des commentaires…");
+  try {
+    const payload = { action: "admin_list" };
+    if (adminCommentFilter?.value) payload.videoId = adminCommentFilter.value;
+    const result = await invokeCommentAdmin(payload);
+    renderAdminComments(Array.isArray(result.comments) ? result.comments : []);
+    commentAdminMessage("Commentaires actualisés.");
+  } catch (error) {
+    commentAdminMessage("Impossible de charger les commentaires : " + error.message, true);
+    const empty = document.createElement("p");
+    empty.className = "comments-empty";
+    empty.textContent = "Le service de commentaires n’est pas disponible pour le moment.";
+    adminCommentsList.append(empty);
+  }
+}
+document.getElementById("refresh-admin-comments")?.addEventListener("click", loadAdminComments);
+adminCommentFilter?.addEventListener("change", loadAdminComments);
+
 async function openDashboard(user) {
   if (!user || user.id !== ADMIN_ID) {
     await db.auth.signOut();
@@ -1039,6 +1252,7 @@ async function openDashboard(user) {
   await loadAdminCategories();
   await loadAdminAnnouncements();
   await loadAdminVideos();
+  await loadAdminComments();
   await loadHostingUsage(dropboxOAuthJustConnected);
   await checkPermanentDeleteConfig();
   await checkDeepStorageAvailability(true);
