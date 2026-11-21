@@ -634,10 +634,8 @@ async function initializeVideoComments(videoId) {
   commentsSection.hidden = false;
   setCommentMessage("Préparation de ton espace de commentaires…");
   try {
-    const identity = await callCommentsApi({ action: "identify", visitorId: currentVisitorId });
-    visitorDisplayName = identity.authorName || "Visiteur";
     await renderVideoComments();
-    setCommentMessage("Tu participes sous le nom « " + visitorDisplayName + " ». Aucun compte n’est nécessaire.");
+    setCommentMessage("Aucun compte n’est nécessaire. Ton pseudonyme automatique sera attribué à ton premier commentaire.");
   } catch (error) {
     commentsList.replaceChildren();
     const message = document.createElement("p");
@@ -682,6 +680,7 @@ commentsForm?.addEventListener("submit", async event => {
         content
       });
       if (result.comment?.id) saveCommentToken(result.comment.id, editToken);
+      visitorDisplayName = result.comment?.author_name || visitorDisplayName;
       resetCommentEditor();
       await renderVideoComments();
       setCommentMessage("Commentaire envoyé. Merci pour ton avis !");
