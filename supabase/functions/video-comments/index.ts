@@ -134,7 +134,9 @@ Deno.serve(async (req: Request) => {
         .eq("video_id", videoId).eq("is_hidden", false)
         .order("created_at", { ascending: true }).limit(250);
       if (error) throw error;
-      return json({ comments: data || [] }, 200, origin);
+      const visibleRoots = new Set((data || []).filter(item => !item.parent_id).map(item => item.id));
+      const visibleComments = (data || []).filter(item => !item.parent_id || visibleRoots.has(item.parent_id));
+      return json({ comments: visibleComments }, 200, origin);
     }
 
     if (action === "create") {
@@ -208,9 +210,9 @@ Deno.serve(async (req: Request) => {
         const content = cleanText(payload.content, 2000);
         if (!UUID_RE.test(parentId) || !content) return json({ error: "Réponse invalide." }, 400, origin);
         const { data: parent, error: parentError } = await service.from("video_comments")
-          .select("id,video_id,parent_id,author_type").eq("id", parentId).maybeSingle();
+          .select("id,video_id,parent_id,author_type,is_hidden").eq("id", parentId).maybeSingle();
         if (parentError) throw parentError;
-        if (!parent || parent.parent_id || parent.author_type !== "visitor") {
+        if (!parent || parent.parent_id || parent.author_type !== "visitor" || parent.is_hidden) {
           return json({ error: "Commentaire d'origine introuvable." }, 404, origin);
         }
         const { data, error } = await service.from("video_comments").insert({
