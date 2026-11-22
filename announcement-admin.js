@@ -145,9 +145,32 @@ oneDriveChatGPTButton.addEventListener("click",async()=>{
   window.open("https://chatgpt.com/","_blank","noopener,noreferrer");
 });
 
+async function ensureAdminSession(){
+  let {data,error}=await db.auth.getSession();
+  if(error)throw new Error("Vérification de la session impossible : "+error.message);
+  let session=data?.session;
+  if(!session?.access_token)throw new Error("Ta session administrateur n’est plus active. Reconnecte-toi : les champs de l’annonce sont conservés.");
+  if(session.user?.id!==ADMIN_ID)throw new Error("La session actuelle n’a pas les droits administrateur. Reconnecte-toi avec le compte Zeno Video.");
+  const expiresAt=Number(session.expires_at||0);
+  if(expiresAt&&expiresAt<=Math.floor(Date.now()/1000)+90){
+    const refreshed=await db.auth.refreshSession();
+    if(refreshed.error||!refreshed.data?.session){
+      throw new Error("La session administrateur a expiré et n’a pas pu être renouvelée. Reconnecte-toi : les champs de l’annonce sont conservés.");
+    }
+    session=refreshed.data.session;
+    if(session.user?.id!==ADMIN_ID)throw new Error("La session renouvelée n’a pas les droits administrateur. Reconnecte-toi avec le compte Zeno Video.");
+  }
+  return session;
+}
+
 async function uploadCover(file){
   const data=new FormData();data.append("file",file);data.append("upload_preset",CLOUDINARY_IMAGE_UPLOAD_PRESET);
-  const response=await fetch("https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/image/upload",{method:"POST",body:data});
+  let response;
+  try{
+    response=await fetch("https://api.cloudinary.com/v1_1/"+CLOUD_NAME+"/image/upload",{method:"POST",body:data});
+  }catch(error){
+    throw new Error("Connexion interrompue pendant l’envoi vers Cloudinary. Vérifie la connexion puis réessaie : les champs de l’annonce sont conservés.");
+  }
   const result=await response.json().catch(()=>({}));
   if(!response.ok||!result.secure_url)throw new Error(result.error?.message||"Échec de l’envoi de la couverture sur Cloudinary.");
   return result;
@@ -741,6 +764,7 @@ form.addEventListener("submit",async event=>{
 
   saveButton.disabled=true;providerSelect.disabled=true;
   try{
+    await ensureAdminSession();
     const coverProvider=coverProviderSelect.value;
     let coverUrl=currentCover,coverUpload=null;
     if(coverFile){
