@@ -32,10 +32,11 @@ function safeFilename(value) {
 
 async function adminError(request, env) {
   const authorization = request.headers.get("Authorization");
-  if (!authorization || !authorization.startsWith("Bearer ")) {
+  const apiKey = request.headers.get("apikey");
+  if (!authorization || !authorization.startsWith("Bearer ") || !apiKey) {
     return json({ error: "Connexion administrateur requise.", code: "unauthorized" }, 401);
   }
-  if (!env.SUPABASE_URL || !env.SUPABASE_PUBLISHABLE_KEY || !env.ZENO_ADMIN_USER_ID) {
+  if (!env.SUPABASE_URL || !env.ZENO_ADMIN_USER_ID) {
     return json({ error: "Configuration d’authentification R2 incomplète.", code: "server_config" }, 503);
   }
 
@@ -43,7 +44,7 @@ async function adminError(request, env) {
   try {
     response = await fetch(env.SUPABASE_URL.replace(/\/$/, "") + "/auth/v1/user", {
       headers: {
-        "apikey": env.SUPABASE_PUBLISHABLE_KEY,
+        "apikey": apiKey,
         "Authorization": authorization
       }
     });
