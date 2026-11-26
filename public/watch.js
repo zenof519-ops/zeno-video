@@ -442,7 +442,10 @@ async function loadVideo() {
         console.error("Erreur de lecture Cloudflare R2 :", media.error);
       });
       wrap.replaceChildren(media);
-      downloadButton.href = video.download_url || video.playback_url;
+      const downloadUrl = new URL(video.download_url || video.playback_url);
+      downloadUrl.searchParams.set("download", "1");
+      downloadButton.href = downloadUrl.toString();
+      downloadButton.target = "_self";
       downloadButton.hidden = false;
     } else {
       throw new Error("Le lecteur de cette vidéo n'est pas configuré correctement.");

@@ -58,14 +58,21 @@ async function loadVideos() {
         // Bunny MP4 Fallback : ouvrir le lecteur MP4 natif du navigateur dans un nouvel onglet.
         download.href = new URL(video.download_url).toString();
       } else if (provider === "r2" && video.playback_url) {
-        download.href = new URL(video.download_url || video.playback_url).toString();
+        const downloadUrl = new URL(video.download_url || video.playback_url);
+        downloadUrl.searchParams.set("download", "1");
+        download.href = downloadUrl.toString();
       }
       if (download.href) {
-        download.addEventListener("click", async event => {
-          event.preventDefault();
-          window.open(download.href, "_blank", "noopener,noreferrer");
-          await registerDownload(video.id);
-        });
+        if (provider === "r2") {
+          // Let the Worker return Content-Disposition: attachment in this tab.
+          download.addEventListener("click", () => { void registerDownload(video.id); });
+        } else {
+          download.addEventListener("click", async event => {
+            event.preventDefault();
+            window.open(download.href, "_blank", "noopener,noreferrer");
+            await registerDownload(video.id);
+          });
+        }
         return download;
       }
       return null;
