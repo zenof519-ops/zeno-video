@@ -2,7 +2,7 @@ const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 const R2_WORKER_URL = "https://zeno-video-media.zenof519.workers.dev";
 const R2_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
-const R2_MULTIPART_CONCURRENCY = 4;
+const R2_MULTIPART_CONCURRENCY = 1;
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
