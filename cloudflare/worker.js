@@ -187,6 +187,12 @@ export default {
         responseHeaders.set("X-Content-Type-Options", "nosniff");
         if (!responseHeaders.has("Content-Type")) responseHeaders.set("Content-Type", "application/octet-stream");
 
+        // Add attachment disposition only for explicit downloads; normal playback stays inline.
+        if (url.searchParams.get("download") === "1") {
+          const filename = safeFilename(object.customMetadata?.originalName || key.split("/").pop());
+          responseHeaders.set("Content-Disposition", `attachment; filename="${filename}"`);
+        }
+
         let status = 200;
         if (object.range) {
           const start = Number(object.range.offset ?? 0);
