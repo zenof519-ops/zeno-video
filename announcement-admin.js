@@ -1,5 +1,7 @@
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
+const R2_WORKER_URL = "https://zeno-video-media.zenof519.workers.dev";
+const R2_MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
 const BUNNY_LIBRARY_ID = "811150";
@@ -32,6 +34,8 @@ const deepStorageSource = document.getElementById("deepstorage-source");
 const deepStorageStatusElement = document.getElementById("deepstorage-status");
 const bunnySource = document.getElementById("bunny-source");
 const bunnyDownloadSource = document.getElementById("bunny-download-source");
+const r2File = document.getElementById("r2-file");
+const r2StatusElement = document.getElementById("r2-status");
 const saveButton = document.getElementById("save-button");
 
 let announcements = [];
@@ -50,7 +54,7 @@ function updateMediaFields(){
 }
 function updateProviderFields(){
   const provider=providerSelect.value;
-  for(const name of ["cloudinary","mux","vioo","dropbox","onedrive","deepstorage","bunny"]){
+  for(const name of ["cloudinary","mux","vioo","dropbox","onedrive","deepstorage","bunny","r2"]){
     document.getElementById(name+"-fields").classList.toggle("admin-hidden",provider!==name);
   }
   deepStorageFile.disabled=provider!=="deepstorage"||!deepStorageStatus.available;
@@ -58,6 +62,8 @@ function updateProviderFields(){
   cloudinaryFile.disabled=provider!=="cloudinary";
   bunnySource.disabled=provider!=="bunny";
   bunnyDownloadSource.disabled=provider!=="bunny";
+  r2File.disabled=provider!=="r2";
+  if(provider!=="r2")r2File.value="";
   if(provider==="deepstorage")checkDeepStorageAvailability(false);
 }
 mediaType.addEventListener("change",updateMediaFields);
@@ -647,7 +653,7 @@ function normalizeHttpsSource(value,label){
 }
 
 function resetForm(){
-  form.reset();editingId=null;editingItem=null;currentCover=null;
+  form.reset();r2File.value="";editingId=null;editingItem=null;currentCover=null;
   if(coverObjectUrl)URL.revokeObjectURL(coverObjectUrl);coverObjectUrl=null;
   coverPreview.removeAttribute("src");coverPreview.classList.add("admin-hidden");
   saveButton.textContent="Publier l’annonce";document.getElementById("cancel-button").classList.add("admin-hidden");
@@ -705,6 +711,34 @@ async function loadAnnouncements(){
   }
 }
 
+async function uploadToR2(file){
+  const {data:sessionData,error:sessionError}=await db.auth.getSession();
+  const session=sessionData?.session;
+  if(error=undefined){} // placeholder
+  if(sessionError||!session?.access_token)throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l’envoi vers R2.");
+  const url=new URL("/upload",R2_WORKER_URL);url.searchParams.set("filename",file.name);
+  return await new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest();xhr.open("PUT",url.toString());xhr.timeout=900000;
+    xhr.setRequestHeader("Authorization","Bearer "+session.access_token);
+    xhr.setRequestHeader("apikey",SUPABASE_KEY);
+    xhr.setRequestHeader("Content-Type",file.type||"application/octet-stream");
+    xhr.upload.addEventListener("progress",event=>{
+      const percent=event.lengthComputable?Math.round(event.loaded/event.total*100):null;
+      show(message,percent===null?"Envoi vers Cloudflare R2…":"Envoi vers Cloudflare R2 : "+percent+"%");
+      if(r2StatusElement&&percent!==null)r2StatusElement.textContent="Transfert en cours : "+percent+"%";
+    });
+    xhr.addEventListener("load",()=>{
+      let data={};try{data=JSON.parse(xhr.responseText||"{}");}catch{}
+      if(xhr.status<200||xhr.status>=300){reject(new Error(data.error||"Cloudflare R2 a refusé l’envoi (HTTP "+xhr.status+")."));return;}
+      if(!data.url||!data.key){reject(new Error("Cloudflare R2 n’a pas renvoyé l’URL publique attendue."));return;}
+      resolve(data);
+    });
+    xhr.addEventListener("error",()=>reject(new Error("Connexion interrompue pendant l’envoi vers Cloudflare R2.")));
+    xhr.addEventListener("timeout",()=>reject(new Error("L’envoi vers Cloudflare R2 a dépassé le délai autorisé.")));
+    xhr.send(file);
+  });
+}
+
 async function saveMuxAnnouncement({title,description,dateValue,coverUrl,coverUpload,coverProvider,file}){
   if(!file)throw new Error("Choisis le fichier vidéo à envoyer sur Mux.");
   if(file.size>1024*1024*1024)throw new Error("La taille maximale autorisée pour un envoi Mux est de 1 Go.");
@@ -751,8 +785,12 @@ form.addEventListener("submit",async event=>{
   if(!title){show(message,"Ajoute un titre.");return;}
   if(!coverFile&&!currentCover){show(message,"Ajoute une couverture à cette annonce.");return;}
   const cloudFile=cloudinaryFile.files[0],deepFile=deepStorageFile.files[0],muxSelectedFile=muxFile.files[0];
-  const selectedVideoFile=provider==="cloudinary"?cloudFile:provider==="deepstorage"?deepFile:provider==="mux"?muxSelectedFile:null;
+  const r2SelectedFile=r2File.files[0];
+  const selectedVideoFile=provider==="cloudinary"?cloudFile:provider==="deepstorage"?deepFile:provider==="mux"?muxSelectedFile:provider==="r2"?r2SelectedFile:null;
   if(type==="video"&&selectedVideoFile&&!["video/mp4","video/quicktime","video/webm"].includes(selectedVideoFile.type)){show(message,"Format vidéo non accepté. Choisis un fichier MP4, MOV ou WebM.");return;}
+  if(type==="video"&&provider==="r2"&&!editingId&&!r2SelectedFile){show(message,"Choisis le fichier vidéo à envoyer sur Cloudflare R2.");return;}
+  if(type==="video"&&provider==="r2"&&editingId&&editingItem?.video_provider!=="r2"&&!r2SelectedFile){show(message,"Pour changer l’hébergement d’une annonce existante vers R2, sélectionne son nouveau fichier.");return;}
+  if(type==="video"&&provider==="r2"&&r2SelectedFile&&r2SelectedFile.size>R2_MAX_UPLOAD_BYTES){show(message,"La limite actuelle de Cloudflare R2 est de 95 Mio par fichier.");return;}
   if(type==="video"&&provider==="mux"&&!editingId&&!muxSelectedFile){show(message,"Choisis le fichier vidéo à envoyer sur Mux.");return;}
   if(type==="video"&&provider==="deepstorage"&&!deepStorageStatus.available&&deepFile){show(message,deepStorageStatus.message||"L’API DeepStorage n’est pas disponible.");await checkDeepStorageAvailability(true);return;}
   if(type==="video"&&provider==="onedrive"&&!isOneDriveEmbedUrl(oneDriveSource.value)){show(message,"Ce lien n’est pas un véritable lien Embed OneDrive. Utilise le bouton pour le convertir.");refreshOneDriveHelper();return;}
@@ -791,6 +829,13 @@ form.addEventListener("submit",async event=>{
         }else if(raw)videoUrl=normalizeCloudinarySource(raw);
         else if(editingItem?.video_provider==="cloudinary")videoUrl=editingItem.video_url;
         else throw new Error("Choisis un fichier vidéo Cloudinary ou indique son identifiant public.");
+      }else if(provider==="r2"){
+        if(r2SelectedFile){
+          show(message,"Envoi sécurisé de la vidéo vers Cloudflare R2…");
+          const uploaded=await uploadToR2(r2SelectedFile);videoUrl=uploaded.url;videoDownloadUrl=uploaded.url;
+          if(r2StatusElement)r2StatusElement.textContent="✓ Envoi vers R2 terminé.";
+        }else if(editingItem?.video_provider==="r2"){videoUrl=editingItem.video_url;videoDownloadUrl=editingItem.video_download_url||editingItem.video_url;}
+        else throw new Error("Choisis le fichier vidéo à envoyer sur Cloudflare R2.");
       }else if(provider==="deepstorage"){
         if(deepFile){show(message,"Préparation de l’envoi sécurisé vers DeepStorage…");const uploaded=await uploadToDeepStorage(deepFile);videoUrl=uploaded.link;}
         else if(deepStorageSource.value.trim())videoUrl=normalizeHttpsSource(deepStorageSource.value,"DeepStorage");
