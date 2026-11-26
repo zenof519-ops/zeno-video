@@ -1,7 +1,8 @@
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
 const R2_WORKER_URL = "https://zeno-video-media.zenof519.workers.dev";
-const R2_MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
+const R2_MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+const R2_MULTIPART_CONCURRENCY = 4;
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
@@ -2501,44 +2502,143 @@ async function uploadToR2(file) {
     throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l'envoi vers R2.");
   }
 
-  const uploadUrl = new URL("/upload", R2_WORKER_URL);
-  uploadUrl.searchParams.set("filename", file.name);
+  const authHeaders = {
+    Authorization: "Bearer " + session.access_token,
+    apikey: SUPABASE_KEY
+  };
+  const requestJson = async (path, method, body) => {
+    const response = await fetch(new URL(path, R2_WORKER_URL), {
+      method,
+      headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: JSON.stringify(body)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.error || "Cloudflare R2 a refusé la demande (HTTP " + response.status + ").");
+    }
+    return data;
+  };
+  const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
-  return await new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open("PUT", uploadUrl.toString());
-    xhr.timeout = 15 * 60 * 1000;
-    xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
-    xhr.setRequestHeader("apikey", SUPABASE_KEY);
-    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
-    xhr.upload.addEventListener("progress", event => {
-      if (!event.lengthComputable) {
-        showMessage(videoMessage, "Envoi de la vidéo vers Cloudflare R2…");
-        return;
-      }
-      const percent = Math.round(event.loaded / event.total * 100);
-      showMessage(videoMessage, "Envoi vers Cloudflare R2 : " + percent + "%");
-      if (r2StatusElement) r2StatusElement.textContent = "Transfert en cours : " + percent + "%";
-    });
-    xhr.addEventListener("load", () => {
-      let data = {};
-      try { data = JSON.parse(xhr.responseText || "{}"); } catch {}
-      if (xhr.status < 200 || xhr.status >= 300) {
-        reject(new Error(data.error || "Cloudflare R2 a refusé l'envoi (HTTP " + xhr.status + ")."));
-        return;
-      }
-      if (!data.url || !data.key) {
-        reject(new Error("Cloudflare R2 n'a pas renvoyé l'URL publique attendue."));
-        return;
-      }
-      resolve(data);
-    });
-    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudflare R2.")));
-    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudflare R2 a dépassé le délai autorisé. Vérifie ta connexion avant de réessayer.")));
-    xhr.send(file);
+  const created = await requestJson("/multipart/create", "POST", {
+    filename: file.name,
+    size: file.size,
+    contentType: file.type || "application/octet-stream"
   });
-}
+  if (!created.key || !created.uploadId || !Number.isSafeInteger(created.partSize) || created.partSize < 5 * 1024 * 1024) {
+    throw new Error("Cloudflare R2 n'a pas renvoyé les paramètres multipart attendus.");
+  }
 
+  const partCount = Math.ceil(file.size / created.partSize);
+  if (partCount < 1 || partCount > 10000 || created.partCount !== partCount) {
+    throw new Error("Le nombre de parties du téléversement R2 est invalide.");
+  }
+
+  const uploadedParts = new Array(partCount);
+  const progressByPart = new Map();
+  let completedBytes = 0;
+  let nextPartIndex = 0;
+
+  const reportProgress = () => {
+    let activeBytes = 0;
+    for (const value of progressByPart.values()) activeBytes += value;
+    const sent = Math.min(file.size, completedBytes + activeBytes);
+    const percent = Math.min(100, Math.round(sent / file.size * 100));
+    const message = "Envoi vers Cloudflare R2 : " + percent + "% (" +
+      sent.toLocaleString("fr-FR") + " / " + file.size.toLocaleString("fr-FR") + " octets)";
+    showMessage(videoMessage, message);
+    if (r2StatusElement) r2StatusElement.textContent = message;
+  };
+
+  const uploadPart = index => {
+    const partNumber = index + 1;
+    const startByte = index * created.partSize;
+    const endByte = Math.min(file.size, startByte + created.partSize);
+    const chunk = file.slice(startByte, endByte);
+    const partUrl = new URL("/multipart/part", R2_WORKER_URL);
+    partUrl.searchParams.set("key", created.key);
+    partUrl.searchParams.set("uploadId", created.uploadId);
+    partUrl.searchParams.set("partNumber", String(partNumber));
+
+    const send = () => new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open("PUT", partUrl.toString());
+      xhr.timeout = 10 * 60 * 1000;
+      xhr.setRequestHeader("Authorization", authHeaders.Authorization);
+      xhr.setRequestHeader("apikey", authHeaders.apikey);
+      xhr.setRequestHeader("Content-Type", "application/octet-stream");
+      xhr.upload.addEventListener("progress", event => {
+        if (event.lengthComputable) {
+          progressByPart.set(partNumber, Math.min(chunk.size, event.loaded));
+          reportProgress();
+        }
+      });
+      xhr.addEventListener("load", () => {
+        let data = {};
+        try { data = JSON.parse(xhr.responseText || "{}"); } catch {}
+        if (xhr.status < 200 || xhr.status >= 300 || !data.etag || Number(data.partNumber) !== partNumber) {
+          reject(new Error(data.error || "Échec de la partie " + partNumber + " (HTTP " + xhr.status + ")."));
+          return;
+        }
+        resolve(data);
+      });
+      xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi de la partie " + partNumber + ".")));
+      xhr.addEventListener("timeout", () => reject(new Error("Délai dépassé pour la partie " + partNumber + ".")));
+      xhr.send(chunk);
+    });
+
+    return (async () => {
+      let lastError;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        progressByPart.set(partNumber, 0);
+        try {
+          const uploaded = await send();
+          uploadedParts[index] = uploaded;
+          completedBytes += chunk.size;
+          progressByPart.delete(partNumber);
+          reportProgress();
+          return;
+        } catch (error) {
+          lastError = error;
+          progressByPart.delete(partNumber);
+          reportProgress();
+          if (attempt < 3) await sleep(700 * Math.pow(2, attempt - 1));
+        }
+      }
+      throw lastError || new Error("Échec du téléversement de la partie " + partNumber + ".");
+    })();
+  };
+
+  try {
+    const workers = Array.from(
+      { length: Math.min(R2_MULTIPART_CONCURRENCY, partCount) },
+      async () => {
+        while (true) {
+          const index = nextPartIndex++;
+          if (index >= partCount) return;
+          await uploadPart(index);
+        }
+      }
+    );
+    await Promise.all(workers);
+
+    showMessage(videoMessage, "Toutes les parties sont envoyées. Finalisation de la vidéo dans R2…");
+    if (r2StatusElement) r2StatusElement.textContent = "Finalisation du fichier…";
+    const completePath = "/multipart/complete?key=" + encodeURIComponent(created.key) +
+      "&uploadId=" + encodeURIComponent(created.uploadId);
+    const result = await requestJson(completePath, "POST", { parts: uploadedParts });
+    if (!result.url || !result.key) {
+      throw new Error("Cloudflare R2 n'a pas renvoyé l'URL publique attendue.");
+    }
+    return result;
+  } catch (error) {
+    const abortUrl = new URL("/multipart/abort", R2_WORKER_URL);
+    abortUrl.searchParams.set("key", created.key);
+    abortUrl.searchParams.set("uploadId", created.uploadId);
+    await fetch(abortUrl.toString(), { method: "DELETE", headers: authHeaders }).catch(() => {});
+    throw error;
+  }
+}
 async function loadR2Usage() {
   const status = document.getElementById("r2-hosting-settings-status");
   if (!hostingUsageCards) return;
@@ -2635,7 +2735,7 @@ videoForm.addEventListener("submit", async (event) => {
   }
 
   if (provider === "r2" && selectedFile && selectedFile.size > R2_MAX_UPLOAD_BYTES) {
-    showMessage(videoMessage, "La limite actuelle de Cloudflare R2 est de 95 Mio par vidéo. Une prise en charge des envois plus volumineux sera ajoutée séparément.");
+    showMessage(videoMessage, "La limite actuelle de Cloudflare R2 est de 500 Mio par vidéo.");
     return;
   }
 
