@@ -1,5 +1,7 @@
 const SUPABASE_URL = "https://pvzucwayxudnnmskkodk.supabase.co";
 const SUPABASE_KEY = "sb_publishable_v8D1gyzp2peCtsYj7Zxh8w_PdSAiajV";
+const R2_WORKER_URL = "https://zeno-video-media.zenof519.workers.dev";
+const R2_MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
@@ -69,12 +71,16 @@ const muxStatusElement = document.getElementById("mux-status");
 const bunnyFields = document.getElementById("bunny-fields");
 const bunnyVideoIdInput = document.getElementById("bunny-video-id");
 const bunnyDownloadUrlInput = document.getElementById("bunny-download-url");
+const r2Fields = document.getElementById("r2-fields");
+const r2FileInput = document.getElementById("r2-file");
+const r2StatusElement = document.getElementById("r2-status");
 const saveButton = document.getElementById("save-button");
 const cancelEditButton = document.getElementById("cancel-edit");
 
 let editingId = null;
 let editingVideo = null;
 let deepStorageStatus = { checked: false, available: false, message: "Vérification de l'accès API DeepStorage…" };
+let r2Status = { available: false, message: "Service R2 en attente de configuration." };
 let videoFormat = "mp4";
 let currentThumbnailUrl = null;
 let previewObjectUrl = null;
@@ -397,6 +403,7 @@ async function loadHostingUsage(refresh = false) {
     }
 
     renderHostingUsage(snapshots);
+    await loadR2Usage();
     const timestamps = snapshots.map(item => item.collected_at).filter(Boolean).sort();
     const latest = timestamps.length ? new Date(timestamps[timestamps.length - 1]) : null;
     showMessage(hostingUsageUpdated, latest
@@ -736,6 +743,7 @@ function updateProviderFields() {
   const isOneDrive = providerSelect.value === "onedrive";
   const isMux = providerSelect.value === "mux";
   const isBunny = providerSelect.value === "bunny";
+  const isR2 = providerSelect.value === "r2";
   cloudinaryFields.classList.toggle("admin-hidden", !isCloudinary);
   viooFields.classList.toggle("admin-hidden", !isVioo);
   dropboxFields.classList.toggle("admin-hidden", !isDropbox);
@@ -743,6 +751,9 @@ function updateProviderFields() {
   deepStorageFields.classList.toggle("admin-hidden", !isDeepStorage);
   muxFields.classList.toggle("admin-hidden", !isMux);
   bunnyFields.classList.toggle("admin-hidden", !isBunny);
+  r2Fields.classList.toggle("admin-hidden", !isR2);
+  r2FileInput.disabled = !isR2;
+  if (!isR2) r2FileInput.value = "";
   bunnyVideoIdInput.disabled = !isBunny;
   bunnyDownloadUrlInput.disabled = !isBunny;
 
@@ -1019,6 +1030,7 @@ function resetVideoForm() {
   bunnyDownloadUrlInput.value = "";
   deepStorageFileInput.value = "";
   muxFileInput.value = "";
+  r2FileInput.value = "";
   bunnyVideoIdInput.value = "";
   updateProviderFields();
   refreshOneDriveHelper();
@@ -1861,7 +1873,7 @@ async function loadAdminVideos() {
     }
 
     const providerLabel = document.createElement("p");
-    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream" };
+    const providerNames = { cloudinary: "Cloudinary", vioo: "Vioo", dropbox: "Dropbox", onedrive: "OneDrive", deepstorage: "DeepStorage", mux: "Mux", bunny: "Bunny Stream", r2: "Cloudflare R2" };
     providerLabel.textContent = "Hébergeur : " + (providerNames[video.provider] || "Cloudinary");
 
     const actions = document.createElement("div");
@@ -2482,6 +2494,102 @@ function uploadToMux(file, uploadUrl) {
   });
 }
 
+async function uploadToR2(file) {
+  const { data: sessionData, error: sessionError } = await db.auth.getSession();
+  const session = sessionData?.session;
+  if (sessionError || !session?.access_token) {
+    throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l'envoi vers R2.");
+  }
+
+  const uploadUrl = new URL("/upload", R2_WORKER_URL);
+  uploadUrl.searchParams.set("filename", file.name);
+
+  return await new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", uploadUrl.toString());
+    xhr.timeout = 15 * 60 * 1000;
+    xhr.setRequestHeader("Authorization", "Bearer " + session.access_token);
+    xhr.setRequestHeader("apikey", SUPABASE_KEY);
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+    xhr.upload.addEventListener("progress", event => {
+      if (!event.lengthComputable) {
+        showMessage(videoMessage, "Envoi de la vidéo vers Cloudflare R2…");
+        return;
+      }
+      const percent = Math.round(event.loaded / event.total * 100);
+      showMessage(videoMessage, "Envoi vers Cloudflare R2 : " + percent + "%");
+      if (r2StatusElement) r2StatusElement.textContent = "Transfert en cours : " + percent + "%";
+    });
+    xhr.addEventListener("load", () => {
+      let data = {};
+      try { data = JSON.parse(xhr.responseText || "{}"); } catch {}
+      if (xhr.status < 200 || xhr.status >= 300) {
+        reject(new Error(data.error || "Cloudflare R2 a refusé l'envoi (HTTP " + xhr.status + ")."));
+        return;
+      }
+      if (!data.url || !data.key) {
+        reject(new Error("Cloudflare R2 n'a pas renvoyé l'URL publique attendue."));
+        return;
+      }
+      resolve(data);
+    });
+    xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi vers Cloudflare R2.")));
+    xhr.addEventListener("timeout", () => reject(new Error("L'envoi vers Cloudflare R2 a dépassé le délai autorisé. Vérifie ta connexion avant de réessayer.")));
+    xhr.send(file);
+  });
+}
+
+async function loadR2Usage() {
+  const status = document.getElementById("r2-hosting-settings-status");
+  if (!hostingUsageCards) return;
+  try {
+    const { data: sessionData, error: sessionError } = await db.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (sessionError || !token) throw new Error("Session administrateur indisponible.");
+    const response = await fetch(R2_WORKER_URL + "/admin/usage", {
+      headers: { Authorization: "Bearer " + token, apikey: SUPABASE_KEY }
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Statistiques R2 indisponibles (HTTP " + response.status + ").");
+    r2Status = { available: true, message: "✓ Worker R2 connecté · bucket " + data.bucket + (data.complete ? "" : " · mesure partielle") };
+    if (status) {
+      status.textContent = r2Status.message;
+      status.className = "admin-message success";
+    }
+    const card = document.createElement("article");
+    card.className = "hosting-usage-card";
+    const heading = document.createElement("div");
+    heading.className = "hosting-usage-heading";
+    const title = document.createElement("h3");
+    title.textContent = "Cloudflare R2";
+    const state = document.createElement("span");
+    state.className = "hosting-usage-status " + (data.complete ? "ok" : "partial");
+    state.textContent = data.complete ? "Mesure disponible" : "Mesure partielle";
+    heading.append(title, state);
+    card.appendChild(heading);
+    addHostingMetric(card, "Vidéos liées dans Zeno", formatUsageNumber(adminVideosCache.filter(video => video.provider === "r2").length, 0));
+    addHostingMetric(card, "Objets dans le bucket", formatUsageNumber(data.objectCount, 0));
+    addHostingMetric(card, "Stockage R2 utilisé", formatUsageBytes(data.totalBytes));
+    addHostingMetric(card, "Bucket", data.bucket);
+    if (data.note) addHostingMetric(card, "Note", data.note);
+    hostingUsageCards.appendChild(card);
+  } catch (error) {
+    r2Status = { available: false, message: error.message || "Worker R2 non joignable." };
+    if (status) {
+      status.textContent = "R2 non vérifié : " + r2Status.message;
+      status.className = "admin-message status-pending";
+    }
+    const card = document.createElement("article");
+    card.className = "hosting-usage-card";
+    const title = document.createElement("h3");
+    title.textContent = "Cloudflare R2";
+    const note = document.createElement("p");
+    note.textContent = "Statistiques indisponibles : " + r2Status.message;
+    card.append(title, note);
+    hostingUsageCards.appendChild(card);
+  }
+}
+
 videoForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
@@ -2491,7 +2599,8 @@ videoForm.addEventListener("submit", async (event) => {
   const selectedFile = provider === "cloudinary"
     ? videoFileInput.files[0]
     : provider === "deepstorage" ? deepStorageFileInput.files[0]
-    : provider === "mux" ? muxFileInput.files[0] : null;
+    : provider === "mux" ? muxFileInput.files[0]
+    : provider === "r2" ? r2FileInput.files[0] : null;
   const selectedCover = coverFileInput.files[0];
   const selectedAnnouncementId = announcementSelect.value || null;
   const selectedAnnouncement = selectedAnnouncementId ? announcementsCache.find(item => item.id === selectedAnnouncementId) : null;
@@ -2512,6 +2621,21 @@ videoForm.addEventListener("submit", async (event) => {
 
   if (!title) {
     showMessage(videoMessage, "Indique un titre pour la vidéo.");
+    return;
+  }
+
+  if (provider === "r2" && !editingId && !selectedFile) {
+    showMessage(videoMessage, "Choisis le fichier vidéo à envoyer sur Cloudflare R2.");
+    return;
+  }
+
+  if (provider === "r2" && editingId && editingVideo?.provider !== "r2" && !selectedFile) {
+    showMessage(videoMessage, "Pour changer l’hébergement d’une vidéo existante vers R2, sélectionne son nouveau fichier.");
+    return;
+  }
+
+  if (provider === "r2" && selectedFile && selectedFile.size > R2_MAX_UPLOAD_BYTES) {
+    showMessage(videoMessage, "La limite actuelle de Cloudflare R2 est de 95 Mio par vidéo. Une prise en charge des envois plus volumineux sera ajoutée séparément.");
     return;
   }
 
@@ -2609,6 +2733,7 @@ videoForm.addEventListener("submit", async (event) => {
   providerSelect.disabled = true;
   videoFileInput.disabled = true;
   deepStorageFileInput.disabled = true;
+  r2FileInput.disabled = true;
   coverFileInput.disabled = true;
 
   try {
@@ -2664,6 +2789,23 @@ videoForm.addEventListener("submit", async (event) => {
       downloadUrl = normalizeOneDriveDownloadUrl(oneDriveDownloadUrlInput.value);
       publicId = null;
       videoFormat = null;
+    } else if (provider === "r2") {
+      publicId = null;
+      if (selectedFile) {
+        showMessage(videoMessage, "Envoi sécurisé de la vidéo vers Cloudflare R2…");
+        const uploaded = await uploadToR2(selectedFile);
+        playbackUrl = uploaded.url;
+        downloadUrl = uploaded.url;
+        videoFormat = selectedFile.name.split(".").pop()?.toLowerCase() || null;
+        r2Status = { available: true, message: "✓ Connexion R2 et envoi réussis." };
+        if (r2StatusElement) r2StatusElement.textContent = r2Status.message;
+      } else if (editingVideo?.provider === "r2") {
+        playbackUrl = editingVideo.playback_url;
+        downloadUrl = editingVideo.download_url || editingVideo.playback_url;
+        videoFormat = editingVideo.format || null;
+      } else {
+        throw new Error("Aucun fichier R2 à envoyer.");
+      }
     } else if (provider === "deepstorage") {
       publicId = null;
       if (selectedFile) {
@@ -2807,7 +2949,7 @@ videoForm.addEventListener("submit", async (event) => {
       thumbnail_provider: thumbnailProvider,
       thumbnail_cloudinary_public_id: thumbnailCloudinaryPublicId,
       thumbnail_imagekit_file_id: thumbnailImageKitFileId,
-      format: provider === "cloudinary" ? videoFormat : null,
+      format: ["cloudinary", "r2"].includes(provider) ? videoFormat : null,
       mux_upload_id: provider === "mux" ? (editingVideo?.mux_upload_id || null) : null,
       mux_asset_id: provider === "mux" ? (editingVideo?.mux_asset_id || null) : null,
       mux_playback_id: provider === "mux" ? (editingVideo?.mux_playback_id || null) : null,
