@@ -172,6 +172,7 @@ export default {
     if ((request.method === "GET" || request.method === "HEAD") && url.pathname.startsWith("/media/")) {
       const key = decodeObjectKey(url.pathname);
       if (!key) return new Response("Bad key", { status: 400, headers });
+      if (!key.startsWith("videos/")) return new Response("Not found", { status: 404, headers });
 
       try {
         const object = await env.ZENOVIDEO.get(key, { range: request.headers });
