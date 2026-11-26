@@ -19,6 +19,7 @@ const hostingUsageFunction = readFileSync('supabase/functions/hosting-usage/inde
 const muxWebhookFunction = readFileSync('supabase/functions/mux-webhook/index.ts', 'utf8');
 const videoCounterFunction = readFileSync('supabase/functions/video-counter/index.ts', 'utf8');
 const videoCounterMigration = readFileSync('supabase/migrations/20261114201000_rate_limit_public_video_counters.sql', 'utf8');
+const r2Worker = readFileSync('cloudflare/worker.js', 'utf8');
 const admin = read('admin.html');
 const watch = read('watch.html');
 const announcementAdmin = read('announcement-admin.html');
@@ -86,6 +87,10 @@ const checks = [
   ['Bunny Stream : identifiant et URL MP4 facultative configurables dans l’administration', read('admin.html').includes('id="bunny-video-id"') && read('admin.html').includes('id="bunny-download-url"') && read('admin.js').includes('downloadUrl = bunnyDownloadUrlInput.value.trim() || null')],
   ['Bunny Stream : bouton Télécharger activé uniquement avec une URL directe enregistrée', read('watch.js').includes('function showBunnyPlayer') && read('watch.js').includes('downloadButton.href = video.download_url') && read('watch.js').includes('downloadButton.hidden = false')],
   ['Bunny Stream : bouton Télécharger présent sur les cartes de la galerie', read('library.js').includes('provider === "bunny" && video.download_url') && read('library.js').includes('download.href = new URL(video.download_url).toString()')],
+  ['R2 : le Worker force le téléchargement uniquement sur download=1', r2Worker.includes('url.searchParams.get("download") === "1"') && r2Worker.includes('Content-Disposition') && r2Worker.includes('attachment; filename=')],
+  ['R2 : le Worker conserve la lecture par plages HTTP', r2Worker.includes('env.ZENOVIDEO.get(key, { range: request.headers })') && r2Worker.includes('Accept-Ranges') && r2Worker.includes('Content-Range')],
+  ['R2 : le bouton de la galerie demande un téléchargement direct et conserve le compteur', read('library.js').includes('downloadUrl.searchParams.set("download", "1")') && read('library.js').includes('void registerDownload(video.id)')],
+  ['R2 : le bouton du lecteur demande un téléchargement direct et conserve le compteur', read('watch.js').includes('downloadUrl.searchParams.set("download", "1")') && read('watch.js').includes('downloadButton.target = "_self"') && read('watch.js').includes('event: "download"')],
   ['Administration : suppression de couverture sécurisée', read('admin.js').includes('deleteVideoAsset: false') && read('admin.js').includes('thumbnail_imagekit_file_id')],
   ['Administration : bouton de suppression définitive proposé pour Cloudinary et Mux', read('admin.js').includes('["cloudinary", "mux"].includes(video.provider || "cloudinary")') && read('admin.js').includes('video.mux_asset_id')],
   ['Suppression Mux : l’API Mux supprime l’asset côté serveur', readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('https://api.mux.com/video/v1/assets/') && readFileSync('supabase/functions/delete-video-permanently/index.ts', 'utf8').includes('MUX_TOKEN_SECRET')],
