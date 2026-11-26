@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=18">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=63" defer></script>
+  <script src="admin.js?v=64" defer></script>
 </head>
 <body>
   <header>
@@ -295,7 +295,7 @@
               <input type="file" id="r2-file" accept="video/mp4,video/quicktime,video/webm">
             </label>
             <p id="r2-status" class="admin-message status-pending" aria-live="polite">Envoi sécurisé disponible après activation du Worker R2.</p>
-            <p class="cover-help">Envoi direct et authentifié depuis ton téléphone. Limite actuelle : 95 Mio par fichier. La lecture prend en charge les requêtes par plages d’octets pour permettre l’avance et le retour dans la vidéo. Les miniatures continuent d’utiliser Cloudinary ou ImageKit.</p>
+            <p class="cover-help">Envoi authentifié jusqu’à 500 Mio par fichier, découpé en parties de 16 Mio envoyées en parallèle avec reprise automatique des parties en échec. La lecture prend en charge les requêtes par plages d’octets pour permettre l’avance et le retour dans la vidéo. Les miniatures continuent d’utiliser Cloudinary ou ImageKit.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
