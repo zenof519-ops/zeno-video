@@ -854,7 +854,7 @@ form.addEventListener("submit",async event=>{
     }
     const payload={title,description,cover_url:coverUrl,scheduled_for:dateValue?new Date(dateValue).toISOString():null,
       media_type:type,video_provider:type==="video"?provider:null,video_url:type==="video"?videoUrl:null,
-      video_download_url:type==="video"&&provider==="bunny"?videoDownloadUrl:null,updated_at:new Date().toISOString()};
+      video_download_url:type==="video"&&["bunny","r2"].includes(provider)?videoDownloadUrl:null,updated_at:new Date().toISOString()};
     const result=editingId?await db.from("video_announcements").update(payload).eq("id",editingId):await db.from("video_announcements").insert({...payload,is_visible:true});
     if(result.error)throw new Error(result.error.message);
     show(message,"Annonce enregistrée avec succès.");resetForm();await loadAnnouncements();
