@@ -714,7 +714,6 @@ async function loadAnnouncements(){
 async function uploadToR2(file){
   const {data:sessionData,error:sessionError}=await db.auth.getSession();
   const session=sessionData?.session;
-  if(error=undefined){} // placeholder
   if(sessionError||!session?.access_token)throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l’envoi vers R2.");
   const url=new URL("/upload",R2_WORKER_URL);url.searchParams.set("filename",file.name);
   return await new Promise((resolve,reject)=>{
