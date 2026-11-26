@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=18">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="announcement-admin.js?v=5" defer></script>
+  <script src="announcement-admin.js?v=6" defer></script>
 </head>
 <body>
   <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><a href="admin.html">← Administration</a></header>
@@ -57,6 +57,7 @@
                   <option value="onedrive">OneDrive — lecteur intégré</option>
                   <option value="deepstorage">DeepStorage — téléversement API</option>
                   <option value="bunny">Bunny Stream — lecteur adaptatif</option>
+                  <option value="r2">Cloudflare R2 — stockage direct Zeno</option>
                 </select>
               </label>
             </div>
@@ -110,6 +111,12 @@
               <label>Lien direct de téléchargement MP4 (facultatif)<input id="bunny-download-source" type="url" inputmode="url" placeholder="https://…b-cdn.net/…/play_1080p.mp4"></label>
               <p class="cover-help">La vidéo doit déjà être téléversée et traitée dans la bibliothèque Bunny de Zeno Video (811150). Le téléchargement reste facultatif : sans URL MP4 directe, aucun bouton Télécharger ne sera affiché.</p>
               <a class="btn alt" href="https://dash.bunny.net/stream" target="_blank" rel="noopener noreferrer">Ouvrir Bunny Stream ↗</a>
+            </div>
+            <div id="r2-fields" class="admin-panel admin-hidden">
+              <h3>Cloudflare R2</h3>
+              <label>Fichier vidéo à envoyer sur R2 (MP4, MOV ou WebM)<input id="r2-file" type="file" accept="video/mp4,video/quicktime,video/webm"></label>
+              <p id="r2-status" class="admin-message status-pending" aria-live="polite">Envoi sécurisé disponible après activation du Worker R2.</p>
+              <p class="cover-help">Envoi direct et authentifié depuis ton téléphone. Limite actuelle : 95 Mio par fichier. La lecture et le téléchargement seront assurés par le Worker Zeno.</p>
             </div>
           </div>
           <button id="save-button" type="submit">Publier l’annonce</button>
