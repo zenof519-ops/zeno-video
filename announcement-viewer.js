@@ -154,6 +154,9 @@ async function loadAnnouncement() {
       } else if (provider === "deepstorage") {
         if (!/^https:\/\//i.test(source)) throw new Error("DeepStorage nécessite une URL HTTPS de lecture.");
         player = videoPlayer(source,item.title,cover);
+      } else if (provider === "r2") {
+        if (!/^https:\/\//i.test(source) || !source.startsWith("https://zeno-video-media.zenof519.workers.dev/media/")) throw new Error("Lien de lecture Cloudflare R2 invalide.");
+        player = videoPlayer(source,item.title,cover);
       } else if (provider === "cloudinary") {
         let playback = source;
         if (!/^https:\/\//i.test(playback)) {
