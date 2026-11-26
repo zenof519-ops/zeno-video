@@ -57,6 +57,8 @@ async function loadVideos() {
       } else if (provider === "bunny" && video.download_url) {
         // Bunny MP4 Fallback : ouvrir le lecteur MP4 natif du navigateur dans un nouvel onglet.
         download.href = new URL(video.download_url).toString();
+      } else if (provider === "r2" && video.playback_url) {
+        download.href = new URL(video.download_url || video.playback_url).toString();
       }
       if (download.href) {
         download.addEventListener("click", async event => {
