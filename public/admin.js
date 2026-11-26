@@ -2609,18 +2609,26 @@ async function uploadToR2(file) {
     })();
   };
 
+  let stopWorkers = false;
   try {
     const workers = Array.from(
       { length: Math.min(R2_MULTIPART_CONCURRENCY, partCount) },
       async () => {
-        while (true) {
+        while (!stopWorkers) {
           const index = nextPartIndex++;
           if (index >= partCount) return;
-          await uploadPart(index);
+          try {
+            await uploadPart(index);
+          } catch (error) {
+            stopWorkers = true;
+            throw error;
+          }
         }
       }
     );
-    await Promise.all(workers);
+    const workerResults = await Promise.allSettled(workers);
+    const failedWorker = workerResults.find(result => result.status === "rejected");
+    if (failedWorker) throw failedWorker.reason;
 
     showMessage(videoMessage, "Toutes les parties sont envoyées. Finalisation de la vidéo dans R2…");
     if (r2StatusElement) r2StatusElement.textContent = "Finalisation du fichier…";
