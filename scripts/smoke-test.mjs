@@ -32,6 +32,7 @@ const checks = [
   ['Pages publiques : index.html racine contient les conteneurs des dossiers et des vidéos', rootHome.includes('id="category-filters"') && rootHome.includes('id="video-grid"') && rootHome.includes('id="empty-message"')],
   ['Pages publiques : index.html racine charge la version actuelle du script de bibliothèque', rootHome.includes('library.js?v=29')],
   ['Contact : page publique générée et reliée depuis l’accueil', (existsSync(join(root, 'contact/index.html')) || existsSync(join(root, 'contact.html'))) && rootHome.includes('href="contact/"')],
+  ['Contact : les sept réseaux sociaux et WhatsApp utilisent les liens fournis', ['tiktok.com/@zeno.force87','x.com/ZenoForc7','instagram.com/zeno.force','facebook.com/profile.php?id=61596919143045','wa.me/22947835320','discord.gg/MRXcGsd4','reddit.com/u/AquilasUrbain'].every(link => readFileSync('src/pages/contact.astro', 'utf8').includes(link))],
   ['SEO vidéo : sitemap contient les pages vidéo de test et le contact', read('sitemap.xml').includes('contact/') && read('sitemap.xml').includes('watch.html?id=')],
   ['SEO vidéo : métadonnées sociales, URL canonique et VideoObject générés au chargement', read('watch.js').includes('application/ld+json') && read('watch.js').includes('rel = "canonical"') && read('watch.js').includes('og:description')],
   ['Catégories publiques : les vidéos publiées individuellement conservent leur dossier visible', read('library.js').includes('category.is_published || categoryVideos.some(video => video.category_id === category.id)')],
