@@ -36,6 +36,8 @@ async function loadVideos() {
     const linkedVideos = videos.filter(video => video.announcement_id && announcementIds.has(video.announcement_id));
     const regularVideos = videos.filter(video => !video.announcement_id || !announcementIds.has(video.announcement_id));
     const categoryVideos = regularVideos;
+    const publicCategories = categories.filter(category => category.is_published || categoryVideos.some(video => video.category_id === category.id));
+    window.ZenoLibraryMenu?.setCategories(publicCategories);
     grid.replaceChildren();
 
     function makeDownload(video) {
@@ -100,8 +102,6 @@ async function loadVideos() {
     function renderHome() {
       categoryFilters.replaceChildren();
       categoryFilters.hidden = false;
-      const publicCategories = categories.filter(category => category.is_published || categoryVideos.some(video => video.category_id === category.id));
-      window.ZenoLibraryMenu?.setCategories(publicCategories);
       for (const category of publicCategories) {
         const total = categoryVideos.filter(video => video.category_id === category.id).length;
         const button = document.createElement("button");
