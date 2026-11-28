@@ -315,7 +315,7 @@ async function loadVideo() {
     if (!id) throw new Error("Vidéo introuvable");
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id,created_at,category_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -350,6 +350,67 @@ async function loadVideo() {
       video.description || "";
 
     const provider = video.provider || (video.cloudinary_public_id ? "cloudinary" : "vioo");
+    activeProvider = provider;
+
+    if (video.category_id === "2ecab84a-fdf4-4122-93cb-299dd93f2921") {
+    const canonicalUrl = new URL(location.href);
+    canonicalUrl.searchParams.delete("v");
+    let canonicalLink = document.head.querySelector('link[rel="canonical"]');
+    if (!canonicalLink) {
+      canonicalLink = document.createElement("link");
+      canonicalLink.rel = "canonical";
+      document.head.append(canonicalLink);
+    }
+    canonicalLink.href = canonicalUrl.toString();
+    const setMeta = (selector, attribute, key, value) => {
+      if (!value) return;
+      let element = document.head.querySelector(selector);
+      if (!element) {
+        element = document.createElement("meta");
+        element.setAttribute(attribute, key);
+        document.head.append(element);
+      }
+      element.content = value;
+    };
+    const pageDescription = (video.description || `Regarde ${video.title} sur Zeno Video.`).slice(0, 300);
+    setMeta('meta[name="description"]', "name", "description", pageDescription);
+    setMeta('meta[property="og:type"]', "property", "og:type", "video.other");
+    setMeta('meta[property="og:site_name"]', "property", "og:site_name", "Zeno Video");
+    setMeta('meta[property="og:title"]', "property", "og:title", video.title + " — Zeno Video");
+    setMeta('meta[property="og:description"]', "property", "og:description", pageDescription);
+    setMeta('meta[property="og:url"]', "property", "og:url", canonicalUrl.toString());
+    setMeta('meta[property="og:image"]', "property", "og:image", video.thumbnail_url);
+    setMeta('meta[name="twitter:card"]', "name", "twitter:card", video.thumbnail_url ? "summary_large_image" : "summary");
+    setMeta('meta[name="twitter:title"]', "name", "twitter:title", video.title + " — Zeno Video");
+    setMeta('meta[name="twitter:description"]', "name", "twitter:description", pageDescription);
+    if (video.thumbnail_url) setMeta('meta[name="twitter:image"]', "name", "twitter:image", video.thumbnail_url);
+    if (video.thumbnail_url && video.created_at) {
+      const videoData = {
+        "@context": "https://schema.org",
+        "@type": "VideoObject",
+        name: video.title,
+        description: pageDescription,
+        thumbnailUrl: [video.thumbnail_url],
+        uploadDate: video.created_at,
+        mainEntityOfPage: canonicalUrl.toString()
+      };
+      if (provider === "mux" && video.mux_playback_id) {
+        videoData.embedUrl = "https://player.mux.com/" + encodeURIComponent(video.mux_playback_id);
+      } else if (["bunny", "vioo", "onedrive"].includes(provider) && video.playback_url) {
+        videoData.embedUrl = video.playback_url;
+      } else if (["r2", "deepstorage", "dropbox"].includes(provider) && video.playback_url) {
+        videoData.contentUrl = video.playback_url;
+      } else if (provider === "cloudinary" && video.cloudinary_public_id) {
+        const publicId = video.cloudinary_public_id.split("/").map(encodeURIComponent).join("/");
+        videoData.contentUrl = `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${publicId}.${(video.format || "mp4").toLowerCase()}`;
+      }
+      const structuredData = document.createElement("script");
+      structuredData.type = "application/ld+json";
+      structuredData.textContent = JSON.stringify(videoData);
+      document.head.append(structuredData);
+    }
+    }
+
     activeProvider = provider;
 
     if (provider === "cloudinary" && video.cloudinary_public_id) {

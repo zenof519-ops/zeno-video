@@ -22,14 +22,14 @@ const pageDescription = 'Regarde gratuitement des vidéos d’anime sur Zeno Vid
     <meta name="twitter:title" content={pageTitle} />
     <meta name="twitter:description" content={pageDescription} />
     <title>{pageTitle}</title>
-    <link rel="stylesheet" href={`${base}style.css?v=16`} />
+    <link rel="stylesheet" href={`${base}style.css?v=17`} />
     <script is:inline src={`${base}posthog-config.js`} defer></script>
     <script is:inline src={`${base}posthog.js?v=2`} defer></script>
   </head>
   <body>
     <header>
       <a class="brand" href={base}><b>Z</b> ZENO VIDEO</a>
-      <span>BIBLIOTHÈQUE</span>
+      <nav aria-label="Navigation principale"><span>BIBLIOTHÈQUE</span><a href={`${base}contact/`}>Contact</a></nav>
     </header>
     <main>
       <p class="eyebrow">LA GALERIE VIDÉO</p>
@@ -42,7 +42,7 @@ const pageDescription = 'Regarde gratuitement des vidéos d’anime sur Zeno Vid
         <p id="empty-message" hidden>Aucune vidéo pour le moment.</p>
       </section>
     </main>
-    <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+    <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens. · <a href={`${base}contact/`}>Contact</a></footer>
     <script is:inline src={`${base}videos.js`} defer></script>
     <script is:inline src={`${base}library.js?v=26`} defer></script>
   </body>

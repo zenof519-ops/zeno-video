@@ -405,3 +405,12 @@ footer { padding: 24px 18px; border-top: 1px solid rgba(237,75,183,.25); color: 
   .comment-header time, .comment-admin-date { text-align: left; }
   .comment-admin-replies { margin-left: 8px; }
 }
+
+
+/* Page Contact */
+.contact-panel { margin:24px 0; padding:clamp(18px,4vw,30px); border:1px solid rgba(85,217,242,.32); border-radius:18px; background:linear-gradient(145deg,rgba(47,31,65,.88),rgba(24,23,42,.92)); }
+.contact-panel h2 { margin-top:0; color:var(--zeno-gold); }
+.contact-panel p { color:var(--zeno-muted); line-height:1.7; }
+.contact-placeholder { margin-top:16px; padding:15px; border:1px dashed rgba(184,116,230,.55); border-radius:12px; color:var(--zeno-muted); background:rgba(10,10,22,.28); }
+.contact-links { display:flex; flex-wrap:wrap; gap:10px; margin-top:14px; }
+.contact-links a { min-width:130px; }
