@@ -1623,11 +1623,11 @@ categoryForm?.addEventListener("submit", async event => {
 });
 
 async function permanentlyDeleteCategory(category, displayedCount, button) {
-  const { data: videos, error: listError } = await db.from("videos").select("id,title,provider,cloudinary_public_id,mux_asset_id").eq("category_id", category.id);
+  const { data: videos, error: listError } = await db.from("videos").select("id,title,provider,cloudinary_public_id,mux_asset_id,playback_url").eq("category_id", category.id);
   if (listError) { showMessage(categoryMessage, "Impossible de lire les vidéos de cette catégorie : " + listError.message); return; }
   const total = videos?.length || 0;
   const warning = "SUPPRESSION DÉFINITIVE\n\nLe dossier « " + category.name + " » et ses " + total +
-    " vidéo(s) vont être supprimés de Zeno Video. Cette action est irréversible.\n\nCloudinary et Mux seront sollicités lorsque leurs connexions sont disponibles. Pour les autres hébergeurs, seules les fiches Zeno Video seront supprimées ; les fichiers distants resteront chez leur hébergeur.\n\nContinuer ?";
+    " vidéo(s) vont être supprimés de Zeno Video. Cette action est irréversible.\n\nCloudinary, Mux et Cloudflare R2 seront sollicités lorsque leurs connexions sont disponibles. Pour les autres hébergeurs, seules les fiches Zeno Video seront supprimées ; les fichiers distants resteront chez leur hébergeur.\n\nContinuer ?";
   if (!confirm(warning)) return;
   button.disabled = true;
   const categoryButtons = categoryList.querySelectorAll("button");
@@ -1639,7 +1639,8 @@ async function permanentlyDeleteCategory(category, displayedCount, button) {
     for (const video of videos || []) {
       const provider = String(video.provider || "cloudinary").toLowerCase();
       const canDeleteRemote = (provider === "cloudinary" && Boolean(deletionConfig.cloudinary && video.cloudinary_public_id)) ||
-        (provider === "mux" && Boolean(deletionConfig.mux && video.mux_asset_id));
+        (provider === "mux" && Boolean(deletionConfig.mux && video.mux_asset_id)) ||
+        (provider === "r2" && Boolean(deletionConfig.r2 && video.playback_url));
       showMessage(categoryMessage, "Suppression de la vidéo " + (removed + 1) + "/" + total + " : " + video.title + "…");
       const { data, error } = await db.functions.invoke("delete-video-permanently", { body: { videoId: video.id, deleteVideoAsset: canDeleteRemote } });
       if (error || !data?.success) {
@@ -1921,8 +1922,9 @@ async function loadAdminVideos() {
       }
       actions.append(muxDownloadButton);
     }
-    if (["cloudinary", "mux"].includes(video.provider || "cloudinary") &&
-        ((video.provider || "cloudinary") !== "mux" || Boolean(video.mux_asset_id))) {
+    if (["cloudinary", "mux", "r2"].includes(video.provider || "cloudinary") &&
+        ((video.provider || "cloudinary") !== "mux" || Boolean(video.mux_asset_id)) &&
+        ((video.provider || "cloudinary") !== "r2" || Boolean(video.playback_url))) {
       actions.append(permanentDeleteButton);
     }
     card.append(title, description, views, downloads, status, categoryLabel, categoryControls);
@@ -3352,7 +3354,7 @@ async function checkPermanentDeleteConfig() {
       return;
     }
 
-    status.textContent = "✓ Suppression définitive prête : connexions Cloudinary, ImageKit et Mux vérifiées. Aucun fichier n'a été supprimé.";
+    status.textContent = "✓ Suppression définitive prête : connexions Cloudinary, ImageKit, Mux et Cloudflare R2 vérifiées. Aucun fichier n'a été supprimé.";
     status.className = "admin-message success";
   } catch (error) {
     status.textContent = "⚠ Vérification impossible : " + (error?.message || "erreur de communication avec Supabase.");
@@ -3362,8 +3364,8 @@ async function checkPermanentDeleteConfig() {
 
 async function permanentlyDeleteVideo(video) {
   const provider = video.provider || "cloudinary";
-  if (!["cloudinary", "mux"].includes(provider)) {
-    showMessage(videoMessage, "La suppression définitive automatique est disponible uniquement pour Cloudinary et Mux.");
+  if (!["cloudinary", "mux", "r2"].includes(provider)) {
+    showMessage(videoMessage, "La suppression définitive automatique est disponible pour Cloudinary, Mux et Cloudflare R2.");
     return;
   }
   if (provider === "mux" && !video.mux_asset_id) {
@@ -3371,7 +3373,7 @@ async function permanentlyDeleteVideo(video) {
     return;
   }
 
-  const providerName = provider === "mux" ? "Mux" : "Cloudinary";
+  const providerName = provider === "mux" ? "Mux" : provider === "r2" ? "Cloudflare R2" : "Cloudinary";
   const confirmed = confirm(
     "SUPPRESSION DÉFINITIVE\n\nLa vidéo « " + video.title +
     " » sera supprimée de " + providerName + " ET de Supabase. Sa couverture hébergée sera supprimée aussi, sauf si elle est encore utilisée par une annonce ou une autre vidéo. Cette action est irréversible.\n\nContinuer ?"
