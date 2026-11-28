@@ -22,7 +22,19 @@ const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video e
     <link rel="stylesheet" href={`${base}style.css?v=17`} />
   </head>
   <body>
-    <header><a class="brand" href={base}><b>Z</b> ZENO VIDEO</a><a href={base}>← Bibliothèque</a></header>
+    <header class="site-header">
+      <a class="brand" href={base}><b>Z</b> ZENO VIDEO</a>
+      <div class="site-menu">
+        <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="site-menu-panel">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
+          <a class="site-menu-link" href={base}>Accueil</a>
+          <a class="site-menu-link" href={base + '#videos'}>Bibliothèque</a>
+          <a class="site-menu-link" href={base + 'contact/'}>Contact</a>
+        </nav>
+      </div>
+    </header>
     <main>
       <p class="eyebrow">RESTONS EN CONTACT</p>
       <h1>Parlons de <em>Zeno Video.</em></h1>
@@ -57,6 +69,36 @@ const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video e
       </section>
     </main>
     <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+<script is:inline>
+      (() => {
+        const toggle = document.getElementById('site-menu-toggle');
+        const panel = document.getElementById('site-menu-panel');
+        if (!toggle || !panel) return;
+        const closeMenu = () => {
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-label', 'Ouvrir le menu');
+          toggle.classList.remove('is-open');
+          panel.hidden = true;
+        };
+        toggle.addEventListener('click', () => {
+          const opening = toggle.getAttribute('aria-expanded') !== 'true';
+          toggle.setAttribute('aria-expanded', String(opening));
+          toggle.setAttribute('aria-label', opening ? 'Fermer le menu' : 'Ouvrir le menu');
+          toggle.classList.toggle('is-open', opening);
+          panel.hidden = !opening;
+        });
+        document.addEventListener('click', event => {
+          if (!toggle.contains(event.target) && !panel.contains(event.target)) closeMenu();
+        });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && !panel.hidden) {
+            closeMenu();
+            toggle.focus();
+          }
+        });
+        panel.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+      })();
+    </script>
   </body>
 </html>
 
