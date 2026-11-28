@@ -2574,8 +2574,8 @@ async function uploadToR2(file) {
           .map((item, index) => (index + 1) + ". " + item.filename + " · " +
             new Date(Number(item.updatedAt || item.createdAt || 0)).toLocaleString("fr-FR") +
             " · " + (item.parts?.length || 0) + " partie(s)")
-          .join("\\n");
-        throw new Error("Plusieurs anciennes sessions correspondent au nom et à la taille de ce fichier. Aucune n'a été modifiée et aucun nouvel envoi n'a été lancé. Détails :\\n" + choices);
+          .join("\n");
+        throw new Error("Plusieurs anciennes sessions correspondent au nom et à la taille de ce fichier. Aucune n'a été modifiée et aucun nouvel envoi n'a été lancé. Détails :\n" + choices);
       }
 
       if (matchingUploads.length === 1) {
@@ -2586,7 +2586,7 @@ async function uploadToR2(file) {
             " partie(s) conservée(s)). Veux-tu reprendre cette session ?"
           : "Une session R2 inachevée a été retrouvée pour « " + previous.filename + " » (" +
             Number(previous.size).toLocaleString("fr-FR") + " octets, " + (previous.parts?.length || 0) +
-            " partie(s) conservée(s)), mais sa date de modification diffère de celle du fichier sélectionné.\\n\\nConfirme uniquement si tu as sélectionné exactement la même vidéo, sans modification. Reprendre cette session ?";
+            " partie(s) conservée(s)), mais sa date de modification diffère de celle du fichier sélectionné.\n\nConfirme uniquement si tu as sélectionné exactement la même vidéo, sans modification. Reprendre cette session ?";
         if (!window.confirm(prompt)) {
           throw new Error("Ancienne session R2 conservée. Aucun nouvel envoi n'a été lancé.");
         }
@@ -2598,10 +2598,10 @@ async function uploadToR2(file) {
         const summary = pendingUploads.slice(0, 5).map(item =>
           "• " + item.filename + " · " + Number(item.size).toLocaleString("fr-FR") +
           " octets · " + (item.parts?.length || 0) + " partie(s)"
-        ).join("\\n");
-        const more = pendingUploads.length > 5 ? "\\n… et " + (pendingUploads.length - 5) + " autre(s)." : "";
-        if (!window.confirm("D'autres sessions R2 inachevées sont sauvegardées sur cet appareil :\\n" +
-          summary + more + "\\n\\nElles seront conservées. Veux-tu démarrer un nouvel envoi pour le fichier sélectionné ?")) {
+        ).join("\n");
+        const more = pendingUploads.length > 5 ? "\n… et " + (pendingUploads.length - 5) + " autre(s)." : "";
+        if (!window.confirm("D'autres sessions R2 inachevées sont sauvegardées sur cet appareil :\n" +
+          summary + more + "\n\nElles seront conservées. Veux-tu démarrer un nouvel envoi pour le fichier sélectionné ?")) {
           throw new Error("Nouvel envoi annulé. Les anciennes sessions R2 sont conservées.");
         }
       }
