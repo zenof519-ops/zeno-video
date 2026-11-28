@@ -2545,13 +2545,71 @@ async function uploadToR2(file) {
     });
   };
   const readResume = () => runResumeStore("readonly", store => store.get(fileId));
+  const readAllResumes = () => runResumeStore("readonly", store => store.getAll());
   const saveResume = value => runResumeStore("readwrite", store => store.put({ ...value, updatedAt: Date.now() }));
-  const clearResume = () => runResumeStore("readwrite", store => store.delete(fileId));
+  const deleteResume = resumeId => runResumeStore("readwrite", store => store.delete(resumeId));
+  const clearResume = () => deleteResume(fileId);
 
   let state;
-  try { state = await readResume(); }
-  catch (error) { throw new Error("Impossible de sécuriser la reprise de cet envoi : " + (error.message || String(error))); }
-  const isResuming = Boolean(state && state.key && state.uploadId && state.fileId === fileId);
+  let isResuming = false;
+  try {
+    state = await readResume();
+    if (state) {
+      if (!state.key || !state.uploadId || state.fileId !== fileId) {
+        throw new Error("Une ancienne session R2 existe pour ce fichier, mais ses informations sont incomplètes. Elle a été conservée ; aucun nouvel envoi n'a été lancé.");
+      }
+      isResuming = true;
+    } else {
+      const savedUploads = await readAllResumes();
+      const pendingUploads = savedUploads.filter(item =>
+        item && item.fileId && item.key && item.uploadId && Array.isArray(item.parts)
+      );
+      const matchingUploads = pendingUploads.filter(item =>
+        item.filename === file.name && Number(item.size) === file.size
+      );
+
+      if (matchingUploads.length > 1) {
+        const choices = matchingUploads
+          .sort((a, b) => Number(b.updatedAt || b.createdAt || 0) - Number(a.updatedAt || a.createdAt || 0))
+          .map((item, index) => (index + 1) + ". " + item.filename + " · " +
+            new Date(Number(item.updatedAt || item.createdAt || 0)).toLocaleString("fr-FR") +
+            " · " + (item.parts?.length || 0) + " partie(s)")
+          .join("\\n");
+        throw new Error("Plusieurs anciennes sessions correspondent au nom et à la taille de ce fichier. Aucune n'a été modifiée et aucun nouvel envoi n'a été lancé. Détails :\\n" + choices);
+      }
+
+      if (matchingUploads.length === 1) {
+        const previous = matchingUploads[0];
+        const sameModified = Number(previous.lastModified) === Number(file.lastModified);
+        const prompt = sameModified
+          ? "Une session R2 inachevée correspondant à ce fichier a été retrouvée (" + (previous.parts?.length || 0) +
+            " partie(s) conservée(s)). Veux-tu reprendre cette session ?"
+          : "Une session R2 inachevée a été retrouvée pour « " + previous.filename + " » (" +
+            Number(previous.size).toLocaleString("fr-FR") + " octets, " + (previous.parts?.length || 0) +
+            " partie(s) conservée(s)), mais sa date de modification diffère de celle du fichier sélectionné.\\n\\nConfirme uniquement si tu as sélectionné exactement la même vidéo, sans modification. Reprendre cette session ?";
+        if (!window.confirm(prompt)) {
+          throw new Error("Ancienne session R2 conservée. Aucun nouvel envoi n'a été lancé.");
+        }
+        state = { ...previous, fileId, lastModified: file.lastModified };
+        await saveResume(state);
+        if (previous.fileId !== fileId) await deleteResume(previous.fileId);
+        isResuming = true;
+      } else if (pendingUploads.length) {
+        const summary = pendingUploads.slice(0, 5).map(item =>
+          "• " + item.filename + " · " + Number(item.size).toLocaleString("fr-FR") +
+          " octets · " + (item.parts?.length || 0) + " partie(s)"
+        ).join("\\n");
+        const more = pendingUploads.length > 5 ? "\\n… et " + (pendingUploads.length - 5) + " autre(s)." : "";
+        if (!window.confirm("D'autres sessions R2 inachevées sont sauvegardées sur cet appareil :\\n" +
+          summary + more + "\\n\\nElles seront conservées. Veux-tu démarrer un nouvel envoi pour le fichier sélectionné ?")) {
+          throw new Error("Nouvel envoi annulé. Les anciennes sessions R2 sont conservées.");
+        }
+      }
+    }
+  } catch (error) {
+    if (error instanceof Error && /Aucune n'a été modifiée|Ancienne session|Nouvel envoi annulé|Une ancienne session/.test(error.message)) throw error;
+    throw new Error("Impossible de sécuriser la reprise de cet envoi : " + (error.message || String(error)));
+  }
 
   if (isResuming) {
     // Récupère aussi le cas où R2 avait terminé mais où la réponse finale s'était perdue.
