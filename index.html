@@ -10,12 +10,24 @@
   <script src="library.js?v=29" defer></script>
 </head>
 <body>
-  <header><a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a><nav aria-label="Navigation principale"><span>BIBLIOTHÈQUE</span><a href="contact/">Contact</a></nav></header>
+  <header class="site-header">
+    <a class="brand" href="index.html"><b>Z</b> ZENO VIDEO</a>
+    <div class="site-menu">
+      <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="site-menu-panel">
+        <span></span><span></span><span></span>
+      </button>
+      <nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
+        <a class="site-menu-link" href="index.html">Accueil</a>
+        <a class="site-menu-link" href="index.html#videos">Bibliothèque</a>
+        <a class="site-menu-link" href="contact/">Contact</a>
+      </nav>
+    </div>
+  </header>
   <main>
     <p class="eyebrow">LA GALERIE VIDÉO</p>
     <h1>Bienvenue dans<br><em>ma vidéothèque.</em></h1>
     <p class="intro">Retrouve ici les vidéos disponibles et partage leur lecteur en un seul lien.</p>
-    <section>
+    <section id="videos">
       <div class="section-title"><h2>Mes vidéos et annonces</h2><span id="video-count"></span></div>
       <div id="category-filters" class="category-filters category-folder-grid" aria-label="Dossiers de catégories de la vidéothèque"></div>
       <div id="video-grid" class="grid"></div>
@@ -23,5 +35,35 @@
     </section>
   </main>
   <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens. · <a href="contact/">Contact</a></footer>
+<script>
+      (() => {
+        const toggle = document.getElementById('site-menu-toggle');
+        const panel = document.getElementById('site-menu-panel');
+        if (!toggle || !panel) return;
+        const closeMenu = () => {
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-label', 'Ouvrir le menu');
+          toggle.classList.remove('is-open');
+          panel.hidden = true;
+        };
+        toggle.addEventListener('click', () => {
+          const opening = toggle.getAttribute('aria-expanded') !== 'true';
+          toggle.setAttribute('aria-expanded', String(opening));
+          toggle.setAttribute('aria-label', opening ? 'Fermer le menu' : 'Ouvrir le menu');
+          toggle.classList.toggle('is-open', opening);
+          panel.hidden = !opening;
+        });
+        document.addEventListener('click', event => {
+          if (!toggle.contains(event.target) && !panel.contains(event.target)) closeMenu();
+        });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && !panel.hidden) {
+            closeMenu();
+            toggle.focus();
+          }
+        });
+        panel.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+      })();
+    </script>
 </body>
 </html>
