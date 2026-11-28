@@ -491,6 +491,7 @@ footer { padding: 24px 18px; border-top: 1px solid rgba(237,75,183,.25); color: 
   font-size: 13px; line-height: 1.35; overflow-wrap: anywhere;
 }
 .site-menu-category::before { content: "▸"; margin-right: 8px; color: var(--zeno-cyan); }
+.site-menu-category[hidden] { display: none !important; }
 .site-menu-category:hover,.site-menu-category:focus-visible { background: rgba(140,53,223,.22); color: var(--zeno-gold); outline: none; }
 .site-menu-empty { margin: 2px 0; padding: 7px 4px; color: var(--zeno-muted); font-size: 12px; line-height: 1.5; }
 .site-menu-all { padding: 8px 10px; border-top: 1px solid rgba(184,116,230,.2); color: var(--zeno-cyan); font-size: 12px; font-weight: 700; }
