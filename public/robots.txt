@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://zenof519-ops.github.io/zeno-video/sitemap.xml
