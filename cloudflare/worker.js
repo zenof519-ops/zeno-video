@@ -1,7 +1,7 @@
 const ALLOWED_ORIGIN = "https://zenof519-ops.github.io";
 const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
 const MAX_MULTIPART_UPLOAD_BYTES = 500 * 1024 * 1024;
-const MULTIPART_PART_SIZE = 16 * 1024 * 1024;
+const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
 
 function corsHeaders() {

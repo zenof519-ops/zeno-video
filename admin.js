@@ -2498,68 +2498,133 @@ function uploadToMux(file, uploadUrl) {
 async function uploadToR2(file) {
   const { data: sessionData, error: sessionError } = await db.auth.getSession();
   const session = sessionData?.session;
-  if (sessionError || !session?.access_token) {
-    throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l'envoi vers R2.");
-  }
+  if (sessionError || !session?.access_token) throw new Error("Ta session administrateur a expiré. Reconnecte-toi avant l'envoi vers R2.");
 
-  const authHeaders = {
-    Authorization: "Bearer " + session.access_token,
-    apikey: SUPABASE_KEY
-  };
+  const authHeaders = { Authorization: "Bearer " + session.access_token, apikey: SUPABASE_KEY };
   const requestJson = async (path, method, body) => {
     const response = await fetch(new URL(path, R2_WORKER_URL), {
-      method,
-      headers: { ...authHeaders, "Content-Type": "application/json" },
-      body: JSON.stringify(body)
+      method, headers: { ...authHeaders, "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body)
     });
     const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(data.error || "Cloudflare R2 a refusé la demande (HTTP " + response.status + ").");
-    }
+    if (!response.ok) throw new Error(data.error || "Cloudflare R2 a refusé la demande (HTTP " + response.status + ").");
     return data;
   };
   const sleep = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 
-  const created = await requestJson("/multipart/create", "POST", {
-    filename: file.name,
-    size: file.size,
-    contentType: file.type || "application/octet-stream"
+  // IndexedDB conserve l'identifiant multipart et les ETags, jamais le contenu du fichier.
+  // Après fermeture/rechargement, il suffit de sélectionner à nouveau exactement le même fichier.
+  const fileId = [file.name, file.size, file.lastModified].join("|");
+  const openResumeDb = () => new Promise((resolve, reject) => {
+    if (!window.indexedDB) return reject(new Error("Ce navigateur ne permet pas la sauvegarde de reprise R2. Utilise un navigateur Android récent."));
+    const request = window.indexedDB.open("zeno-video-r2-resume", 1);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains("uploads")) request.result.createObjectStore("uploads", { keyPath: "fileId" });
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error("Impossible d'ouvrir la sauvegarde locale de reprise R2."));
+    request.onblocked = () => reject(new Error("La sauvegarde locale R2 est bloquée par un autre onglet. Ferme les autres onglets Zeno Video et réessaie."));
   });
-  if (!created.key || !created.uploadId || !Number.isSafeInteger(created.partSize) || created.partSize < 5 * 1024 * 1024) {
-    throw new Error("Cloudflare R2 n'a pas renvoyé les paramètres multipart attendus.");
+  const runResumeStore = async (mode, action) => {
+    const database = await openResumeDb();
+    return new Promise((resolve, reject) => {
+      const transaction = database.transaction("uploads", mode);
+      const request = action(transaction.objectStore("uploads"));
+      let result;
+      request.onsuccess = () => { result = request.result; };
+      request.onerror = () => reject(request.error || new Error("Erreur de sauvegarde de la reprise R2."));
+      transaction.oncomplete = () => { database.close(); resolve(result); };
+      transaction.onerror = () => { database.close(); reject(transaction.error || new Error("Erreur de sauvegarde de la reprise R2.")); };
+      transaction.onabort = () => { database.close(); reject(transaction.error || new Error("Sauvegarde de la reprise R2 annulée.")); };
+    });
+  };
+  const readResume = () => runResumeStore("readonly", store => store.get(fileId));
+  const saveResume = value => runResumeStore("readwrite", store => store.put({ ...value, updatedAt: Date.now() }));
+  const clearResume = () => runResumeStore("readwrite", store => store.delete(fileId));
+
+  let state;
+  try { state = await readResume(); }
+  catch (error) { throw new Error("Impossible de sécuriser la reprise de cet envoi : " + (error.message || String(error))); }
+  const isResuming = Boolean(state && state.key && state.uploadId && state.fileId === fileId);
+
+  if (isResuming) {
+    // Récupère aussi le cas où R2 avait terminé mais où la réponse finale s'était perdue.
+    const mediaPath = "/media/" + state.key.split("/").map(encodeURIComponent).join("/");
+    try {
+      const head = await fetch(new URL(mediaPath, R2_WORKER_URL), { method: "HEAD" });
+      if (head.ok) {
+        const result = { key: state.key, url: new URL(mediaPath, R2_WORKER_URL).toString(),
+          size: Number(head.headers.get("Content-Length")) || file.size,
+          contentType: head.headers.get("Content-Type") || file.type || "application/octet-stream",
+          etag: head.headers.get("ETag") || null };
+        await clearResume().catch(error => console.warn("Zeno Video R2: nettoyage local impossible.", error));
+        return result;
+      }
+    } catch (error) { console.warn("Zeno Video R2: vérification de reprise différée.", error); }
   }
 
-  const partCount = Math.ceil(file.size / created.partSize);
-  if (partCount < 1 || partCount > 10000 || created.partCount !== partCount) {
-    throw new Error("Le nombre de parties du téléversement R2 est invalide.");
+  if (!isResuming) {
+    const created = await requestJson("/multipart/create", "POST", {
+      filename: file.name, size: file.size, contentType: file.type || "application/octet-stream"
+    });
+    if (!created.key || !created.uploadId || !Number.isSafeInteger(created.partSize) || created.partSize < 5 * 1024 * 1024) {
+      throw new Error("Cloudflare R2 n'a pas renvoyé les paramètres multipart attendus.");
+    }
+    const count = Math.ceil(file.size / created.partSize);
+    if (count < 1 || count > 10000 || created.partCount !== count) throw new Error("Le nombre de parties du téléversement R2 est invalide.");
+    state = { fileId, filename: file.name, size: file.size, lastModified: file.lastModified,
+      key: created.key, uploadId: created.uploadId, partSize: created.partSize, partCount: count,
+      parts: [], createdAt: Date.now(), updatedAt: Date.now() };
+    try { await saveResume(state); }
+    catch (error) { throw new Error("L'envoi n'a pas commencé : impossible d'enregistrer son identifiant de reprise sur cet appareil. " + (error.message || String(error))); }
+  }
+
+  if (state.filename !== file.name || state.size !== file.size || state.lastModified !== file.lastModified) {
+    throw new Error("Le fichier sélectionné ne correspond pas à l'envoi interrompu. Sélectionne exactement le même fichier pour reprendre.");
+  }
+  const partCount = Math.ceil(file.size / state.partSize);
+  if (!state.key || !state.uploadId || !Number.isSafeInteger(state.partSize) || state.partSize < 5 * 1024 * 1024 ||
+      state.partCount !== partCount || !Array.isArray(state.parts)) {
+    throw new Error("Les informations de reprise R2 sont incomplètes. L'envoi conservé n'a pas été supprimé.");
   }
 
   const uploadedParts = new Array(partCount);
-  const progressByPart = new Map();
+  for (const part of state.parts) {
+    const number = Number(part?.partNumber);
+    if (Number.isInteger(number) && number >= 1 && number <= partCount && part.etag) {
+      uploadedParts[number - 1] = { partNumber: number, etag: String(part.etag) };
+    }
+  }
   let completedBytes = 0;
-  let nextPartIndex = 0;
-
+  for (let index = 0; index < partCount; index++) {
+    if (uploadedParts[index]) completedBytes += Math.min(state.partSize, file.size - index * state.partSize);
+  }
+  const progressByPart = new Map();
   const reportProgress = () => {
     let activeBytes = 0;
     for (const value of progressByPart.values()) activeBytes += value;
     const sent = Math.min(file.size, completedBytes + activeBytes);
     const percent = Math.min(100, Math.round(sent / file.size * 100));
-    const message = "Envoi vers Cloudflare R2 : " + percent + "% (" +
-      sent.toLocaleString("fr-FR") + " / " + file.size.toLocaleString("fr-FR") + " octets)";
+    const message = (isResuming ? "Reprise Cloudflare R2 : " : "Envoi vers Cloudflare R2 : ") + percent +
+      "% (" + sent.toLocaleString("fr-FR") + " / " + file.size.toLocaleString("fr-FR") + " octets)";
     showMessage(videoMessage, message);
     if (r2StatusElement) r2StatusElement.textContent = message;
   };
 
-  const uploadPart = index => {
-    const partNumber = index + 1;
-    const startByte = index * created.partSize;
-    const endByte = Math.min(file.size, startByte + created.partSize);
-    const chunk = file.slice(startByte, endByte);
-    const partUrl = new URL("/multipart/part", R2_WORKER_URL);
-    partUrl.searchParams.set("key", created.key);
-    partUrl.searchParams.set("uploadId", created.uploadId);
-    partUrl.searchParams.set("partNumber", String(partNumber));
+  if (isResuming) {
+    const savedCount = uploadedParts.filter(Boolean).length;
+    const message = "Reprise R2 : " + savedCount + " partie(s) déjà envoyée(s) conservée(s).";
+    showMessage(videoMessage, message);
+    if (r2StatusElement) r2StatusElement.textContent = message;
+  }
 
+  const uploadPart = async index => {
+    const partNumber = index + 1, startByte = index * state.partSize;
+    const endByte = Math.min(file.size, startByte + state.partSize), chunk = file.slice(startByte, endByte);
+    const partUrl = new URL("/multipart/part", R2_WORKER_URL);
+    partUrl.searchParams.set("key", state.key);
+    partUrl.searchParams.set("uploadId", state.uploadId);
+    partUrl.searchParams.set("partNumber", String(partNumber));
     const send = () => new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open("PUT", partUrl.toString());
@@ -2568,10 +2633,7 @@ async function uploadToR2(file) {
       xhr.setRequestHeader("apikey", authHeaders.apikey);
       xhr.setRequestHeader("Content-Type", "application/octet-stream");
       xhr.upload.addEventListener("progress", event => {
-        if (event.lengthComputable) {
-          progressByPart.set(partNumber, Math.min(chunk.size, event.loaded));
-          reportProgress();
-        }
+        if (event.lengthComputable) { progressByPart.set(partNumber, Math.min(chunk.size, event.loaded)); reportProgress(); }
       });
       xhr.addEventListener("load", () => {
         let data = {};
@@ -2583,68 +2645,62 @@ async function uploadToR2(file) {
         resolve(data);
       });
       xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi de la partie " + partNumber + ".")));
-      xhr.addEventListener("timeout", () => reject(new Error("Délai dépassé pour la partie " + partNumber + ".")));
+      xhr.addEventListener("timeout", () => reject(new Error("Délai dépassé pendant l'envoi de la partie " + partNumber + ".")));
+      xhr.addEventListener("abort", () => reject(new Error("Envoi de la partie " + partNumber + " interrompu par le navigateur.")));
       xhr.send(chunk);
     });
 
-    return (async () => {
-      let lastError;
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        progressByPart.set(partNumber, 0);
-        try {
-          const uploaded = await send();
-          uploadedParts[index] = uploaded;
-          completedBytes += chunk.size;
-          progressByPart.delete(partNumber);
-          reportProgress();
-          return;
-        } catch (error) {
-          lastError = error;
-          progressByPart.delete(partNumber);
-          reportProgress();
-          if (attempt < 3) await sleep(700 * Math.pow(2, attempt - 1));
+    let lastError;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      progressByPart.set(partNumber, 0);
+      try {
+        const uploaded = await send();
+        uploadedParts[index] = { partNumber, etag: uploaded.etag };
+        state.parts = uploadedParts.filter(Boolean);
+        // ETag écrit immédiatement : seule la partie en cours peut devoir être renvoyée.
+        await saveResume(state);
+        completedBytes += chunk.size;
+        progressByPart.delete(partNumber);
+        reportProgress();
+        return;
+      } catch (error) {
+        lastError = error;
+        progressByPart.delete(partNumber);
+        reportProgress();
+        if (attempt < 3) {
+          const delay = 1000 * Math.pow(2, attempt - 1);
+          showMessage(videoMessage, "Partie " + partNumber + " : nouvelle tentative " + (attempt + 1) +
+            "/3 dans " + (delay / 1000) + " s…");
+          await sleep(delay);
         }
       }
-      throw lastError || new Error("Échec du téléversement de la partie " + partNumber + ".");
-    })();
+    }
+    throw new Error("La partie " + partNumber + " a échoué après 3 tentatives. " + (lastError?.message || "Erreur réseau."));
   };
 
-  let stopWorkers = false;
   try {
-    const workers = Array.from(
-      { length: Math.min(R2_MULTIPART_CONCURRENCY, partCount) },
-      async () => {
-        while (!stopWorkers) {
-          const index = nextPartIndex++;
-          if (index >= partCount) return;
-          try {
-            await uploadPart(index);
-          } catch (error) {
-            stopWorkers = true;
-            throw error;
-          }
-        }
-      }
-    );
-    const workerResults = await Promise.allSettled(workers);
-    const failedWorker = workerResults.find(result => result.status === "rejected");
-    if (failedWorker) throw failedWorker.reason;
-
-    showMessage(videoMessage, "Toutes les parties sont envoyées. Finalisation de la vidéo dans R2…");
-    if (r2StatusElement) r2StatusElement.textContent = "Finalisation du fichier…";
-    const completePath = "/multipart/complete?key=" + encodeURIComponent(created.key) +
-      "&uploadId=" + encodeURIComponent(created.uploadId);
-    const result = await requestJson(completePath, "POST", { parts: uploadedParts });
-    if (!result.url || !result.key) {
-      throw new Error("Cloudflare R2 n'a pas renvoyé l'URL publique attendue.");
+    // Un seul bloc à la fois. Les blocs dont l'ETag est déjà sauvegardé sont ignorés.
+    for (let index = 0; index < partCount; index++) {
+      if (uploadedParts[index]) continue;
+      await uploadPart(index);
     }
+    showMessage(videoMessage, "Toutes les parties sont conservées. Finalisation de la vidéo dans R2…");
+    if (r2StatusElement) r2StatusElement.textContent = "Finalisation du fichier…";
+    const completePath = "/multipart/complete?key=" + encodeURIComponent(state.key) +
+      "&uploadId=" + encodeURIComponent(state.uploadId);
+    const result = await requestJson(completePath, "POST", { parts: uploadedParts });
+    if (!result.url || !result.key) throw new Error("Cloudflare R2 n'a pas renvoyé l'URL publique attendue.");
+    await clearResume().catch(error => console.warn("Zeno Video R2 : nettoyage local impossible.", error));
     return result;
   } catch (error) {
-    const abortUrl = new URL("/multipart/abort", R2_WORKER_URL);
-    abortUrl.searchParams.set("key", created.key);
-    abortUrl.searchParams.set("uploadId", created.uploadId);
-    await fetch(abortUrl.toString(), { method: "DELETE", headers: authHeaders }).catch(() => {});
-    throw error;
+    const percent = Math.round(completedBytes / file.size * 100);
+    const message = "Envoi interrompu à " + percent + "%. Les " + uploadedParts.filter(Boolean).length +
+      " partie(s) déjà envoyées sont conservées sur cet appareil. Reconnecte-toi, sélectionne exactement le même fichier, " +
+      "puis relance l'envoi pour reprendre. Détail : " + (error?.message || String(error));
+    showMessage(videoMessage, message);
+    if (r2StatusElement) r2StatusElement.textContent = message;
+    // Ne jamais annuler le multipart après une erreur réseau : l'envoi doit rester reprenable.
+    throw new Error(message);
   }
 }
 async function loadR2Usage() {

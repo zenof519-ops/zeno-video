@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="style.css?v=18">
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/@mux/upchunk@3" defer></script>
-  <script src="admin.js?v=65" defer></script>
+  <script src="admin.js?v=66" defer></script>
 </head>
 <body>
   <header>
@@ -295,7 +295,7 @@
               <input type="file" id="r2-file" accept="video/mp4,video/quicktime,video/webm">
             </label>
             <p id="r2-status" class="admin-message status-pending" aria-live="polite">Envoi sécurisé disponible après activation du Worker R2.</p>
-            <p class="cover-help">Envoi authentifié jusqu’à 500 Mio par fichier, découpé en parties de 16 Mio envoyées une par une, avec 3 tentatives automatiques en cas d’échec. La lecture prend en charge les requêtes par plages d’octets pour permettre l’avance et le retour dans la vidéo. Les miniatures continuent d’utiliser Cloudinary ou ImageKit.</p>
+            <p class="cover-help">Envoi authentifié jusqu’à 500 Mio par fichier, découpé en parties de 8 Mio envoyées une par une, avec sauvegarde locale de la progression et reprise après interruption. Après une coupure, sélectionne à nouveau exactement le même fichier pour continuer. La lecture prend en charge les requêtes par plages d’octets pour permettre l’avance et le retour dans la vidéo. Les miniatures continuent d’utiliser Cloudinary ou ImageKit.</p>
           </div>
           <button type="submit" id="save-button">Envoyer et ajouter la vidéo</button>
           <button type="button" id="cancel-edit" class="alt admin-hidden">Annuler la modification</button>
