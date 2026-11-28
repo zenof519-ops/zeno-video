@@ -5,9 +5,10 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="description" content="Retrouve les vidéos disponibles et les annonces à venir sur Zeno Video, puis partage chaque lecteur en un seul lien.">
   <title>Zeno Video</title>
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
   <script src="videos.js" defer></script>
-  <script src="library.js?v=29" defer></script>
+  <script src="library-menu.js?v=1" defer></script>
+  <script src="library.js?v=30" defer></script>
 </head>
 <body>
   <header class="site-header">
@@ -16,9 +17,19 @@
       <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="site-menu-panel">
         <span></span><span></span><span></span>
       </button>
-      <nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
-        <a class="site-menu-link" href="index.html">Accueil</a>
-        <a class="site-menu-link" href="index.html#videos">Bibliothèque</a>
+<nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
+        <a class="site-menu-link site-menu-home" href="index.html">Accueil</a>
+        <div class="site-menu-group">
+          <button class="site-menu-link site-menu-library-toggle" id="library-menu-toggle" type="button" aria-expanded="false" aria-controls="library-menu-submenu">
+            <span>Bibliothèque</span><span class="site-menu-chevron" aria-hidden="true">⌄</span>
+          </button>
+          <div class="site-menu-submenu" id="library-menu-submenu" hidden>
+            <label class="site-menu-search-label" for="library-menu-search">Rechercher une catégorie</label>
+            <input class="site-menu-search" id="library-menu-search" type="search" placeholder="Ex. : Action, Test…" autocomplete="off">
+            <div class="site-menu-categories" id="library-menu-categories" aria-live="polite"><p class="site-menu-empty">Chargement des catégories…</p></div>
+            <a class="site-menu-all" href="index.html#videos">Voir toute la bibliothèque</a>
+          </div>
+        </div>
         <a class="site-menu-link" href="contact/">Contact</a>
       </nav>
     </div>

@@ -101,6 +101,7 @@ async function loadVideos() {
       categoryFilters.replaceChildren();
       categoryFilters.hidden = false;
       const publicCategories = categories.filter(category => category.is_published || categoryVideos.some(video => video.category_id === category.id));
+      window.ZenoLibraryMenu?.setCategories(publicCategories);
       for (const category of publicCategories) {
         const total = categoryVideos.filter(video => video.category_id === category.id).length;
         const button = document.createElement("button");
@@ -179,7 +180,10 @@ async function loadVideos() {
       }
     }
 
-    renderHome();
+    const requestedCategoryId = new URLSearchParams(location.search).get("category");
+    const requestedCategory = publicCategories.find(category => category.id === requestedCategoryId);
+    if (requestedCategory) renderCategory(requestedCategory);
+    else renderHome();
   } catch (error) {
     count.textContent = "Erreur de chargement";
     empty.hidden = false;

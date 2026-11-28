@@ -19,7 +19,7 @@ const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video e
     <meta property="og:description" content={pageDescription} />
     <meta property="og:url" content={canonicalUrl} />
     <title>{pageTitle}</title>
-    <link rel="stylesheet" href={`${base}style.css?v=18`} />
+    <link rel="stylesheet" href={`${base}style.css?v=19`} />
   </head>
   <body>
     <header class="site-header">
@@ -28,9 +28,19 @@ const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video e
         <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="site-menu-panel">
           <span></span><span></span><span></span>
         </button>
-        <nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
-          <a class="site-menu-link" href={base}>Accueil</a>
-          <a class="site-menu-link" href={base + '#videos'}>Bibliothèque</a>
+<nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
+          <a class="site-menu-link site-menu-home" href={base}>Accueil</a>
+          <div class="site-menu-group">
+            <button class="site-menu-link site-menu-library-toggle" id="library-menu-toggle" type="button" aria-expanded="false" aria-controls="library-menu-submenu">
+              <span>Bibliothèque</span><span class="site-menu-chevron" aria-hidden="true">⌄</span>
+            </button>
+            <div class="site-menu-submenu" id="library-menu-submenu" hidden>
+              <label class="site-menu-search-label" for="library-menu-search">Rechercher une catégorie</label>
+              <input class="site-menu-search" id="library-menu-search" type="search" placeholder="Ex. : Action, Test…" autocomplete="off">
+              <div class="site-menu-categories" id="library-menu-categories" aria-live="polite"><p class="site-menu-empty">Chargement des catégories…</p></div>
+              <a class="site-menu-all" href={base + '#videos'}>Voir toute la bibliothèque</a>
+            </div>
+          </div>
           <a class="site-menu-link" href={base + 'contact/'}>Contact</a>
         </nav>
       </div>
@@ -69,6 +79,7 @@ const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video e
       </section>
     </main>
     <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+    <script is:inline src={`${base}library-menu.js?v=1`} defer></script>
 <script is:inline>
       (() => {
         const toggle = document.getElementById('site-menu-toggle');
