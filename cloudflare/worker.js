@@ -249,6 +249,29 @@ export default {
       }
     }
 
+    if (url.pathname === "/admin/delete" && request.method === "DELETE") {
+      const denied = await adminError(request, env);
+      if (denied) return denied;
+      const key = url.searchParams.get("key");
+      if (!key || !key.startsWith("videos/") || key.includes("..") || key.startsWith("/") || key.includes("\\")) {
+        return json({ error: "Clé de suppression invalide.", code: "invalid_delete_key" }, 400);
+      }
+      try {
+        const existing = await env.ZENOVIDEO.head(key);
+        if (!existing) return json({ success: true, deleted: false, key, message: "Objet déjà absent de R2." });
+        await env.ZENOVIDEO.delete(key);
+        const remaining = await env.ZENOVIDEO.head(key);
+        if (remaining) {
+          console.error(JSON.stringify({ message: "r2_delete_verification_failed", key }));
+          return json({ error: "Cloudflare R2 n'a pas confirmé la suppression de l'objet.", code: "r2_delete_not_confirmed" }, 502);
+        }
+        return json({ success: true, deleted: true, key, message: "Objet supprimé de Cloudflare R2." });
+      } catch (error) {
+        console.error(JSON.stringify({ message: "r2_delete_failed", error: error instanceof Error ? error.message : String(error), key }));
+        return json({ error: "Impossible de supprimer l'objet Cloudflare R2.", code: "r2_delete_failed" }, 502);
+      }
+    }
+
     if (url.pathname === "/admin/usage" && request.method === "GET") {
       const denied = await adminError(request, env);
       if (denied) return denied;
