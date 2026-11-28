@@ -1,14 +1,27 @@
 ---
 const rawBase = import.meta.env.BASE_URL;
 const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+const canonicalUrl = 'https://zenof519-ops.github.io/zeno-video/';
+const pageTitle = 'Zeno Video — Streaming d’anime gratuit sans compte';
+const pageDescription = 'Regarde gratuitement des vidéos d’anime sur Zeno Video, sans compte et sans publicité. Retrouve notamment le remake Dragon Ball Super : Beerus et les nouveaux épisodes.';
 ---
 <!doctype html>
 <html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="description" content="Retrouve les vidéos disponibles et les annonces à venir sur Zeno Video, puis partage chaque lecteur en un seul lien." />
-    <title>Zeno Video</title>
+    <meta name="description" content={pageDescription} />
+    <meta name="robots" content="index,follow,max-image-preview:large" />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Zeno Video" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={pageDescription} />
+    <title>{pageTitle}</title>
     <link rel="stylesheet" href={`${base}style.css?v=16`} />
     <script is:inline src={`${base}posthog-config.js`} defer></script>
     <script is:inline src={`${base}posthog.js?v=2`} defer></script>
@@ -21,7 +34,7 @@ const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
     <main>
       <p class="eyebrow">LA GALERIE VIDÉO</p>
       <h1>Bienvenue dans<br /><em>ma vidéothèque.</em></h1>
-      <p class="intro">Retrouve ici les vidéos disponibles et partage leur lecteur en un seul lien.</p>
+      <p class="intro">Regarde tes vidéos d’anime gratuitement sur Zeno Video, sans compte et sans publicité. Retrouve notamment le remake Dragon Ball Super : Beerus et les nouveaux épisodes.</p>
       <section>
         <div class="section-title"><h2>Mes vidéos et annonces</h2><span id="video-count"></span></div>
         <div id="category-filters" class="category-filters category-folder-grid" aria-label="Dossiers de catégories de la vidéothèque"></div>
