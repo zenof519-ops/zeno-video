@@ -27,15 +27,24 @@ const pageDescription = 'Regarde gratuitement des vidéos d’anime sur Zeno Vid
     <script is:inline src={`${base}posthog.js?v=2`} defer></script>
   </head>
   <body>
-    <header>
+    <header class="site-header">
       <a class="brand" href={base}><b>Z</b> ZENO VIDEO</a>
-      <nav aria-label="Navigation principale"><span>BIBLIOTHÈQUE</span><a href={`${base}contact/`}>Contact</a></nav>
+      <div class="site-menu">
+        <button class="menu-toggle" id="site-menu-toggle" type="button" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="site-menu-panel">
+          <span></span><span></span><span></span>
+        </button>
+        <nav class="site-menu-panel" id="site-menu-panel" aria-label="Menu principal" hidden>
+          <a class="site-menu-link" href={base}>Accueil</a>
+          <a class="site-menu-link" href={base + '#videos'}>Bibliothèque</a>
+          <a class="site-menu-link" href={base + 'contact/'}>Contact</a>
+        </nav>
+      </div>
     </header>
     <main>
       <p class="eyebrow">LA GALERIE VIDÉO</p>
       <h1>Bienvenue dans<br /><em>ma vidéothèque.</em></h1>
       <p class="intro">Regarde tes vidéos d’anime gratuitement sur Zeno Video, sans compte et sans publicité. Retrouve notamment le remake Dragon Ball Super : Beerus et les nouveaux épisodes.</p>
-      <section>
+      <section id="videos">
         <div class="section-title"><h2>Mes vidéos et annonces</h2><span id="video-count"></span></div>
         <div id="category-filters" class="category-filters category-folder-grid" aria-label="Dossiers de catégories de la vidéothèque"></div>
         <div id="video-grid" class="grid"></div>
@@ -45,5 +54,35 @@ const pageDescription = 'Regarde gratuitement des vidéos d’anime sur Zeno Vid
     <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens. · <a href={`${base}contact/`}>Contact</a></footer>
     <script is:inline src={`${base}videos.js`} defer></script>
     <script is:inline src={`${base}library.js?v=26`} defer></script>
+<script is:inline>
+      (() => {
+        const toggle = document.getElementById('site-menu-toggle');
+        const panel = document.getElementById('site-menu-panel');
+        if (!toggle || !panel) return;
+        const closeMenu = () => {
+          toggle.setAttribute('aria-expanded', 'false');
+          toggle.setAttribute('aria-label', 'Ouvrir le menu');
+          toggle.classList.remove('is-open');
+          panel.hidden = true;
+        };
+        toggle.addEventListener('click', () => {
+          const opening = toggle.getAttribute('aria-expanded') !== 'true';
+          toggle.setAttribute('aria-expanded', String(opening));
+          toggle.setAttribute('aria-label', opening ? 'Fermer le menu' : 'Ouvrir le menu');
+          toggle.classList.toggle('is-open', opening);
+          panel.hidden = !opening;
+        });
+        document.addEventListener('click', event => {
+          if (!toggle.contains(event.target) && !panel.contains(event.target)) closeMenu();
+        });
+        document.addEventListener('keydown', event => {
+          if (event.key === 'Escape' && !panel.hidden) {
+            closeMenu();
+            toggle.focus();
+          }
+        });
+        panel.querySelectorAll('a').forEach(link => link.addEventListener('click', closeMenu));
+      })();
+    </script>
   </body>
 </html>
