@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ADMIN_ID = "6683090f-57d1-4d9b-b358-6107e909c40f";
 const CLOUD_NAME = "wnonuvx4";
+const R2_WORKER_URL = "https://zeno-video-media.zenof519.workers.dev";
 const ALLOWED_ORIGINS = new Set([
   "https://zenof519-ops.github.io",
   "http://localhost:4321",
@@ -32,6 +33,35 @@ function toHex(buffer: ArrayBuffer) {
   return Array.from(new Uint8Array(buffer))
     .map((byte) => byte.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function r2ObjectKeyFromUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.hostname !== "zeno-video-media.zenof519.workers.dev" || !url.pathname.startsWith("/media/")) return null;
+    const key = url.pathname.slice("/media/".length).split("/").map(segment => decodeURIComponent(segment)).join("/");
+    if (!key.startsWith("videos/") || key.includes("..") || key.startsWith("/") || key.includes("\\")) return null;
+    return key;
+  } catch {
+    return null;
+  }
+}
+
+async function deleteR2Object(key: string, authorization: string, publishableKey: string) {
+  if (!key.startsWith("videos/") || key.includes("..") || key.includes("\\")) {
+    throw new Error("Clé R2 invalide ou hors du dossier vidéos.");
+  }
+  const url = new URL("/admin/delete", R2_WORKER_URL);
+  url.searchParams.set("key", key);
+  const response = await fetch(url.toString(), {
+    method: "DELETE",
+    headers: { Authorization: authorization, apikey: publishableKey }
+  });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok || payload.success !== true) {
+    throw new Error(payload.error || ("Cloudflare R2 HTTP " + response.status));
+  }
+  return payload.deleted === false ? "objet déjà absent de R2" : "objet supprimé de R2";
 }
 
 function normalizedUrl(value: string) {
@@ -180,6 +210,7 @@ Deno.serve(async (req: Request) => {
     let cloudinaryOk = false;
     let imageKitOk = false;
     let muxOk = false;
+    let r2Ok = false;
     const details: string[] = [];
 
     if (cloudinaryApiKey && cloudinaryApiSecret) {
@@ -222,12 +253,21 @@ Deno.serve(async (req: Request) => {
       details.push("Secrets MUX_TOKEN_ID / MUX_TOKEN_SECRET absents.");
     }
 
-    const configured = cloudinaryOk && imageKitOk && muxOk;
+    try {
+      const check = await fetch(R2_WORKER_URL + "/health");
+      r2Ok = check.ok;
+      if (!r2Ok) details.push("Cloudflare R2 : HTTP " + check.status);
+    } catch (error) {
+      details.push("Cloudflare R2 : " + (error instanceof Error ? error.message : String(error)));
+    }
+
+    const configured = cloudinaryOk && imageKitOk && muxOk && r2Ok;
     return json({
       configured,
       cloudinary: cloudinaryOk,
       imagekit: imageKitOk,
       mux: muxOk,
+      r2: r2Ok,
       error: configured ? null : "Une ou plusieurs connexions d'hébergement ne sont pas prêtes.",
       details: details.join(" · ")
     }, 200, origin);
@@ -265,6 +305,7 @@ Deno.serve(async (req: Request) => {
     if (!coverProvider && coverUrl) {
       if (coverUrl.includes("ik.imagekit.io")) coverProvider = "imagekit";
       else if (coverUrl.includes("res.cloudinary.com") && coverUrl.includes("/image/upload/")) coverProvider = "cloudinary";
+      else if (coverUrl.includes("zeno-video-media.zenof519.workers.dev/media/")) coverProvider = "r2";
       else coverProvider = "external";
     }
 
@@ -296,6 +337,11 @@ Deno.serve(async (req: Request) => {
           try { coverResult = "couverture Cloudinary supprimée : " + await deleteCloudinaryAsset(publicId, "image", cloudinaryApiKey, cloudinaryApiSecret); }
           catch (error) { return json({ error: "Cloudinary a refusé la suppression de la couverture. La catégorie est conservée.", details: error instanceof Error ? error.message : String(error) }, 502, origin); }
         }
+      } else if (coverProvider === "r2") {
+        const key = r2ObjectKeyFromUrl(coverUrl);
+        if (!key) return json({ error: "Impossible d'identifier précisément la couverture Cloudflare R2. La catégorie est conservée." }, 422, origin);
+        try { coverResult = "couverture Cloudflare R2 : " + await deleteR2Object(key, authorization, publishableKey); }
+        catch (error) { return json({ error: "Cloudflare R2 a refusé la suppression de la couverture. La catégorie est conservée.", details: error instanceof Error ? error.message : String(error) }, 502, origin); }
       } else if (coverProvider === "imagekit") {
         if (!imageKitPrivateKey) {
           coverResult = "couverture ImageKit conservée chez l'hébergeur (connexion de suppression non configurée)";
@@ -334,15 +380,15 @@ Deno.serve(async (req: Request) => {
 
   const { data: video, error: selectError } = await supabase
     .from("videos")
-    .select("id,title,provider,cloudinary_public_id,mux_asset_id,thumbnail_url,thumbnail_provider,thumbnail_cloudinary_public_id,thumbnail_imagekit_file_id,announcement_id")
+    .select("id,title,provider,cloudinary_public_id,mux_asset_id,playback_url,thumbnail_url,thumbnail_provider,thumbnail_cloudinary_public_id,thumbnail_imagekit_file_id,announcement_id")
     .eq("id", videoId)
     .maybeSingle();
 
   if (selectError) return json({ error: "Impossible de lire la vidéo : " + selectError.message }, 500, origin);
   if (!video) return json({ error: "Cette vidéo n'existe plus dans la bibliothèque." }, 404, origin);
   const videoProvider = (video.provider || "cloudinary") as string;
-  if (deleteVideoAsset && !["cloudinary", "mux"].includes(videoProvider)) {
-    return json({ error: "La suppression définitive du fichier source n'est disponible que pour Cloudinary et Mux." }, 400, origin);
+  if (deleteVideoAsset && !["cloudinary", "mux", "r2"].includes(videoProvider)) {
+    return json({ error: "La suppression définitive du fichier source n'est disponible que pour Cloudinary, Mux et Cloudflare R2." }, 400, origin);
   }
   if (deleteVideoAsset && videoProvider === "cloudinary" && !video.cloudinary_public_id) {
     return json({ error: "Aucun identifiant vidéo Cloudinary n'est associé à cette fiche." }, 400, origin);
@@ -362,6 +408,7 @@ Deno.serve(async (req: Request) => {
     else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/image/upload/")) coverProvider = "cloudinary";
     else if (thumbnailUrl.includes("res.cloudinary.com") && thumbnailUrl.includes("/video/upload/")) coverProvider = "cloudinary_video";
     else if (thumbnailUrl.includes("image.mux.com")) coverProvider = "mux";
+    else if (thumbnailUrl.includes("zeno-video-media.zenof519.workers.dev/media/")) coverProvider = "r2";
   }
 
   let coverIsShared = false;
@@ -383,6 +430,19 @@ Deno.serve(async (req: Request) => {
 
   if (deleteVideoAsset && coverIsShared && (coverProvider === "mux" || coverProvider === "cloudinary_video")) {
     return json({ error: "Suppression interrompue : cette miniature est encore utilisée par une annonce ou une autre vidéo. Modifie d'abord cette référence pour éviter de casser son affichage." }, 409, origin);
+  }
+
+  const r2VideoKey = deleteVideoAsset && videoProvider === "r2"
+    ? r2ObjectKeyFromUrl(String(video.playback_url || ""))
+    : null;
+  if (deleteVideoAsset && videoProvider === "r2" && !r2VideoKey) {
+    return json({ error: "Impossible d'identifier précisément le fichier vidéo Cloudflare R2. La fiche est conservée." }, 422, origin);
+  }
+  const r2CoverKey = thumbnailUrl && !coverIsShared && coverProvider === "r2"
+    ? r2ObjectKeyFromUrl(thumbnailUrl)
+    : null;
+  if (thumbnailUrl && !coverIsShared && coverProvider === "r2" && !r2CoverKey) {
+    return json({ error: "Impossible d'identifier précisément la couverture Cloudflare R2. La fiche vidéo est conservée." }, 422, origin);
   }
 
   let resolvedImageKitFileId = video.thumbnail_imagekit_file_id as string | null;
@@ -418,6 +478,12 @@ Deno.serve(async (req: Request) => {
     } catch (error) {
       return json({ error: "Mux a refusé la suppression de la vidéo. La fiche et sa couverture sont conservées.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
     }
+  } else if (deleteVideoAsset && videoProvider === "r2") {
+    try {
+      videoResult = await deleteR2Object(r2VideoKey as string, authorization, publishableKey);
+    } catch (error) {
+      return json({ error: "Cloudflare R2 a refusé la suppression de la vidéo. La fiche et sa couverture sont conservées.", details: error instanceof Error ? error.message : String(error) }, 502, origin);
+    }
   } else if (deleteVideoAsset && videoProvider === "cloudinary") {
     if (!cloudinaryApiKey || !cloudinaryApiSecret) {
       return json({ error: "Secrets Cloudinary absents : vérifie CLOUDINARY_API_KEY et CLOUDINARY_API_SECRET." }, 503, origin);
@@ -435,6 +501,11 @@ Deno.serve(async (req: Request) => {
       : "miniature Mux conservée avec l'asset vidéo";
   } else if (thumbnailUrl && coverIsShared) {
     coverResult = "couverture conservée car elle est encore utilisée par une autre vidéo ou une annonce";
+  } else if (thumbnailUrl && coverProvider === "r2") {
+    try { coverResult = await deleteR2Object(r2CoverKey as string, authorization, publishableKey); }
+    catch (error) {
+      return json({ error: "Cloudflare R2 a refusé la suppression de la couverture. La fiche vidéo reste dans Supabase.", details: error instanceof Error ? error.message : String(error), video: videoResult }, 502, origin);
+    }
   } else if (thumbnailUrl && coverProvider === "imagekit") {
     if (!imageKitPrivateKey) {
       coverResult = "couverture ImageKit conservée chez l'hébergeur (connexion de suppression non configurée)";
@@ -483,7 +554,7 @@ Deno.serve(async (req: Request) => {
   }
 
   const message = deleteVideoAsset
-    ? `Vidéo supprimée de ${videoProvider === "mux" ? "Mux" : "Cloudinary"} et de Supabase. ${coverResult}.`
+    ? `Vidéo supprimée de ${videoProvider === "mux" ? "Mux" : videoProvider === "r2" ? "Cloudflare R2" : "Cloudinary"} et de Supabase. ${coverResult}.`
     : coverResult.startsWith("miniature générée")
       ? "Vidéo retirée de Supabase. La miniature automatique reste liée au fichier vidéo conservé chez son hébergeur."
       : coverResult.startsWith("URL externe")
