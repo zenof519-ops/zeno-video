@@ -2650,14 +2650,14 @@ async function uploadToR2(file) {
         }
         resolve(data);
       });
-      xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi de la partie " + partNumber + ".")));
+      xhr.addEventListener("error", () => reject(new Error("Connexion interrompue pendant l'envoi de la partie " + partNumber + " (HTTP " + (xhr.status || "aucune réponse") + "). Vérifie la connexion puis réessaie.")));
       xhr.addEventListener("timeout", () => reject(new Error("Délai dépassé pendant l'envoi de la partie " + partNumber + ".")));
       xhr.addEventListener("abort", () => reject(new Error("Envoi de la partie " + partNumber + " interrompu par le navigateur.")));
       xhr.send(chunk);
     });
 
     let lastError;
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 5; attempt++) {
       progressByPart.set(partNumber, 0);
       try {
         const uploaded = await send();
@@ -2674,14 +2674,14 @@ async function uploadToR2(file) {
         progressByPart.delete(partNumber);
         reportProgress();
         if (attempt < 3) {
-          const delay = 1000 * Math.pow(2, attempt - 1);
+          const delay = Math.min(12000, 1500 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 250);
           showMessage(videoMessage, "Partie " + partNumber + " : nouvelle tentative " + (attempt + 1) +
-            "/3 dans " + (delay / 1000) + " s…");
+            "/5 dans " + (delay / 1000).toFixed(1) + " s…");
           await sleep(delay);
         }
       }
     }
-    throw new Error("La partie " + partNumber + " a échoué après 3 tentatives. " + (lastError?.message || "Erreur réseau."));
+    throw new Error("La partie " + partNumber + " a échoué après 5 tentatives. " + (lastError?.message || "Erreur réseau."));
   };
 
   try {
