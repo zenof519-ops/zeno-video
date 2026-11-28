@@ -2673,7 +2673,7 @@ async function uploadToR2(file) {
         lastError = error;
         progressByPart.delete(partNumber);
         reportProgress();
-        if (attempt < 3) {
+        if (attempt < 5) {
           const delay = Math.min(12000, 1500 * Math.pow(2, attempt - 1)) + Math.floor(Math.random() * 250);
           showMessage(videoMessage, "Partie " + partNumber + " : nouvelle tentative " + (attempt + 1) +
             "/5 dans " + (delay / 1000).toFixed(1) + " s…");
