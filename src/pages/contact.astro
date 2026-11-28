@@ -1,0 +1,39 @@
+---
+const rawBase = import.meta.env.BASE_URL;
+const base = rawBase.endsWith('/') ? rawBase : `${rawBase}/`;
+const canonicalUrl = 'https://zenof519-ops.github.io/zeno-video/contact/';
+const pageTitle = 'Contact — Zeno Video';
+const pageDescription = 'Retrouve les moyens officiels de contacter Zeno Video et ses réseaux sociaux.';
+---
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content={pageDescription} />
+    <meta name="robots" content="index,follow" />
+    <link rel="canonical" href={canonicalUrl} />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Zeno Video" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={pageDescription} />
+    <meta property="og:url" content={canonicalUrl} />
+    <title>{pageTitle}</title>
+    <link rel="stylesheet" href={`${base}style.css?v=17`} />
+  </head>
+  <body>
+    <header><a class="brand" href={base}><b>Z</b> ZENO VIDEO</a><a href={base}>← Bibliothèque</a></header>
+    <main>
+      <p class="eyebrow">RESTONS EN CONTACT</p>
+      <h1>Parlons de <em>Zeno Video.</em></h1>
+      <p class="intro">Une question, une suggestion ou envie de suivre nos nouveautés ? Cette page regroupera les moyens officiels de nous contacter.</p>
+      <section class="contact-panel">
+        <h2>Nos réseaux sociaux</h2>
+        <p>Les liens officiels de nos réseaux seront ajoutés ici dès qu’ils auront été communiqués et vérifiés.</p>
+        <div class="contact-placeholder">Les liens arrivent bientôt. En attendant, tu peux revenir à la bibliothèque.</div>
+        <div class="contact-links"><a class="btn alt" href={base}>Retour à la bibliothèque</a></div>
+      </section>
+    </main>
+    <footer>ZENO VIDEO · Un lecteur, tes vidéos, tes liens.</footer>
+  </body>
+</html>
