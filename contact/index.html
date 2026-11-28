@@ -13,6 +13,52 @@
   <meta property="og:url" content="https://zenof519-ops.github.io/zeno-video/contact/">
   <title>Contact — Zeno Video</title>
   <link rel="stylesheet" href="/zeno-video/style.css?v=20">
+<style>
+  .contact-social-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
+    gap: 12px;
+    margin-top: 22px;
+  }
+  .contact-social-link {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid rgba(184, 116, 230, .38);
+    border-radius: 13px;
+    background: rgba(10, 10, 22, .38);
+    transition: transform .18s ease, border-color .18s ease, background .18s ease;
+  }
+  .contact-social-link:hover {
+    transform: translateY(-2px);
+    border-color: rgba(85, 217, 242, .75);
+    background: rgba(85, 217, 242, .08);
+  }
+  .contact-social-icon {
+    display: grid;
+    place-items: center;
+    flex: 0 0 42px;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, rgba(85, 217, 242, .22), rgba(237, 75, 183, .24));
+    color: #fff;
+    font-size: 23px;
+    font-weight: 800;
+  }
+  .contact-social-copy { display: grid; gap: 4px; min-width: 0; }
+  .contact-social-copy strong { color: #fff5ff; font-size: 15px; }
+  .contact-social-copy small { color: var(--zeno-muted); font-size: 11px; line-height: 1.35; }
+  .contact-social-arrow { margin-left: auto; color: var(--zeno-gold); font-size: 17px; }
+  .contact-social-link.whatsapp .contact-social-icon { background: rgba(37, 211, 102, .2); color: #7cf0a6; }
+  .contact-social-link.discord .contact-social-icon { background: rgba(88, 101, 242, .22); color: #aeb6ff; }
+  .contact-social-link.instagram .contact-social-icon { background: rgba(225, 48, 108, .2); color: #ff9cbe; }
+  @media (prefers-reduced-motion: reduce) {
+    .contact-social-link { transition: none; }
+  }
+</style>
 </head>
 <body>
   <header class="site-header">
@@ -79,50 +125,4 @@
     })();
   </script>
 </body>
-<style>
-  .contact-social-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 245px), 1fr));
-    gap: 12px;
-    margin-top: 22px;
-  }
-  .contact-social-link {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-    padding: 14px;
-    border: 1px solid rgba(184, 116, 230, .38);
-    border-radius: 13px;
-    background: rgba(10, 10, 22, .38);
-    transition: transform .18s ease, border-color .18s ease, background .18s ease;
-  }
-  .contact-social-link:hover {
-    transform: translateY(-2px);
-    border-color: rgba(85, 217, 242, .75);
-    background: rgba(85, 217, 242, .08);
-  }
-  .contact-social-icon {
-    display: grid;
-    place-items: center;
-    flex: 0 0 42px;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    background: linear-gradient(135deg, rgba(85, 217, 242, .22), rgba(237, 75, 183, .24));
-    color: #fff;
-    font-size: 23px;
-    font-weight: 800;
-  }
-  .contact-social-copy { display: grid; gap: 4px; min-width: 0; }
-  .contact-social-copy strong { color: #fff5ff; font-size: 15px; }
-  .contact-social-copy small { color: var(--zeno-muted); font-size: 11px; line-height: 1.35; }
-  .contact-social-arrow { margin-left: auto; color: var(--zeno-gold); font-size: 17px; }
-  .contact-social-link.whatsapp .contact-social-icon { background: rgba(37, 211, 102, .2); color: #7cf0a6; }
-  .contact-social-link.discord .contact-social-icon { background: rgba(88, 101, 242, .22); color: #aeb6ff; }
-  .contact-social-link.instagram .contact-social-icon { background: rgba(225, 48, 108, .2); color: #ff9cbe; }
-  @media (prefers-reduced-motion: reduce) {
-    .contact-social-link { transition: none; }
-  }
-</style>
 </html>
