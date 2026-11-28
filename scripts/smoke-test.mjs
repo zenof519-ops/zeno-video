@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
 
 const root = 'dist';
-const required = ['index.html','admin.html','watch.html','announcement-admin.html','announcement-admin.js','announcement.html','announcement-viewer.js','style.css','library.js','videos.js','admin.js','watch.js','posthog.js','posthog-config.js'];
+const required = ['index.html','admin.html','watch.html','announcement-admin.html','announcement-admin.js','announcement.html','announcement-viewer.js','style.css','library.js','videos.js','admin.js','watch.js','posthog.js','posthog-config.js','library-menu.js'];
 const missing = required.filter((file) => !existsSync(join(root, file)));
 if (missing.length) {
   const files = existsSync(root) ? readdirSync(root, { recursive: true }).map(String) : [];
@@ -24,14 +24,17 @@ const admin = read('admin.html');
 const watch = read('watch.html');
 const announcementAdmin = read('announcement-admin.html');
 const announcementViewer = read('announcement.html');
-const browserScripts = ['videos.js', 'library.js', 'admin.js', 'watch.js', 'announcement-admin.js', 'announcement-viewer.js', 'posthog.js'];
+const browserScripts = ['videos.js', 'library-menu.js', 'library.js', 'admin.js', 'watch.js', 'announcement-admin.js', 'announcement-viewer.js', 'posthog.js'];
 const checks = [
   ['Configuration : préfixe GitHub Pages conservé', astroConfig.includes("base: '/zeno-video'")],
   ['Accueil : contenu Zeno Video généré', home.includes('ZENO VIDEO') && home.includes('Bienvenue dans')],
   ['Accueil : zone de galerie générée', home.includes('video-grid') && home.includes('video-count')],
+  ['Menu public : bibliothèque dépliable avec recherche et liste dynamique des catégories', home.includes('library-menu-toggle') && home.includes('library-menu-search') && home.includes('library-menu-categories') && home.includes('library-menu.js?v=1')],
+  ['Menu public : les catégories ouvrent directement leur dossier par identifiant URL', read('library.js').includes('new URLSearchParams(location.search).get("category")') && read('library-menu.js').includes('searchParams.set("category", category.id)')],
   ['Pages publiques : index.html racine contient les conteneurs des dossiers et des vidéos', rootHome.includes('id="category-filters"') && rootHome.includes('id="video-grid"') && rootHome.includes('id="empty-message"')],
   ['Pages publiques : index.html racine charge la version actuelle du script de bibliothèque', rootHome.includes('library.js?v=29')],
   ['Contact : page publique générée et reliée depuis l’accueil', (existsSync(join(root, 'contact/index.html')) || existsSync(join(root, 'contact.html'))) && rootHome.includes('href="contact/"')],
+  ['Contact : menu des catégories et recherche chargés', readFileSync('src/pages/contact.astro', 'utf8').includes('library-menu-search') && readFileSync('src/pages/contact.astro', 'utf8').includes('library-menu.js?v=1')],
   ['Contact : les sept réseaux sociaux et WhatsApp utilisent les liens fournis', ['tiktok.com/@zeno.force87','x.com/ZenoForc7','instagram.com/zeno.force','facebook.com/profile.php?id=61596919143045','wa.me/22947835320','discord.gg/MRXcGsd4','reddit.com/u/AquilasUrbain'].every(link => readFileSync('src/pages/contact.astro', 'utf8').includes(link))],
   ['SEO vidéo : sitemap contient les pages vidéo de test et le contact', read('sitemap.xml').includes('contact/') && read('sitemap.xml').includes('watch.html?id=')],
   ['SEO vidéo : métadonnées sociales, URL canonique et VideoObject générés au chargement', read('watch.js').includes('application/ld+json') && read('watch.js').includes('rel = "canonical"') && read('watch.js').includes('og:description')],
@@ -153,7 +156,7 @@ for (const file of browserScripts) {
 }
 
 // Les fichiers racine et public sont des copies miroir maintenues ensemble.
-const mirroredFiles = ['admin.html', 'admin.js', 'watch.html', 'watch.js', 'library.js', 'style.css', 'videos.js', 'announcement-admin.html', 'announcement-admin.js', 'announcement.html', 'announcement-viewer.js'];
+const mirroredFiles = ['admin.html', 'admin.js', 'watch.html', 'watch.js', 'library.js', 'library-menu.js', 'style.css', 'videos.js', 'announcement-admin.html', 'announcement-admin.js', 'announcement.html', 'announcement-viewer.js'];
 const mirrorsMatch = mirroredFiles.every((file) =>
   readFileSync(file, 'utf8') === readFileSync(join('public', file), 'utf8')
 );
