@@ -2,7 +2,7 @@ const ALLOWED_ORIGIN = "https://zenof519-ops.github.io";
 const MAX_UPLOAD_BYTES = 95 * 1024 * 1024;
 const MAX_MULTIPART_UPLOAD_BYTES = 500 * 1024 * 1024;
 const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
-const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+const ALLOWED_VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm", "video/x-matroska"]);
 
 function corsHeaders() {
   return {
@@ -101,10 +101,13 @@ export default {
       try { body = await request.json(); }
       catch { return json({ error: "Informations de téléversement invalides.", code: "invalid_json" }, 400); }
       const filename = safeFilename(body?.filename);
-      const contentType = String(body?.contentType || "").split(";")[0].trim().toLowerCase();
+      const extension = filename.toLowerCase().slice(filename.lastIndexOf("."));
+      const contentType = extension === ".mkv"
+        ? "video/x-matroska"
+        : String(body?.contentType || "").split(";")[0].trim().toLowerCase();
       const size = Number(body?.size);
       if (!ALLOWED_VIDEO_TYPES.has(contentType)) {
-        return json({ error: "Format non accepté. Utilise MP4, MOV ou WebM.", code: "unsupported_media_type" }, 415);
+        return json({ error: "Format non accepté. Utilise MP4, MOV, WebM ou MKV.", code: "unsupported_media_type" }, 415);
       }
       if (!Number.isSafeInteger(size) || size <= 0) {
         return json({ error: "Taille du fichier absente ou invalide.", code: "invalid_content_length" }, 400);

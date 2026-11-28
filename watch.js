@@ -442,6 +442,12 @@ async function loadVideo() {
         console.error("Erreur de lecture Cloudflare R2 :", media.error);
       });
       wrap.replaceChildren(media);
+      if ((video.format || "").toLowerCase() === "mkv") {
+        const compatibilityNote = document.createElement("p");
+        compatibilityNote.className = "stats-note";
+        compatibilityNote.textContent = "La lecture directe du MKV dépend du navigateur et des codecs utilisés. Si la vidéo ne démarre pas, utilise le bouton Télécharger.";
+        wrap.appendChild(compatibilityNote);
+      }
       const downloadUrl = new URL(video.download_url || video.playback_url);
       downloadUrl.searchParams.set("download", "1");
       downloadButton.href = downloadUrl.toString();
