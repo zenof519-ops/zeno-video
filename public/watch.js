@@ -315,7 +315,7 @@ async function loadVideo() {
     if (!id) throw new Error("Vidéo introuvable");
 
     const response = await fetch(
-      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id,created_at&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
+      `${SUPABASE_URL}/rest/v1/videos?select=id,title,description,thumbnail_url,playback_url,download_url,cloudinary_public_id,format,provider,mux_playback_id,created_at,category_id&id=eq.${encodeURIComponent(id)}&is_published=eq.true`,
       {
         headers: {
           apikey: SUPABASE_KEY,
@@ -352,6 +352,7 @@ async function loadVideo() {
     const provider = video.provider || (video.cloudinary_public_id ? "cloudinary" : "vioo");
     activeProvider = provider;
 
+    if (video.category_id === "2ecab84a-fdf4-4122-93cb-299dd93f2921") {
     const canonicalUrl = new URL(location.href);
     canonicalUrl.searchParams.delete("v");
     let canonicalLink = document.head.querySelector('link[rel="canonical"]');
@@ -407,6 +408,7 @@ async function loadVideo() {
       structuredData.type = "application/ld+json";
       structuredData.textContent = JSON.stringify(videoData);
       document.head.append(structuredData);
+    }
     }
 
     activeProvider = provider;
