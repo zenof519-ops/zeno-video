@@ -2495,6 +2495,12 @@ function uploadToMux(file, uploadUrl) {
   });
 }
 
+function getR2ContentType(file) {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "mkv") return "video/x-matroska";
+  return file.type || "application/octet-stream";
+}
+
 async function uploadToR2(file) {
   const { data: sessionData, error: sessionError } = await db.auth.getSession();
   const session = sessionData?.session;
@@ -2565,7 +2571,7 @@ async function uploadToR2(file) {
 
   if (!isResuming) {
     const created = await requestJson("/multipart/create", "POST", {
-      filename: file.name, size: file.size, contentType: file.type || "application/octet-stream"
+      filename: file.name, size: file.size, contentType: getR2ContentType(file)
     });
     if (!created.key || !created.uploadId || !Number.isSafeInteger(created.partSize) || created.partSize < 5 * 1024 * 1024) {
       throw new Error("Cloudflare R2 n'a pas renvoyé les paramètres multipart attendus.");
@@ -2873,9 +2879,16 @@ videoForm.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (selectedFile && !["video/mp4", "video/quicktime", "video/webm"].includes(selectedFile.type)) {
-    showMessage(videoMessage, "Format non accepté. Choisis un fichier MP4, MOV ou WebM.");
-    return;
+  if (selectedFile) {
+    const selectedExtension = selectedFile.name.split(".").pop()?.toLowerCase();
+    const isR2Mkv = provider === "r2" && selectedExtension === "mkv";
+    const allowedVideoType = ["video/mp4", "video/quicktime", "video/webm"].includes(selectedFile.type);
+    if (!isR2Mkv && !allowedVideoType) {
+      showMessage(videoMessage, provider === "r2"
+        ? "Format non accepté. Choisis un fichier MP4, MOV, WebM ou MKV."
+        : "Format non accepté. Choisis un fichier MP4, MOV ou WebM.");
+      return;
+    }
   }
 
   if (selectedCover && !["image/jpeg", "image/png", "image/webp"].includes(selectedCover.type)) {
